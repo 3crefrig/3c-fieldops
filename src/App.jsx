@@ -15,8 +15,8 @@ import { useState, useEffect, useCallback } from "react";
 // CONFIG — Fill these in during setup
 // ═══════════════════════════════════════════
 const CONFIG = {
-  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbw2nEc-vo1BBdvil-x8Om4dKCM_ihBJXYuwiQfdoWXBEceVh39c6sF-i9FpYSBAKb28Zg/exec",
-  GOOGLE_CLIENT_ID: "953685953148-o6pgbedpsasqi2aqmoiglqu433h0coue.apps.googleusercontent.com",
+  SCRIPT_URL: "PASTE_YOUR_APPS_SCRIPT_URL_HERE",
+  GOOGLE_CLIENT_ID: "PASTE_YOUR_GOOGLE_CLIENT_ID_HERE",
 };
 
 // ═══════════════════════════════════════════
@@ -117,10 +117,19 @@ function LoginScreen({onLogin,users,onFirstAdmin}){
   const[googleUser,setGoogleUser]=useState(null);
   const[err,setErr]=useState("");
 
+  const btnRef=useCallback(node=>{
+    if(!node||!window.google?.accounts)return;
+    try{
+      window.google.accounts.id.renderButton(
+        node,
+        {theme:"filled_black",size:"large",width:320,text:"signin_with",shape:"pill"}
+      );
+    }catch(e){console.error("renderButton error",e);}
+  },[]);
+
   useEffect(()=>{
     loadGoogleScript().then(()=>{
       if(users.length===0){setStatus("first_setup");return;}
-      setStatus("ready");
       window.google.accounts.id.initialize({
         client_id:CONFIG.GOOGLE_CLIENT_ID,
         callback:(resp)=>{
@@ -137,10 +146,7 @@ function LoginScreen({onLogin,users,onFirstAdmin}){
           }
         },
       });
-      window.google.accounts.id.renderButton(
-        document.getElementById("g-signin-btn"),
-        {theme:"filled_black",size:"large",width:320,text:"signin_with",shape:"pill"}
-      );
+      setStatus("ready");
     });
   },[users]);
 
@@ -158,7 +164,7 @@ function LoginScreen({onLogin,users,onFirstAdmin}){
 
       {status==="ready"&&<Card>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:16}}>Sign in with your Google account</div>
-        <div id="g-signin-btn" style={{display:"flex",justifyContent:"center"}}/>
+        <div ref={btnRef} style={{display:"flex",justifyContent:"center",minHeight:44}}/>
         <div style={{fontSize:11,color:B.textDim,marginTop:14}}>Your admin must add your Gmail to the system first.</div>
       </Card>}
 
