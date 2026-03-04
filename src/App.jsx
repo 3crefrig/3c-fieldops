@@ -16,7 +16,8 @@ import { useState, useEffect, useCallback } from "react";
 // ═══════════════════════════════════════════
 const CONFIG = {
   SCRIPT_URL: "https://script.google.com/macros/s/AKfycbw2nEc-vo1BBdvil-x8Om4dKCM_ihBJXYuwiQfdoWXBEceVh39c6sF-i9FpYSBAKb28Zg/exec",
-  GOOGLE_CLIENT_ID: "953685953148-o6pgbedpsasqi2aqmoiglqu433h0coue.apps.googleusercontent.com",
+  GOOGLE_CLIENT_ID: "953685953148-o6pgbedpsasqi2aqmoiglqu433h0coue.apps.googleusercontent.com
+  ",
 };
 
 // ═══════════════════════════════════════════
@@ -281,10 +282,31 @@ function POMgmt({pos,onUpdatePO,wos}){
 // ═══════════════════════════════════════════
 // WORK ORDER DETAIL
 // ═══════════════════════════════════════════
+function SignaturePad({onSign}){
+  const canvasRef=useCallback(canvas=>{
+    if(!canvas)return;
+    const ctx=canvas.getContext("2d");
+    ctx.fillStyle=B.bg;ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle=B.cyan;ctx.lineWidth=2;ctx.lineCap="round";ctx.lineJoin="round";
+    let drawing=false,lastX=0,lastY=0;
+    const getPos=(e)=>{const r=canvas.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[t.clientX-r.left,t.clientY-r.top];};
+    const start=(e)=>{e.preventDefault();drawing=true;[lastX,lastY]=getPos(e);};
+    const move=(e)=>{if(!drawing)return;e.preventDefault();const[x,y]=getPos(e);ctx.beginPath();ctx.moveTo(lastX,lastY);ctx.lineTo(x,y);ctx.stroke();lastX=x;lastY=y;canvas._hasSig=true;};
+    const stop=()=>{drawing=false;};
+    canvas.addEventListener("mousedown",start);canvas.addEventListener("mousemove",move);canvas.addEventListener("mouseup",stop);canvas.addEventListener("mouseleave",stop);
+    canvas.addEventListener("touchstart",start,{passive:false});canvas.addEventListener("touchmove",move,{passive:false});canvas.addEventListener("touchend",stop);
+    canvas._clear=()=>{ctx.fillStyle=B.bg;ctx.fillRect(0,0,canvas.width,canvas.height);canvas._hasSig=false;};
+    canvas._getData=()=>canvas._hasSig?canvas.toDataURL("image/png"):null;
+    if(onSign)onSign(canvas);
+  },[]);
+  return <canvas ref={canvasRef} width={320} height={140} style={{border:"1px solid "+B.border,borderRadius:6,touchAction:"none",cursor:"crosshair",width:"100%",maxWidth:320,height:140}}/>;
+}
+
 function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,photos,onAddPhoto}){
-  const[showTime,setShowTime]=useState(false),[showPhoto,setShowPhoto]=useState(false),[showPO,setShowPO]=useState(false);
+  const[showTime,setShowTime]=useState(false),[showPhoto,setShowPhoto]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false);
   const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[pN,setPN]=useState(""),[note,setNote]=useState("");
   const[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
+  const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(new Date().toISOString().slice(0,10));
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.WO_ID===wo.WO_ID);
   const woTime=timeEntries.filter(t=>t.WO_ID===wo.WO_ID);
@@ -292,7 +314,7 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
   const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;setSaving(true);await onAddTime({WO_ID:wo.WO_ID,Hours:h,Description:tD.trim()});await onUpdateWO({...wo,Hours_Total:parseFloat(wo.Hours_Total||0)+h});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");};
   const addPhoto=async()=>{if(!pN.trim()||saving)return;setSaving(true);await onAddPhoto({WO_ID:wo.WO_ID,Filename:pN.trim()});setSaving(false);setPN("");setShowPhoto(false);msg("Photo added");};
   const addNote=async()=>{if(!note.trim()||saving)return;setSaving(true);const ts=new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});await onUpdateWO({...wo,Notes:(wo.Notes||"")+"\n["+ts+"] "+note.trim()});setSaving(false);setNote("");msg("Note added");};
-  const markComplete=async()=>{if(saving)return;setSaving(true);await onUpdateWO({...wo,Status:"completed",Date_Completed:new Date().toISOString().slice(0,10)});setSaving(false);msg("Completed");};
+  const markComplete=async()=>{if(saving)return;if(!compDate){setSigErr("Completion date is required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required to complete work order.");return;}setSigErr("");setSaving(true);const sig=sigCanvas._getData();await onUpdateWO({...wo,Status:"completed",Date_Completed:compDate,Signature:sig});setSaving(false);setShowComplete(false);msg("Completed & Signed");};
   return(<div><Toast msg={toast}/>
     <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:600}}>
@@ -306,15 +328,17 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
         <div><span style={LS}>Due</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Due_Date}</span></div>
         <div><span style={LS}>Assigned</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Assignee}</span></div>
         <div><span style={LS}>Location / Room</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Location||"—"}</span></div>
+        <div><span style={LS}>Building #</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Building||"—"}</span></div>
         <div><span style={LS}>Hours</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Hours_Total||0}h</span></div>
         {wo.Date_Completed&&<div><span style={LS}>Date Completed</span><br/><span style={{fontSize:13,fontWeight:600,color:B.green}}>{wo.Date_Completed}</span></div>}
       </div>
+      {wo.Signature&&<div style={{marginBottom:14}}><span style={LS}>Completion Signature</span><div style={{marginTop:4,background:B.bg,borderRadius:6,border:"1px solid "+B.border,padding:8,display:"inline-block"}}><img src={wo.Signature} alt="Signature" style={{maxWidth:280,height:"auto",display:"block"}}/></div></div>}
       {woPOs.length>0&&<div style={{marginBottom:14}}><span style={LS}>Purchase Orders</span><div style={{display:"flex",flexDirection:"column",gap:4,marginTop:4}}>{woPOs.map(po=><div key={po.PO_ID} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.bg,borderRadius:4,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:12}}>{po.PO_ID}</span><span style={{color:B.textDim,fontSize:11,marginLeft:6}}>{po.Description}</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.text}}>${parseFloat(po.Amount||0).toFixed(2)}</span><Badge color={PSC[po.Status]}>{po.Status}</Badge></div></div>)}</div></div>}
       <div style={{background:B.bg,borderRadius:6,padding:14,border:"1px solid "+B.border,marginBottom:14}}><span style={LS}>Job Details</span><p style={{margin:"4px 0 0",color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.Notes}</p></div>
       {woTime.length>0&&<div style={{marginBottom:14}}><span style={LS}>Time Entries</span>{woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}><span style={{fontFamily:M,color:B.textDim,minWidth:50}}>{te.Logged_Date}</span><span style={{fontFamily:M,color:B.cyan,minWidth:35}}>{te.Hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.Description}</span></div>)}</div>}
       {woPhotos.length>0&&<div style={{marginBottom:14}}><span style={LS}>Photos ({woPhotos.length})</span><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{woPhotos.map((p,i)=><div key={i} style={{padding:"5px 8px",borderRadius:4,background:B.bg,border:"1px solid "+B.border,fontSize:11,color:B.textMuted,display:"flex",alignItems:"center",gap:4}}>📷 {p.Filename} <DSBadge ok={true}/></div>)}</div></div>}
       {canEdit&&<div style={{display:"flex",gap:6,marginTop:16,flexWrap:"wrap"}}>
-        {wo.Status!=="completed"&&<button onClick={markComplete} disabled={saving} style={{...BP,flex:"1 1 auto",background:B.green,opacity:saving?.6:1}}>✓ Complete</button>}
+        {wo.Status!=="completed"&&<button onClick={()=>{setSigErr("");setShowComplete(true)}} disabled={saving} style={{...BP,flex:"1 1 auto",background:B.green,opacity:saving?.6:1}}>✓ Complete</button>}
         <button onClick={()=>setShowTime(true)} style={{...BS,flex:"1 1 auto"}}>⏱ Time</button>
         <button onClick={()=>setShowPhoto(true)} style={{...BS,flex:"1 1 auto"}}>📷 Photo</button>
         <button onClick={()=>setShowPO(true)} style={{...BS,flex:"1 1 auto"}}>📄 PO#</button>
@@ -324,17 +348,35 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
     {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:12}}><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={IS} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Log"}</button></div></div></Modal>}
     {showPhoto&&<Modal title="Upload Photo" onClose={()=>setShowPhoto(false)}><div style={{display:"flex",flexDirection:"column",gap:12}}><div style={{border:"2px dashed "+B.border,borderRadius:8,padding:30,textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>📷</div><div style={{fontSize:12,color:B.textMuted}}>Tap to capture or select</div></div><div><label style={LS}>Filename</label><input value={pN} onChange={e=>setPN(e.target.value)} placeholder="compressor.jpg" style={IS} onKeyDown={e=>e.key==="Enter"&&addPhoto()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowPhoto(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={addPhoto} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Upload"}</button></div></div></Modal>}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>setShowPO(false)}/>}
+    {showComplete&&<Modal title="Complete Work Order" onClose={()=>setShowComplete(false)} wide>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{background:B.bg,borderRadius:6,padding:12,border:"1px solid "+B.border}}>
+          <div style={{fontSize:13,fontWeight:700,color:B.text}}>{wo.WO_ID} — {wo.Title}</div>
+        </div>
+        <div><label style={LS}>Completion Date <span style={{color:B.red}}>*</span></label><input type="date" value={compDate} onChange={e=>setCompDate(e.target.value)} style={IS}/></div>
+        <div><span style={LS}>Technician Signature <span style={{color:B.red}}>*</span></span>
+          <div style={{marginTop:4}}><SignaturePad onSign={setSigCanvas}/></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
+            <div style={{fontSize:10,color:B.textDim}}>Draw your signature above</div>
+            <button onClick={()=>{if(sigCanvas&&sigCanvas._clear)sigCanvas._clear();setSigErr("");}} style={{background:"none",border:"none",color:B.orange,fontSize:11,cursor:"pointer",fontFamily:F}}>Clear</button>
+          </div>
+        </div>
+        {sigErr&&<div style={{color:B.red,fontSize:12,fontWeight:600}}>{sigErr}</div>}
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowComplete(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={markComplete} disabled={saving} style={{...BP,flex:1,background:B.green,opacity:saving?.6:1}}>{saving?"Saving...":"Sign & Complete"}</button></div>
+      </div>
+    </Modal>}
   </div>);
 }
 
 function CreateWO({onSave,onCancel,users}){
-  const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false),[loc,setLoc]=useState(""),[woType,setWoType]=useState("CM");
+  const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false),[loc,setLoc]=useState(""),[woType,setWoType]=useState("CM"),[bldg,setBldg]=useState("");
   const techs=users.filter(u=>u.Role==="technician"&&u.Active!=="FALSE");
-  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onSave({Title:title.trim(),Priority:pri,Assignee:assign,Due_Date:due||"TBD",Notes:notes.trim()||"No details.",Location:loc.trim(),WO_Type:woType});setSaving(false);};
+  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onSave({Title:title.trim(),Priority:pri,Assignee:assign,Due_Date:due||"TBD",Notes:notes.trim()||"No details.",Location:loc.trim(),WO_Type:woType,Building:bldg.trim()});setSaving(false);};
   return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:800,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Walk-in Cooler Repair — Store #14" style={IS}/></div>
       <div><label style={LS}>Location / Room #</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Store #14, Room 3B" style={IS}/></div>
+      <div><label style={LS}>Building # <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={bldg} onChange={e=>setBldg(e.target.value)} placeholder="Building A" style={IS}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Type</label><select value={woType} onChange={e=>setWoType(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="PM">PM (Preventive)</option><option value="CM">CM (Corrective)</option></select></div></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/></div><div><label style={LS}>Assignee</label><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{techs.map(t=><option key={t.User_ID} value={t.Name}>{t.Name}</option>)}</select></div></div>
       <div><label style={LS}>Details</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} placeholder="Describe the work..." style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
