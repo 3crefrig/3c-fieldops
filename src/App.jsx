@@ -292,7 +292,7 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
   const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;setSaving(true);await onAddTime({WO_ID:wo.WO_ID,Hours:h,Description:tD.trim()});await onUpdateWO({...wo,Hours_Total:parseFloat(wo.Hours_Total||0)+h});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");};
   const addPhoto=async()=>{if(!pN.trim()||saving)return;setSaving(true);await onAddPhoto({WO_ID:wo.WO_ID,Filename:pN.trim()});setSaving(false);setPN("");setShowPhoto(false);msg("Photo added");};
   const addNote=async()=>{if(!note.trim()||saving)return;setSaving(true);const ts=new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});await onUpdateWO({...wo,Notes:(wo.Notes||"")+"\n["+ts+"] "+note.trim()});setSaving(false);setNote("");msg("Note added");};
-  const markComplete=async()=>{if(saving)return;setSaving(true);await onUpdateWO({...wo,Status:"completed"});setSaving(false);msg("Completed");};
+  const markComplete=async()=>{if(saving)return;setSaving(true);await onUpdateWO({...wo,Status:"completed",Date_Completed:new Date().toISOString().slice(0,10)});setSaving(false);msg("Completed");};
   return(<div><Toast msg={toast}/>
     <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:600}}>
@@ -302,9 +302,12 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         <div><span style={LS}>Status</span><br/><Badge color={SC[wo.Status]}>{SL[wo.Status]}</Badge></div>
+        <div><span style={LS}>Type</span><br/><Badge color={wo.WO_Type==="PM"?B.cyan:B.orange}>{wo.WO_Type||"—"}</Badge></div>
         <div><span style={LS}>Due</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Due_Date}</span></div>
         <div><span style={LS}>Assigned</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Assignee}</span></div>
+        <div><span style={LS}>Location / Room</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Location||"—"}</span></div>
         <div><span style={LS}>Hours</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.Hours_Total||0}h</span></div>
+        {wo.Date_Completed&&<div><span style={LS}>Date Completed</span><br/><span style={{fontSize:13,fontWeight:600,color:B.green}}>{wo.Date_Completed}</span></div>}
       </div>
       {woPOs.length>0&&<div style={{marginBottom:14}}><span style={LS}>Purchase Orders</span><div style={{display:"flex",flexDirection:"column",gap:4,marginTop:4}}>{woPOs.map(po=><div key={po.PO_ID} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.bg,borderRadius:4,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:12}}>{po.PO_ID}</span><span style={{color:B.textDim,fontSize:11,marginLeft:6}}>{po.Description}</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.text}}>${parseFloat(po.Amount||0).toFixed(2)}</span><Badge color={PSC[po.Status]}>{po.Status}</Badge></div></div>)}</div></div>}
       <div style={{background:B.bg,borderRadius:6,padding:14,border:"1px solid "+B.border,marginBottom:14}}><span style={LS}>Job Details</span><p style={{margin:"4px 0 0",color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.Notes}</p></div>
@@ -325,14 +328,15 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
 }
 
 function CreateWO({onSave,onCancel,users}){
-  const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false);
+  const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false),[loc,setLoc]=useState(""),[woType,setWoType]=useState("CM");
   const techs=users.filter(u=>u.Role==="technician"&&u.Active!=="FALSE");
-  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onSave({Title:title.trim(),Priority:pri,Assignee:assign,Due_Date:due||"TBD",Notes:notes.trim()||"No details."});setSaving(false);};
+  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onSave({Title:title.trim(),Priority:pri,Assignee:assign,Due_Date:due||"TBD",Notes:notes.trim()||"No details.",Location:loc.trim(),WO_Type:woType});setSaving(false);};
   return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:800,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Walk-in Cooler Repair — Store #14" style={IS}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/></div></div>
-      <div><label style={LS}>Assignee</label><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{techs.map(t=><option key={t.User_ID} value={t.Name}>{t.Name}</option>)}</select></div>
+      <div><label style={LS}>Location / Room #</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Store #14, Room 3B" style={IS}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Type</label><select value={woType} onChange={e=>setWoType(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="PM">PM (Preventive)</option><option value="CM">CM (Corrective)</option></select></div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/></div><div><label style={LS}>Assignee</label><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{techs.map(t=><option key={t.User_ID} value={t.Name}>{t.Name}</option>)}</select></div></div>
       <div><label style={LS}>Details</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} placeholder="Describe the work..." style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
       <div style={{display:"flex",gap:8}}><button onClick={onCancel} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Creating...":"Create"}</button></div>
     </div></Card></div>);
@@ -354,8 +358,9 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onCreateWO,timeEntries
         <Card key={wo.WO_ID} onClick={()=>setSel(wo)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px"}}>
           <div style={{width:3,height:36,borderRadius:2,background:PC[wo.Priority]||B.textDim,flexShrink:0}}/>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.WO_ID}</span><Badge color={SC[wo.Status]||B.textDim}>{SL[wo.Status]||wo.Status}</Badge>{wph.length>0&&<span style={{fontSize:10,color:B.textDim}}>📷{wph.length}</span>}{wp.length>0&&<span style={{fontSize:10,color:B.purple}}>📄{wp.length} PO</span>}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.WO_ID}</span><Badge color={SC[wo.Status]||B.textDim}>{SL[wo.Status]||wo.Status}</Badge><Badge color={wo.WO_Type==="PM"?B.cyan:B.orange}>{wo.WO_Type||"CM"}</Badge>{wph.length>0&&<span style={{fontSize:10,color:B.textDim}}>📷{wph.length}</span>}{wp.length>0&&<span style={{fontSize:10,color:B.purple}}>📄{wp.length} PO</span>}</div>
             <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.Title}</div>
+            {wo.Location&&<div style={{fontSize:11,color:B.textDim,marginTop:1}}>📍 {wo.Location}</div>}
           </div>
           <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:11,color:B.textDim}}>{wo.Assignee}</div><div style={{fontSize:11,fontWeight:600,color:B.textMuted}}>Due {wo.Due_Date}</div></div>
         </Card>);})}
@@ -473,7 +478,7 @@ export default function App(){
   const actions={
     createWO:withSync(async(wo)=>{
       const nid=data.wos.length>0?Math.max(...data.wos.map(o=>parseInt(o.WO_ID.replace("WO-",""))||0))+1:1001;
-      await api.addWorkOrder({...wo,WO_ID:"WO-"+nid,Status:"pending",Hours_Total:0,Created_Date:new Date().toISOString().slice(0,10)});
+      await api.addWorkOrder({...wo,WO_ID:"WO-"+nid,Status:"pending",Hours_Total:0,Date_Completed:"",Created_Date:new Date().toISOString().slice(0,10)});
     }),
     updateWO:withSync(async(wo)=>{await api.updateWorkOrder(wo);}),
     createPO:withSync(async(po)=>{
