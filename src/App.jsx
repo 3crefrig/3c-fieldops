@@ -16,8 +16,7 @@ import { useState, useEffect, useCallback } from "react";
 // ═══════════════════════════════════════════
 const CONFIG = {
   SCRIPT_URL: "https://script.google.com/macros/s/AKfycbw2nEc-vo1BBdvil-x8Om4dKCM_ihBJXYuwiQfdoWXBEceVh39c6sF-i9FpYSBAKb28Zg/exec",
-  GOOGLE_CLIENT_ID: "953685953148-o6pgbedpsasqi2aqmoiglqu433h0coue.apps.googleusercontent.com
-  ",
+  GOOGLE_CLIENT_ID: "953685953148-o6pgbedpsasqi2aqmoiglqu433h0coue.apps.googleusercontent.com",
 };
 
 // ═══════════════════════════════════════════
