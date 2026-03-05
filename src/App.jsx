@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 /*
  * 3C Refrigeration FieldOps Pro — Full Feature Edition
@@ -7,10 +8,10 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
  */
 
 const SUPABASE_URL = "https://gwwijjkahwieschfdfbq.supabase.co";
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3d2lqamthaHdpZXNjaGZkZmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NjI1NzYsImV4cCI6MjA4ODIzODU3Nn0.c79jtEZv9CQ8P2CC6NXyrKqax510530tAMhLnNt75TI";
 
-let _sb=null;
-function sb(){if(_sb)return _sb;if(window.supabase){_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return _sb;}return null;}
+const _sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function sb(){ return _sb; }
 
 const B={bg:"#101214",surface:"#1A1D21",surfaceActive:"#2A2F35",border:"#2E3338",text:"#E8EAED",textMuted:"#8B929A",textDim:"#5E656E",cyan:"#00D4F5",cyanDark:"#00A5C0",cyanGlow:"rgba(0,212,245,0.12)",red:"#FF4757",orange:"#FFA040",green:"#26D9A2",purple:"#A78BFA",greenGlow:"rgba(38,217,162,0.15)",orangeGlow:"rgba(255,160,64,0.15)"};
 const F="'Barlow',sans-serif",M="'JetBrains Mono',monospace";
@@ -441,15 +442,13 @@ function AdminDash({user,onLogout,D,A,syncing}){
 // ═══════════════════════════════════════════
 export default function App(){
   const[authUser,setAuthUser]=useState(null);const[appUser,setAppUser]=useState(null);
-  const[data,setData]=useState(null);const[loading,setLoading]=useState(true);const[syncing,setSyncing]=useState(false);const[sbReady,setSbReady]=useState(false);
+  const[data,setData]=useState(null);const[loading,setLoading]=useState(true);const[syncing,setSyncing]=useState(false);
 
-  useEffect(()=>{if(window.supabase){setSbReady(true);return;}const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.onload=()=>setSbReady(true);document.head.appendChild(s);},[]);
-
-  useEffect(()=>{if(!sbReady)return;const client=sb();if(!client)return;
+  useEffect(()=>{const client=sb();if(!client)return;
     client.auth.getSession().then(({data:{session}})=>{setAuthUser(session?.user||null);});
     const{data:{subscription}}=client.auth.onAuthStateChange((_,session)=>{setAuthUser(session?.user||null);});
     return()=>subscription.unsubscribe();
-  },[sbReady]);
+  },[]);
 
   const loadData=useCallback(async()=>{const client=sb();if(!client)return;
     const[wos,pos,time,photos,users,schedule,templates,notifs]=await Promise.all([
@@ -466,15 +465,15 @@ export default function App(){
     setLoading(false);
   },[]);
 
-  useEffect(()=>{if(sbReady&&authUser)loadData();},[sbReady,authUser,loadData]);
-  useEffect(()=>{if(sbReady&&!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[]}),users:u||[]}));setLoading(false);});}},[sbReady,authUser]);
+  useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
+  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
 
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
-  useEffect(()=>{if(!sbReady||!authUser)return;const client=sb();
+  useEffect(()=>{if(!authUser)return;const client=sb();
     const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>loadData()).subscribe();
     return()=>{client.removeChannel(chan);};
-  },[sbReady,authUser,loadData]);
+  },[authUser,loadData]);
 
   const withSync=fn=>async(...args)=>{setSyncing(true);try{await fn(...args);await loadData();}finally{setSyncing(false);}};
   const notify=async(type,title,message,forRole)=>{await sb().from("notifications").insert({type,title,message,for_role:forRole||null});};
@@ -496,7 +495,7 @@ export default function App(){
     markRead:withSync(async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
   };
 
-  if(loading||!sbReady)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F}}><Logo size="large"/><div style={{marginTop:20}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:10}}>Connecting...</div></div>);
+  if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F}}><Logo size="large"/><div style={{marginTop:20}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:10}}>Connecting...</div></div>);
   if(authUser&&data?.users?.length===0)return <FirstSetup authUser={authUser} onDone={loadData}/>;
   if(!appUser)return <LoginScreen authUser={authUser} loading={false}/>;
   const p={user:appUser,onLogout:async()=>{await sb().auth.signOut();setAppUser(null);setAuthUser(null);},D:data,A:actions,syncing};
