@@ -275,14 +275,14 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,canEdit,pos,onCreatePO,timeEn
 // ═══════════════════════════════════════════
 // CREATE WO (with customer) + WO LIST
 // ═══════════════════════════════════════════
-function CreateWO({onSave,onCancel,users}){
+function CreateWO({onSave,onCancel,users,customers}){
   const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false),[loc,setLoc]=useState(""),[woType,setWoType]=useState("CM"),[bldg,setBldg]=useState(""),[cust,setCust]=useState("");
   const techs=users.filter(u=>u.role==="technician"&&u.active!==false);
-  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onSave({title:title.trim(),priority:pri,assignee:assign,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust.trim()});setSaving(false);};
+  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onSave({title:title.trim(),priority:pri,assignee:assign,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust});setSaving(false);};
   return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:800,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Walk-in Cooler Repair — Store #14" style={IS}/></div>
-      <div><label style={LS}>Customer</label><input value={cust} onChange={e=>setCust(e.target.value)} placeholder="ABC Grocery, City Market, etc." style={IS}/></div>
+      <div><label style={LS}>Customer</label><select value={cust} onChange={e=>setCust(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">— Select Customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Location / Room</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Store #14, Room 3B" style={IS}/></div><div><label style={LS}>Building # <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={bldg} onChange={e=>setBldg(e.target.value)} placeholder="Building A" style={IS}/></div></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Type</label><select value={woType} onChange={e=>setWoType(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="PM">PM (Preventive)</option><option value="CM">CM (Corrective)</option></select></div></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/></div><div><label style={LS}>Assignee</label><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{techs.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div></div>
@@ -291,10 +291,10 @@ function CreateWO({onSave,onCancel,users}){
     </div></Card></div>);
 }
 
-function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,userName,userRole,loadData}){
+function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,userName,userRole,loadData}){
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false);
   const flt=orders.filter(o=>filter==="all"||o.status===filter);
-  if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users}/>;
+  if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers}/>;
   if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} userName={userName} userRole={userRole} loadData={loadData}/>;}
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
@@ -364,22 +364,61 @@ function Reports({wos,pos,timeEntries,users}){
 }
 
 // ═══════════════════════════════════════════
-// BILLING EXPORT
+// BILLING EXPORT — with customer filter + column toggles
 // ═══════════════════════════════════════════
-function BillingExport({wos,pos,timeEntries}){
-  const[toast,setToast]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
-  const completed=wos.filter(o=>o.status==="completed"&&(!dateFrom||o.date_completed>=dateFrom)&&(!dateTo||o.date_completed<=dateTo));
-  const copyToClip=()=>{
-    const header="WO#\tDate\tCustomer\tTitle\tLocation\tType\tHours\tPO Total\n";
-    const rows=completed.map(wo=>{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);return`${wo.wo_id}\t${wo.date_completed||""}\t${wo.customer||""}\t${wo.title}\t${wo.location||""}\t${wo.wo_type||"CM"}\t${h}\t$${p.toFixed(2)}`;}).join("\n");
-    navigator.clipboard.writeText(header+rows).then(()=>{setToast("Copied! Paste into your spreadsheet.");setTimeout(()=>setToast(""),3000);});
-  };
+function BillingExport({wos,pos,timeEntries,customers}){
+  const[toast,setToast]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[custFilter,setCustFilter]=useState("");
+  const allCols={wo_id:"WO#",date_completed:"Date",customer:"Customer",title:"Title",location:"Location",building:"Building",wo_type:"Type",hours:"Hours",po_total:"PO $"};
+  const[cols,setCols]=useState(Object.keys(allCols));
+  const toggleCol=k=>setCols(prev=>prev.includes(k)?prev.filter(c=>c!==k):[...prev,k]);
+  const completed=wos.filter(o=>o.status==="completed"&&(!dateFrom||o.date_completed>=dateFrom)&&(!dateTo||o.date_completed<=dateTo)&&(!custFilter||o.customer===custFilter));
+  const getData=wo=>{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);return{wo_id:wo.wo_id,date_completed:wo.date_completed||"",customer:wo.customer||"",title:wo.title,location:wo.location||"",building:wo.building||"",wo_type:wo.wo_type||"CM",hours:h+"h",po_total:"$"+p.toFixed(2)};};
+  const copyToClip=()=>{const header=cols.map(c=>allCols[c]).join("\t")+"\n";const rows=completed.map(wo=>{const d=getData(wo);return cols.map(c=>d[c]).join("\t");}).join("\n");navigator.clipboard.writeText(header+rows).then(()=>{setToast("Copied! Paste into your spreadsheet.");setTimeout(()=>setToast(""),3000);});};
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Customer Billing Export</h3>
-    <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}><div><label style={LS}>From</label><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={IS}/></div><div><label style={LS}>To</label><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={IS}/></div></div>
-    <div style={{marginBottom:14,fontSize:12,color:B.textMuted}}>{completed.length} completed orders{dateFrom||dateTo?" in range":""}</div>
-    <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{["WO#","Date","Customer","Title","Location","Type","Hours","PO $"].map(h=><th key={h} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{completed.map(wo=>{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}><td style={{padding:"6px 8px",fontFamily:M,color:B.cyan}}>{wo.wo_id}</td><td style={{padding:"6px 8px",color:B.text}}>{wo.date_completed}</td><td style={{padding:"6px 8px",color:B.text}}>{wo.customer||"—"}</td><td style={{padding:"6px 8px",color:B.text}}>{wo.title}</td><td style={{padding:"6px 8px",color:B.textDim}}>{wo.location||"—"}</td><td style={{padding:"6px 8px"}}><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge></td><td style={{padding:"6px 8px",fontFamily:M,color:B.cyan}}>{h}h</td><td style={{padding:"6px 8px",fontFamily:M,color:B.text}}>${p.toFixed(2)}</td></tr>);})}</tbody></table></Card>
-    <button onClick={copyToClip} style={{...BP,width:"100%"}}>📋 Copy to Clipboard (paste into spreadsheet)</button>
+    <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+      <div><label style={LS}>From</label><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={IS}/></div>
+      <div><label style={LS}>To</label><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={IS}/></div>
+      <div><label style={LS}>Customer</label><select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">All Customers</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+    </div>
+    <div style={{marginBottom:10}}><span style={LS}>Columns to export</span><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{Object.entries(allCols).map(([k,v])=><button key={k} onClick={()=>toggleCol(k)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(cols.includes(k)?B.cyan:B.border),background:cols.includes(k)?B.cyanGlow:"transparent",color:cols.includes(k)?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{v}</button>)}</div></div>
+    <div style={{marginBottom:14,fontSize:12,color:B.textMuted}}>{completed.length} completed orders{custFilter?" for "+custFilter:""}</div>
+    <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{cols.map(c=><th key={c} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{allCols[c]}</th>)}</tr></thead><tbody>{completed.map(wo=>{const d=getData(wo);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}>{cols.map(c=><td key={c} style={{padding:"6px 8px",fontFamily:c==="wo_id"||c==="hours"||c==="po_total"?M:F,color:c==="wo_id"?B.cyan:c==="hours"?B.cyan:B.text}}>{d[c]}</td>)}</tr>);})}</tbody></table></Card>
+    <button onClick={copyToClip} style={{...BP,width:"100%"}}>📋 Copy {cols.length} Columns to Clipboard</button>
+  </div>);
+}
+
+// ═══════════════════════════════════════════
+// CUSTOMER MANAGEMENT (admin/manager only)
+// ═══════════════════════════════════════════
+function CustomerMgmt({customers,onAdd,onUpdate,onDelete}){
+  const[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
+  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[saving,setSaving]=useState(false);
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setShowForm(true);};
+  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setShowForm(true);};
+  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim()};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
+  const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
+  return(<div><Toast msg={toast}/>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Customers</h3>
+    <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ Add Customer</button>
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      {(customers||[]).length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No customers yet</div>}
+      {(customers||[]).map(c=><Card key={c.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.purple}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div><div style={{fontSize:14,fontWeight:700,color:B.text}}>{c.name}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>{[c.contact_name,c.phone,c.email,c.address].filter(Boolean).join(" · ")||"No details"}</div></div>
+          <div style={{display:"flex",gap:6}}><button onClick={()=>openEdit(c)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button><button onClick={()=>del(c)} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button></div>
+        </div></Card>)}
+    </div>
+    {showForm&&<Modal title={editing?"Edit Customer":"Add Customer"} onClose={()=>setShowForm(false)}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={LS}>Company Name</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="ABC Grocery" style={IS}/></div>
+        <div><label style={LS}>Contact Name</label><input value={contact} onChange={e=>setContact(e.target.value)} placeholder="John Smith" style={IS}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Phone</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="555-123-4567" style={IS}/></div><div><label style={LS}>Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="john@abc.com" style={IS}/></div></div>
+        <div><label style={LS}>Address</label><input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="123 Main St, City, NC" style={IS}/></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Add Customer")}</button></div>
+      </div>
+    </Modal>}
   </div>);
 }
 
@@ -422,7 +461,7 @@ function Settings(){return(<div><h3 style={{margin:"0 0 14px",fontSize:15,fontWe
 // ═══════════════════════════════════════════
 function TechDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("orders");const my=D.wos.filter(o=>o.assignee===user.name);const myTime=D.time.filter(t=>t.technician===user.name);
-  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,userRole:user.role,loadData:A.loadData};
+  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"orders",label:"Work Orders",icon:"📋"},{key:"schedule",label:"Schedule",icon:"📅"},{key:"time",label:"Time Log",icon:"⏱"}]}>
     {tab==="orders"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Active" value={my.filter(o=>o.status!=="completed").length} icon="📋" color={B.cyan}/><StatCard label="Hours" value={my.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.green}/><StatCard label="Done" value={my.filter(o=>o.status==="completed").length} icon="✓" color={B.green}/></div><WOList orders={my} {...wlp}/></>}
     {tab==="schedule"&&<SchedView schedule={D.schedule} userName={user.name}/>}
@@ -432,28 +471,30 @@ function TechDash({user,onLogout,D,A,syncing}){
 
 function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
-  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"users",label:"Users",icon:"👤"}]}>
+  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"}]}>
     {tab==="overview"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Open" value={D.wos.filter(o=>o.status!=="completed").length} icon="📋" color={B.red}/><StatCard label="Active" value={D.wos.filter(o=>o.status==="in_progress").length} icon="🔄" color={B.orange}/><StatCard label="Pending POs" value={D.pos.filter(p=>p.status==="pending").length} icon="📄" color={B.purple}/><StatCard label="Hours" value={D.wos.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.cyan}/></div><h3 style={{margin:"0 0 10px",fontSize:14,fontWeight:800,color:B.text}}>High Priority</h3><WOList orders={D.wos.filter(o=>o.priority==="high")} {...wlp}/></>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
-    {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time}/>}
+    {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
+    {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
   </Shell>);
 }
 
 function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
-  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"}]}>
+  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"}]}>
     {tab==="overview"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total" value={D.wos.length} icon="📋" color={B.cyan}/><StatCard label="Pending POs" value={D.pos.filter(p=>p.status==="pending").length} icon="📄" color={B.purple}/><StatCard label="Urgent" value={D.wos.filter(o=>o.priority==="high").length} icon="🔴" color={B.red}/><StatCard label="Done" value={D.wos.length>0?Math.round(D.wos.filter(o=>o.status==="completed").length/D.wos.length*100)+"%":"0%"} icon="📈" color={B.green}/></div><WOList orders={D.wos} {...wlp}/></>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
-    {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time}/>}
+    {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
+    {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="settings"&&<Settings/>}
   </Shell>);
@@ -473,7 +514,7 @@ export default function App(){
   },[]);
 
   const loadData=useCallback(async()=>{const client=sb();if(!client)return;
-    const[wos,pos,time,photos,users,schedule,templates,notifs]=await Promise.all([
+    const[wos,pos,time,photos,users,schedule,templates,notifs,customers]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
@@ -482,13 +523,14 @@ export default function App(){
       client.from("schedule").select("*").order("time"),
       client.from("recurring_templates").select("*").order("title"),
       client.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
+      client.from("customers").select("*").order("name"),
     ]);
-    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[]});
+    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[]});
     setLoading(false);
   },[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
-  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
+  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
 
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
@@ -516,6 +558,9 @@ export default function App(){
     deleteUser:withSync(async(id)=>{await sb().from("users").delete().eq("id",id);}),
     addTemplate:withSync(async(t)=>{await sb().from("recurring_templates").insert(t);}),
     deleteTemplate:withSync(async(id)=>{await sb().from("recurring_templates").delete().eq("id",id);}),
+    addCustomer:withSync(async(c)=>{await sb().from("customers").insert(c);}),
+    updateCustomer:withSync(async(c)=>{const{id,...rest}=c;await sb().from("customers").update(rest).eq("id",id);}),
+    deleteCustomer:withSync(async(id)=>{await sb().from("customers").delete().eq("id",id);}),
     markRead:withSync(async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
   };
 
