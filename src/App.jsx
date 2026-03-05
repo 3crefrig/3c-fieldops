@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
  */
 
 const SUPABASE_URL = "https://gwwijjkahwieschfdfbq.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3d2lqamthaHdpZXNjaGZkZmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NjI1NzYsImV4cCI6MjA4ODIzODU3Nn0.c79jtEZv9CQ8P2CC6NXyrKqax510530tAMhLnNt75TI";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
 
 let _sb=null;
 function sb(){if(_sb)return _sb;if(window.supabase){_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return _sb;}return null;}
@@ -192,16 +192,18 @@ function POMgmt({pos,onUpdatePO,wos}){
 // ═══════════════════════════════════════════
 // WORK ORDER DETAIL — with real camera + customer field
 // ═══════════════════════════════════════════
-function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,photos,onAddPhoto,userName,loadData}){
+function WODetail({wo,onBack,onUpdateWO,onDeleteWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,photos,onAddPhoto,userName,loadData}){
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false);
-  const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[note,setNote]=useState("");
+  const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[tDate,setTDate]=useState(new Date().toISOString().slice(0,10)),[note,setNote]=useState("");
   const[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
   const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(new Date().toISOString().slice(0,10));
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.wo_id===wo.id);const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const woPhotos=photos.filter(p=>p.wo_id===wo.id);
-  const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;setSaving(true);await onAddTime({wo_id:wo.id,hours:h,description:tD.trim()});await onUpdateWO({...wo,hours_total:parseFloat(wo.hours_total||0)+h});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");};
+  const hasData=woTime.length>0||woPOs.length>0||woPhotos.length>0||(wo.notes&&wo.notes.trim()&&wo.notes!=="No details.")||parseFloat(wo.hours_total||0)>0;
+  const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;setSaving(true);await onAddTime({wo_id:wo.id,hours:h,description:tD.trim(),logged_date:tDate});await onUpdateWO({...wo,hours_total:parseFloat(wo.hours_total||0)+h});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");};
   const addNote=async()=>{if(!note.trim()||saving)return;setSaving(true);const ts=new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});await onUpdateWO({...wo,notes:(wo.notes||"")+"\n["+ts+"] "+note.trim()});setSaving(false);setNote("");msg("Note added");};
-  const markComplete=async()=>{if(saving)return;if(!compDate){setSigErr("Completion date required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required.");return;}setSigErr("");setSaving(true);await onUpdateWO({...wo,status:"completed",date_completed:compDate,signature:sigCanvas._getData()});setSaving(false);setShowComplete(false);msg("Completed & Signed");};
+  const markComplete=async()=>{if(saving)return;if(woTime.length===0){setSigErr("You must log at least one time entry before completing.");return;}if(!compDate){setSigErr("Completion date required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required.");return;}setSigErr("");setSaving(true);await onUpdateWO({...wo,status:"completed",date_completed:compDate,signature:sigCanvas._getData()});setSaving(false);setShowComplete(false);msg("Completed & Signed");};
+  const tryDelete=async()=>{if(hasData){msg("Cannot delete — WO has data");return;}if(!window.confirm("Delete "+wo.wo_id+"? This cannot be undone."))return;setSaving(true);await onDeleteWO(wo.id);setSaving(false);onBack();};
   return(<div><Toast msg={toast}/>
     <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:600}}>
@@ -230,11 +232,12 @@ function WODetail({wo,onBack,onUpdateWO,canEdit,pos,onCreatePO,timeEntries,onAdd
           {wo.status!=="completed"&&<button onClick={()=>{setSigErr("");setShowComplete(true)}} style={{...BP,flex:"1 1 auto",background:B.green}}>✓ Complete</button>}
           <button onClick={()=>setShowTime(true)} style={{...BS,flex:"1 1 auto"}}>⏱ Time</button>
           <button onClick={()=>setShowPO(true)} style={{...BS,flex:"1 1 auto"}}>📄 PO#</button>
+          {!hasData&&<button onClick={tryDelete} disabled={saving} style={{...BS,flex:"1 1 auto",color:B.red,borderColor:B.red+"44"}}>🗑 Delete</button>}
         </div>
         <div style={{display:"flex",gap:6}}><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Add job note..." style={{...IS,flex:1}} onKeyDown={e=>e.key==="Enter"&&addNote()}/><button onClick={addNote} disabled={saving} style={BP}>Add</button></div>
       </div>}
     </Card>
-    {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:12}}><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={IS} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Log"}</button></div></div></Modal>}
+    {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:12}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={IS}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={IS} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Log"}</button></div></div></Modal>}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>setShowPO(false)}/>}
     {showComplete&&<Modal title="Complete Work Order" onClose={()=>setShowComplete(false)} wide><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{background:B.bg,borderRadius:6,padding:12,border:"1px solid "+B.border}}><div style={{fontSize:13,fontWeight:700,color:B.text}}>{wo.wo_id} — {wo.title}</div></div>
@@ -265,11 +268,11 @@ function CreateWO({onSave,onCancel,users}){
     </div></Card></div>);
 }
 
-function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onCreateWO,timeEntries,photos,onAddTime,onAddPhoto,users,userName,loadData}){
+function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onAddPhoto,users,userName,loadData}){
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false);
   const flt=orders.filter(o=>filter==="all"||o.status===filter);
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users}/>;
-  if(sel){const fresh=orders.find(o=>o.id===sel.id)||sel;return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);setSel(u);}} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} photos={photos} onAddPhoto={onAddPhoto} userName={userName} loadData={loadData}/>;}
+  if(sel){const fresh=orders.find(o=>o.id===sel.id)||sel;return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);setSel(u);}} onDeleteWO={onDeleteWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} photos={photos} onAddPhoto={onAddPhoto} userName={userName} loadData={loadData}/>;}
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
@@ -396,7 +399,7 @@ function Settings(){return(<div><h3 style={{margin:"0 0 14px",fontSize:15,fontWe
 // ═══════════════════════════════════════════
 function TechDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("orders");const my=D.wos.filter(o=>o.assignee===user.name);const myTime=D.time.filter(t=>t.technician===user.name);
-  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,loadData:A.loadData};
+  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"orders",label:"Work Orders",icon:"📋"},{key:"schedule",label:"Schedule",icon:"📅"},{key:"time",label:"Time Log",icon:"⏱"}]}>
     {tab==="orders"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Active" value={my.filter(o=>o.status!=="completed").length} icon="📋" color={B.cyan}/><StatCard label="Hours" value={my.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.green}/><StatCard label="Done" value={my.filter(o=>o.status==="completed").length} icon="✓" color={B.green}/></div><WOList orders={my} {...wlp}/></>}
     {tab==="schedule"&&<SchedView schedule={D.schedule} userName={user.name}/>}
@@ -406,7 +409,7 @@ function TechDash({user,onLogout,D,A,syncing}){
 
 function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
-  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,loadData:A.loadData};
+  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"users",label:"Users",icon:"👤"}]}>
     {tab==="overview"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Open" value={D.wos.filter(o=>o.status!=="completed").length} icon="📋" color={B.red}/><StatCard label="Active" value={D.wos.filter(o=>o.status==="in_progress").length} icon="🔄" color={B.orange}/><StatCard label="Pending POs" value={D.pos.filter(p=>p.status==="pending").length} icon="📄" color={B.purple}/><StatCard label="Hours" value={D.wos.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.cyan}/></div><h3 style={{margin:"0 0 10px",fontSize:14,fontWeight:800,color:B.text}}>High Priority</h3><WOList orders={D.wos.filter(o=>o.priority==="high")} {...wlp}/></>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
@@ -420,7 +423,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
 
 function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
-  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,loadData:A.loadData};
+  const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onAddPhoto:A.addPhoto,users:D.users,userName:user.name,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"}]}>
     {tab==="overview"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total" value={D.wos.length} icon="📋" color={B.cyan}/><StatCard label="Pending POs" value={D.pos.filter(p=>p.status==="pending").length} icon="📄" color={B.purple}/><StatCard label="Urgent" value={D.wos.filter(o=>o.priority==="high").length} icon="🔴" color={B.red}/><StatCard label="Done" value={D.wos.length>0?Math.round(D.wos.filter(o=>o.status==="completed").length/D.wos.length*100)+"%":"0%"} icon="📈" color={B.green}/></div><WOList orders={D.wos} {...wlp}/></>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
@@ -480,9 +483,10 @@ export default function App(){
     loadData,
     createWO:withSync(async(wo)=>{const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;await sb().from("work_orders").insert({...wo,wo_id:"WO-"+(ln+1),status:"pending",hours_total:0});await notify("wo_created","New Work Order","WO-"+(ln+1)+": "+wo.title);}),
     updateWO:withSync(async(wo)=>{const{id,...rest}=wo;await sb().from("work_orders").update(rest).eq("id",id);if(rest.status==="completed")await notify("wo_completed","WO Completed",wo.wo_id+" completed","admin");}),
+    deleteWO:withSync(async(id)=>{await sb().from("work_orders").delete().eq("id",id);}),
     createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
     updatePO:withSync(async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
-    addTime:withSync(async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:new Date().toISOString().slice(0,10)});}),
+    addTime:withSync(async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
     addPhoto:withSync(async(ph)=>{await sb().from("photos").insert({...ph,uploaded_by:appUser.name,drive_synced:true});}),
     addUser:withSync(async(u)=>{await sb().from("users").insert(u);}),
     updateUser:withSync(async(u)=>{const{id,...rest}=u;await sb().from("users").update(rest).eq("id",id);}),
