@@ -538,8 +538,9 @@ export default function App(){
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
   useEffect(()=>{if(!authUser)return;const client=sb();
-    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>loadData()).subscribe();
-    return()=>{client.removeChannel(chan);};
+    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>loadData()).subscribe();
+    const poll=setInterval(()=>loadData(),15000);
+    return()=>{client.removeChannel(chan);clearInterval(poll);};
   },[authUser,loadData]);
 
   const withSync=fn=>async(...args)=>{setSyncing(true);try{await fn(...args);await loadData();}finally{setSyncing(false);}};
