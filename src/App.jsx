@@ -413,66 +413,17 @@ function Reports({wos,pos,timeEntries,users}){
 // ═══════════════════════════════════════════
 function BillingExport({wos,pos,timeEntries,customers}){
   const[toast,setToast]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[custFilter,setCustFilter]=useState("");
+  const[showEmail,setShowEmail]=useState(false),[emailTo,setEmailTo]=useState(""),[emailCC,setEmailCC]=useState(""),[sending,setSending]=useState(false);
   const allCols={wo_id:"WO#",date_completed:"Date",customer:"Customer",title:"Title",location:"Location",building:"Building",wo_type:"Type",hours:"Hours",po_total:"PO $",notes:"Job Details",field_notes:"Field Notes"};
   const[cols,setCols]=useState(["wo_id","date_completed","customer","title","location","building","wo_type","hours","po_total"]);
   const toggleCol=k=>setCols(prev=>prev.includes(k)?prev.filter(c=>c!==k):[...prev,k]);
   const completed=wos.filter(o=>o.status==="completed"&&(!dateFrom||o.date_completed>=dateFrom)&&(!dateTo||o.date_completed<=dateTo)&&(!custFilter||o.customer===custFilter));
   const getData=wo=>{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);const cleanNotes=(wo.notes||"").replace(/\n/g," ").trim();const cleanField=(wo.field_notes||"").replace(/\n/g," ").trim();return{wo_id:wo.wo_id,date_completed:wo.date_completed||"",customer:wo.customer||"",title:wo.title,location:wo.location||"",building:wo.building||"",wo_type:wo.wo_type||"CM",hours:h,hours_display:h+"h",po_total:"$"+p.toFixed(2),notes:cleanNotes,field_notes:cleanField};};
-  const copyToClip=()=>{const header=cols.map(c=>allCols[c]).join("\t")+"\n";const rows=completed.map(wo=>{const d=getData(wo);return cols.map(c=>c==="hours"?d.hours:d[c]).join("\t");}).join("\n");navigator.clipboard.writeText(header+rows).then(()=>{setToast("Copied! Paste into your spreadsheet.");setTimeout(()=>setToast(""),3000);});};
-
-  const generateXLSX=async()=>{
-    // Build CSV-like data for the 3C timesheet format
-    // Columns: Date | Building # | Room# | WO/Asset# | Personnel Hrs. | Description
-    const rows=[];
-    completed.forEach(wo=>{
-      const woTime=timeEntries.filter(t=>t.wo_id===wo.id);
-      if(woTime.length>0){
-        woTime.forEach(te=>{rows.push({date:te.logged_date||wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:wo.wo_id,hours:parseFloat(te.hours||0),desc:te.description||wo.title});});
-      }else{
-        const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);
-        rows.push({date:wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:wo.wo_id,hours:h,desc:wo.title});
-      }
-    });
-    // Generate Excel XML (works in all browsers, no library needed)
-    let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
-    xml+='<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
-    xml+='<Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Size="13" ss:FontName="Calibri"/><Interior ss:Color="#00B7E8" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/></Borders></Style>';
-    xml+='<Style ss:ID="data"><Font ss:Size="11" ss:FontName="Calibri"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>';
-    xml+='<Style ss:ID="hrs"><Font ss:Size="11" ss:FontName="Calibri" ss:Bold="1"/><NumberFormat ss:Format="0.00"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>';
-    xml+='<Style ss:ID="total"><Font ss:Size="12" ss:FontName="Calibri" ss:Bold="1"/><Interior ss:Color="#E8F5E9" ss:Pattern="Solid"/></Style>';
-    xml+='</Styles>';
-    xml+='<Worksheet ss:Name="'+(custFilter||"Timesheet")+'" ss:Protected="1">';
-    xml+='<Table ss:DefaultRowHeight="20">';
-    xml+='<Column ss:Width="85"/><Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="90"/><Column ss:Width="100"/><Column ss:Width="250"/>';
-    // Header
-    xml+='<Row ss:Height="22">';
-    ["Date:","Building #","Room#","WO/Asset#","Personnel Hrs.","Description"].forEach(h=>{xml+='<Cell ss:StyleID="header"><Data ss:Type="String">'+h+'</Data></Cell>';});
-    xml+='</Row>';
-    // Data rows
-    let totalHrs=0;
-    rows.forEach(r=>{
-      xml+='<Row>';
-      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.date+'</Data></Cell>';
-      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.building+'</Data></Cell>';
-      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.room+'</Data></Cell>';
-      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.wo_num+'</Data></Cell>';
-      xml+='<Cell ss:StyleID="hrs"><Data ss:Type="Number">'+r.hours+'</Data></Cell>';
-      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+(r.desc||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")+'</Data></Cell>';
-      xml+='</Row>';
-      totalHrs+=r.hours;
-    });
-    // Total row
-    xml+='<Row><Cell/><Cell/><Cell/><Cell ss:StyleID="total"><Data ss:Type="String">TOTAL:</Data></Cell><Cell ss:StyleID="total"><Data ss:Type="Number">'+totalHrs+'</Data></Cell><Cell/></Row>';
-    xml+='</Table></Worksheet></Workbook>';
-    // Download
-    const blob=new Blob([xml],{type:"application/vnd.ms-excel"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    const fname="3C_Timesheet"+(custFilter?"_"+custFilter.replace(/\s/g,"_"):"")+"_"+(dateFrom||"all")+".xls";
-    a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
-    setToast("Timesheet downloaded: "+fname);setTimeout(()=>setToast(""),3000);
-  };
-
+  const copyToClip=()=>{const header=cols.map(c=>allCols[c]).join("\t")+"\n";const rows=completed.map(wo=>{const d=getData(wo);return cols.map(c=>c==="hours"?d.hours:d[c]).join("\t");}).join("\n");navigator.clipboard.writeText(header+rows).then(()=>{setToast("Copied!");setTimeout(()=>setToast(""),3000);});};
+  const getTimesheetRows=()=>{const rows=[];let totalHrs=0;completed.forEach(wo=>{const woTime=timeEntries.filter(t=>t.wo_id===wo.id);if(woTime.length>0){woTime.forEach(te=>{const h=parseFloat(te.hours||0);rows.push({date:te.logged_date||wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:wo.wo_id,hours:h,desc:te.description||wo.title});totalHrs+=h;});}else{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);rows.push({date:wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:wo.wo_id,hours:h,desc:wo.title});totalHrs+=h;}});return{rows,totalHrs};};
+  const generateXLSX=()=>{const{rows,totalHrs}=getTimesheetRows();let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Size="13" ss:FontName="Calibri"/><Interior ss:Color="#00B7E8" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/></Borders></Style><Style ss:ID="data"><Font ss:Size="11" ss:FontName="Calibri"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style><Style ss:ID="hrs"><Font ss:Size="11" ss:FontName="Calibri" ss:Bold="1"/><NumberFormat ss:Format="0.00"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style><Style ss:ID="total"><Font ss:Size="12" ss:FontName="Calibri" ss:Bold="1"/><Interior ss:Color="#E8F5E9" ss:Pattern="Solid"/></Style></Styles>';xml+='<Worksheet ss:Name="'+(custFilter||"Timesheet")+'" ss:Protected="1"><Table ss:DefaultRowHeight="20"><Column ss:Width="85"/><Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="90"/><Column ss:Width="100"/><Column ss:Width="250"/>';xml+='<Row ss:Height="22">';["Date:","Building #","Room#","WO/Asset#","Personnel Hrs.","Description"].forEach(h=>{xml+='<Cell ss:StyleID="header"><Data ss:Type="String">'+h+'</Data></Cell>';});xml+='</Row>';rows.forEach(r=>{xml+='<Row><Cell ss:StyleID="data"><Data ss:Type="String">'+r.date+'</Data></Cell><Cell ss:StyleID="data"><Data ss:Type="String">'+r.building+'</Data></Cell><Cell ss:StyleID="data"><Data ss:Type="String">'+r.room+'</Data></Cell><Cell ss:StyleID="data"><Data ss:Type="String">'+r.wo_num+'</Data></Cell><Cell ss:StyleID="hrs"><Data ss:Type="Number">'+r.hours+'</Data></Cell><Cell ss:StyleID="data"><Data ss:Type="String">'+(r.desc||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")+'</Data></Cell></Row>';});xml+='<Row><Cell/><Cell/><Cell/><Cell ss:StyleID="total"><Data ss:Type="String">TOTAL:</Data></Cell><Cell ss:StyleID="total"><Data ss:Type="Number">'+totalHrs+'</Data></Cell><Cell/></Row>';xml+='</Table></Worksheet></Workbook>';const blob=new Blob([xml],{type:"application/vnd.ms-excel"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="3C_Timesheet"+(custFilter?"_"+custFilter.replace(/\s/g,"_"):"")+"_"+(dateFrom||"all")+".xls";a.click();URL.revokeObjectURL(url);setToast("Timesheet downloaded");setTimeout(()=>setToast(""),3000);};
+  const buildEmailHTML=()=>{const{rows,totalHrs}=getTimesheetRows();let h='<div style="font-family:Calibri,sans-serif;"><h2 style="color:#00B7E8;">3C Refrigeration \u2014 Timesheet</h2>';if(custFilter)h+='<p><strong>Customer:</strong> '+custFilter+'</p>';if(dateFrom||dateTo)h+='<p><strong>Period:</strong> '+(dateFrom||"start")+' to '+(dateTo||"present")+'</p>';h+='<table style="border-collapse:collapse;width:100%;margin-top:10px;"><tr style="background:#00B7E8;color:#fff;">';["Date","Building #","Room#","WO/Asset#","Personnel Hrs.","Description"].forEach(c=>{h+='<th style="padding:8px 12px;text-align:left;border:1px solid #ddd;">'+c+'</th>';});h+='</tr>';rows.forEach((r,i)=>{h+='<tr style="background:'+(i%2===0?'#f9f9f9':'#fff')+';"><td style="padding:6px 12px;border:1px solid #ddd;">'+r.date+'</td><td style="padding:6px 12px;border:1px solid #ddd;">'+r.building+'</td><td style="padding:6px 12px;border:1px solid #ddd;">'+r.room+'</td><td style="padding:6px 12px;border:1px solid #ddd;">'+r.wo_num+'</td><td style="padding:6px 12px;border:1px solid #ddd;font-weight:bold;">'+r.hours+'</td><td style="padding:6px 12px;border:1px solid #ddd;">'+r.desc+'</td></tr>';});h+='<tr style="background:#E8F5E9;font-weight:bold;"><td colspan="4" style="padding:8px 12px;border:1px solid #ddd;text-align:right;">TOTAL:</td><td style="padding:8px 12px;border:1px solid #ddd;">'+totalHrs.toFixed(1)+'</td><td style="border:1px solid #ddd;"></td></tr></table><p style="color:#888;font-size:12px;margin-top:20px;">Generated by 3C FieldOps Pro</p></div>';return h;};
+  const sendTimesheet=async()=>{if(!emailTo.trim()||sending)return;setSending(true);try{const resp=await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:emailTo.trim(),cc:emailCC.trim(),subject:"3C Refrigeration \u2014 Timesheet"+(custFilter?" for "+custFilter:"")+(dateFrom?" ("+dateFrom+")":""),body:buildEmailHTML()})});const result=await resp.json();if(result.success){setToast("Email sent to "+emailTo);setShowEmail(false);setEmailTo("");setEmailCC("");}else{setToast("Error: "+(result.error||"Failed"));console.error(result);}}catch(err){setToast("Error sending email");console.error(err);}setSending(false);setTimeout(()=>setToast(""),4000);};
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Customer Billing Export</h3>
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
@@ -484,12 +435,20 @@ function BillingExport({wos,pos,timeEntries,customers}){
     <div style={{marginBottom:14,fontSize:12,color:B.textMuted}}>{completed.length} completed orders{custFilter?" for "+custFilter:""}</div>
     <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{cols.map(c=><th key={c} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{allCols[c]}</th>)}</tr></thead><tbody>{completed.map(wo=>{const d=getData(wo);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}>{cols.map(c=><td key={c} style={{padding:"6px 8px",fontFamily:c==="wo_id"||c==="hours"||c==="po_total"?M:F,color:c==="wo_id"?B.cyan:c==="hours"?B.cyan:B.text}}>{c==="hours"?d.hours_display:d[c]}</td>)}</tr>);})}</tbody></table></Card>
     <div style={{display:"flex",gap:8}}>
-      <button onClick={copyToClip} style={{...BP,flex:1}}>📋 Copy to Clipboard</button>
-      <button onClick={generateXLSX} style={{...BP,flex:1,background:B.green}}>📄 Download 3C Timesheet</button>
+      <button onClick={copyToClip} style={{...BP,flex:1}}>📋 Copy</button>
+      <button onClick={generateXLSX} style={{...BP,flex:1,background:B.green}}>📄 Download</button>
+      <button onClick={()=>setShowEmail(true)} style={{...BP,flex:1,background:B.purple}}>📧 Email</button>
     </div>
+    {showEmail&&<Modal title="Send Timesheet via Email" onClose={()=>setShowEmail(false)} wide>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border,fontSize:12,color:B.textMuted}}>Sending {completed.length} work orders{custFilter?" for "+custFilter:""} from <span style={{color:B.cyan}}>service@3crefrigeration.com</span></div>
+        <div><label style={LS}>To <span style={{color:B.red}}>*</span></label><input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="customer@example.com" style={{...IS,fontSize:14,padding:12}}/></div>
+        <div><label style={LS}>CC <span style={{color:B.textDim,fontWeight:400}}>(optional, comma-separated)</span></label><input value={emailCC} onChange={e=>setEmailCC(e.target.value)} placeholder="boss@example.com, accounting@example.com" style={{...IS,fontSize:14,padding:12}}/></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowEmail(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={sendTimesheet} disabled={sending} style={{...BP,flex:1,background:B.purple,opacity:sending?.6:1}}>{sending?"Sending...":"📧 Send Timesheet"}</button></div>
+      </div>
+    </Modal>}
   </div>);
 }
-
 // ═══════════════════════════════════════════
 // CUSTOMER MANAGEMENT (admin/manager only)
 // ═══════════════════════════════════════════
