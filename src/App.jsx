@@ -367,45 +367,38 @@ function WOOverview({orders,wlp,pos,time}){
   const now=new Date();
   const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay());weekStart.setHours(0,0,0,0);
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
-  const getWODate=(wo)=>{const d=wo.created_at||wo.due_date;return d?new Date(d):new Date();};
-  const thisWeek=orders.filter(o=>{const d=getWODate(o);return d>=weekStart&&d<=weekEnd||o.status!=="completed";});
+  const getWODate=(wo)=>{const d=wo.date_completed||wo.created_at||wo.due_date;return d?new Date(d):new Date();};
+  // This week = all active/pending + completed this week
+  const active=orders.filter(o=>o.status!=="completed");
+  const completedThisWeek=orders.filter(o=>o.status==="completed"&&getWODate(o)>=weekStart);
+  const thisWeek=[...active,...completedThisWeek];
+  // Past = completed before this week
   const past=orders.filter(o=>o.status==="completed"&&getWODate(o)<weekStart);
   const[showArchive,setShowArchive]=useState(false);
   const[archiveMonth,setArchiveMonth]=useState(null);
 
-  // Group past orders by month
   const months={};past.forEach(wo=>{const d=getWODate(wo);const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");const label=d.toLocaleString("default",{month:"long",year:"numeric"});if(!months[key])months[key]={label,orders:[]};months[key].orders.push(wo);});
   const sortedMonths=Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0]));
-
-  const weekLabel=weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" — "+weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-
-  // Stats for this week
-  const weekActive=thisWeek.filter(o=>o.status!=="completed").length;
-  const weekDone=thisWeek.filter(o=>o.status==="completed").length;
-  const weekHours=thisWeek.reduce((s,o)=>s+parseFloat(o.hours_total||0),0);
+  const weekLabel=weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" \u2014 "+weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
   const pendingPOs=pos.filter(p=>p.status==="pending").length;
 
   return(<div>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="This Week Active" value={weekActive} icon="📋" color={B.cyan}/>
-      <StatCard label="Completed" value={weekDone} icon="✓" color={B.green}/>
-      <StatCard label="Hours" value={weekHours.toFixed(1)+"h"} icon="⏱" color={B.orange}/>
+      <StatCard label="Active" value={active.length} icon="📋" color={B.cyan}/>
+      <StatCard label="Done This Week" value={completedThisWeek.length} icon="✓" color={B.green}/>
+      <StatCard label="Hours" value={thisWeek.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.orange}/>
       <StatCard label="Pending POs" value={pendingPOs} icon="📄" color={B.purple}/>
     </div>
-
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontSize:14,fontWeight:800,color:B.text}}>This Week <span style={{fontWeight:400,fontSize:12,color:B.textDim,marginLeft:6}}>{weekLabel}</span></div>
       <span style={{fontFamily:M,fontSize:12,color:B.cyan}}>{thisWeek.length} orders</span>
     </div>
-
     {thisWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>No work orders this week</div></Card>:<WOList orders={thisWeek} {...wlp}/>}
-
-    {sortedMonths.length>0&&<div style={{marginTop:20}}>
-      <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:showArchive?0:0}}>
+    {past.length>0&&<div style={{marginTop:20}}>
+      <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📁</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
-        <span style={{color:B.textDim,fontSize:14}}>{showArchive?"▾":"▸"}</span>
+        <span style={{color:B.textDim,fontSize:14}}>{showArchive?"\u25BE":"\u25B8"}</span>
       </button>
-
       {showArchive&&<div style={{border:"1px solid "+B.border,borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
         {sortedMonths.map(([key,{label,orders:mos}])=><div key={key}>
           <button onClick={()=>setArchiveMonth(archiveMonth===key?null:key)} style={{width:"100%",padding:"10px 16px",background:archiveMonth===key?B.cyanGlow:B.bg,border:"none",borderBottom:"1px solid "+B.border,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
@@ -413,7 +406,7 @@ function WOOverview({orders,wlp,pos,time}){
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{mos.length} orders</span>
               <span style={{fontFamily:M,fontSize:11,color:B.cyan}}>{mos.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)}h</span>
-              <span style={{color:B.textDim,fontSize:12}}>{archiveMonth===key?"▾":"▸"}</span>
+              <span style={{color:B.textDim,fontSize:12}}>{archiveMonth===key?"\u25BE":"\u25B8"}</span>
             </div>
           </button>
           {archiveMonth===key&&<div style={{padding:"8px 12px",background:B.bg}}><WOList orders={mos} {...wlp}/></div>}
