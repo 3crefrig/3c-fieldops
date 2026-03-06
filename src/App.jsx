@@ -515,9 +515,9 @@ function Reports({wos,pos,timeEntries,users}){
 function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser}){
   const[toast,setToast]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[custFilter,setCustFilter]=useState("");
   const[showEmail,setShowEmail]=useState(false),[emailTo,setEmailTo]=useState(""),[emailCC,setEmailCC]=useState(""),[sending,setSending]=useState(false);
-  const[emailSubject,setEmailSubject]=useState("3C Refrigeration \u2014 Timesheet"),[emailBody,setEmailBody]=useState("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p><p>Thank you,<br/><strong>3C Refrigeration</strong></p>");
+  const[emailSubject,setEmailSubject]=useState("3C Refrigeration \u2014 Timesheet"),[emailBody,setEmailBody]=useState("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");
   const[contacts,setContacts]=useState([]),[suggestions,setSuggestions]=useState([]),[showSugTo,setShowSugTo]=useState(false),[showSugCC,setShowSugCC]=useState(false);
-  const applyTemplate=(tpl)=>{if(!tpl){setEmailSubject("3C Refrigeration \u2014 Timesheet");setEmailBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p><p>Thank you,<br/><strong>3C Refrigeration</strong></p>");return;}setEmailSubject(tpl.subject);setEmailBody(tpl.body);};
+  const applyTemplate=(tpl)=>{if(!tpl){setEmailSubject("3C Refrigeration \u2014 Timesheet");setEmailBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");return;}setEmailSubject(tpl.subject);setEmailBody(tpl.body);};
   const allCols={wo_id:"WO#",customer_wo:"Customer WO#",date_completed:"Date",customer:"Customer",title:"Title",location:"Location",building:"Building",wo_type:"Type",hours:"Hours",po_total:"PO $",notes:"Job Details",field_notes:"Field Notes"};
   const[cols,setCols]=useState(["wo_id","customer_wo","date_completed","customer","title","location","building","wo_type","hours","po_total"]);
   const toggleCol=k=>setCols(prev=>prev.includes(k)?prev.filter(c=>c!==k):[...prev,k]);
@@ -630,7 +630,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
   const[tab,setTab]=useState("templates"),[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
   const[tName,setTName]=useState(""),[tSubject,setTSubject]=useState(""),[tBody,setTBody]=useState(""),[saving,setSaving]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
-  const openNew=()=>{setEditing(null);setTName("");setTSubject("3C Refrigeration \u2014 Timesheet");setTBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p><p>Thank you,<br/><strong>3C Refrigeration</strong></p>");setShowForm(true);};
+  const openNew=()=>{setEditing(null);setTName("");setTSubject("3C Refrigeration \u2014 Timesheet");setTBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");setShowForm(true);};
   const openEdit=(t)=>{setEditing(t);setTName(t.name);setTSubject(t.subject);setTBody(t.body);setShowForm(true);};
   const go=async()=>{if(!tName.trim()||!tSubject.trim()||saving)return;setSaving(true);const obj={name:tName.trim(),subject:tSubject.trim(),body:tBody.trim()};if(editing){await onUpdateTemplate({...editing,...obj});}else{await onAddTemplate(obj);}setSaving(false);setShowForm(false);msg(editing?"Template updated":"Template created");};
   const del=async(t)=>{if(!window.confirm("Delete template '"+t.name+"'?"))return;await onDeleteTemplate(t.id);msg("Deleted");};
@@ -652,7 +652,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div><label style={LS}>Template Name</label><input value={tName} onChange={e=>setTName(e.target.value)} placeholder="e.g. Monthly Timesheet, Invoice Follow-up" style={IS}/></div>
           <div><label style={LS}>Email Subject</label><input value={tSubject} onChange={e=>setTSubject(e.target.value)} placeholder="3C Refrigeration — Timesheet" style={IS}/></div>
-          <div><label style={LS}>Email Body <span style={{color:B.textDim,fontWeight:400}}>(the timesheet table is added automatically below this)</span></label><textarea value={tBody} onChange={e=>setTBody(e.target.value)} rows={6} placeholder="<p>Hi,</p><p>Please find attached...</p>" style={{...IS,resize:"vertical",lineHeight:1.5,fontFamily:M,fontSize:12}}/></div>
+          <div><label style={LS}>Email Body <span style={{color:B.textDim,fontWeight:400}}>(timesheet table and your signature are added automatically below)</span></label><textarea value={tBody} onChange={e=>setTBody(e.target.value)} rows={6} placeholder="<p>Hi,</p><p>Please find attached...</p>" style={{...IS,resize:"vertical",lineHeight:1.5,fontFamily:M,fontSize:12}}/></div>
           <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border}}><span style={{fontSize:10,color:B.textDim}}>Preview:</span><div style={{marginTop:6,fontSize:12,color:B.textMuted}} dangerouslySetInnerHTML={{__html:tBody||"<em>Empty</em>"}}/></div>
           <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Create Template")}</button></div>
         </div>
