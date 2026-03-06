@@ -413,12 +413,66 @@ function Reports({wos,pos,timeEntries,users}){
 // ═══════════════════════════════════════════
 function BillingExport({wos,pos,timeEntries,customers}){
   const[toast,setToast]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[custFilter,setCustFilter]=useState("");
-  const allCols={wo_id:"WO#",date_completed:"Date",customer:"Customer",title:"Title",location:"Location",building:"Building",wo_type:"Type",hours:"Hours",po_total:"PO $"};
-  const[cols,setCols]=useState(Object.keys(allCols));
+  const allCols={wo_id:"WO#",date_completed:"Date",customer:"Customer",title:"Title",location:"Location",building:"Building",wo_type:"Type",hours:"Hours",po_total:"PO $",notes:"Job Details",field_notes:"Field Notes"};
+  const[cols,setCols]=useState(["wo_id","date_completed","customer","title","location","building","wo_type","hours","po_total"]);
   const toggleCol=k=>setCols(prev=>prev.includes(k)?prev.filter(c=>c!==k):[...prev,k]);
   const completed=wos.filter(o=>o.status==="completed"&&(!dateFrom||o.date_completed>=dateFrom)&&(!dateTo||o.date_completed<=dateTo)&&(!custFilter||o.customer===custFilter));
-  const getData=wo=>{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);return{wo_id:wo.wo_id,date_completed:wo.date_completed||"",customer:wo.customer||"",title:wo.title,location:wo.location||"",building:wo.building||"",wo_type:wo.wo_type||"CM",hours:h+"h",po_total:"$"+p.toFixed(2)};};
-  const copyToClip=()=>{const header=cols.map(c=>allCols[c]).join("\t")+"\n";const rows=completed.map(wo=>{const d=getData(wo);return cols.map(c=>d[c]).join("\t");}).join("\n");navigator.clipboard.writeText(header+rows).then(()=>{setToast("Copied! Paste into your spreadsheet.");setTimeout(()=>setToast(""),3000);});};
+  const getData=wo=>{const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);const cleanNotes=(wo.notes||"").replace(/\n/g," ").trim();const cleanField=(wo.field_notes||"").replace(/\n/g," ").trim();return{wo_id:wo.wo_id,date_completed:wo.date_completed||"",customer:wo.customer||"",title:wo.title,location:wo.location||"",building:wo.building||"",wo_type:wo.wo_type||"CM",hours:h,hours_display:h+"h",po_total:"$"+p.toFixed(2),notes:cleanNotes,field_notes:cleanField};};
+  const copyToClip=()=>{const header=cols.map(c=>allCols[c]).join("\t")+"\n";const rows=completed.map(wo=>{const d=getData(wo);return cols.map(c=>c==="hours"?d.hours:d[c]).join("\t");}).join("\n");navigator.clipboard.writeText(header+rows).then(()=>{setToast("Copied! Paste into your spreadsheet.");setTimeout(()=>setToast(""),3000);});};
+
+  const generateXLSX=async()=>{
+    // Build CSV-like data for the 3C timesheet format
+    // Columns: Date | Building # | Room# | WO/Asset# | Personnel Hrs. | Description
+    const rows=[];
+    completed.forEach(wo=>{
+      const woTime=timeEntries.filter(t=>t.wo_id===wo.id);
+      if(woTime.length>0){
+        woTime.forEach(te=>{rows.push({date:te.logged_date||wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:wo.wo_id,hours:parseFloat(te.hours||0),desc:te.description||wo.title});});
+      }else{
+        const h=timeEntries.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+        rows.push({date:wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:wo.wo_id,hours:h,desc:wo.title});
+      }
+    });
+    // Generate Excel XML (works in all browsers, no library needed)
+    let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
+    xml+='<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+    xml+='<Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Size="13" ss:FontName="Calibri"/><Interior ss:Color="#00B7E8" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/></Borders></Style>';
+    xml+='<Style ss:ID="data"><Font ss:Size="11" ss:FontName="Calibri"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>';
+    xml+='<Style ss:ID="hrs"><Font ss:Size="11" ss:FontName="Calibri" ss:Bold="1"/><NumberFormat ss:Format="0.00"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>';
+    xml+='<Style ss:ID="total"><Font ss:Size="12" ss:FontName="Calibri" ss:Bold="1"/><Interior ss:Color="#E8F5E9" ss:Pattern="Solid"/></Style>';
+    xml+='</Styles>';
+    xml+='<Worksheet ss:Name="'+(custFilter||"Timesheet")+'" ss:Protected="1">';
+    xml+='<Table ss:DefaultRowHeight="20">';
+    xml+='<Column ss:Width="85"/><Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="90"/><Column ss:Width="100"/><Column ss:Width="250"/>';
+    // Header
+    xml+='<Row ss:Height="22">';
+    ["Date:","Building #","Room#","WO/Asset#","Personnel Hrs.","Description"].forEach(h=>{xml+='<Cell ss:StyleID="header"><Data ss:Type="String">'+h+'</Data></Cell>';});
+    xml+='</Row>';
+    // Data rows
+    let totalHrs=0;
+    rows.forEach(r=>{
+      xml+='<Row>';
+      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.date+'</Data></Cell>';
+      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.building+'</Data></Cell>';
+      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.room+'</Data></Cell>';
+      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+r.wo_num+'</Data></Cell>';
+      xml+='<Cell ss:StyleID="hrs"><Data ss:Type="Number">'+r.hours+'</Data></Cell>';
+      xml+='<Cell ss:StyleID="data"><Data ss:Type="String">'+(r.desc||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")+'</Data></Cell>';
+      xml+='</Row>';
+      totalHrs+=r.hours;
+    });
+    // Total row
+    xml+='<Row><Cell/><Cell/><Cell/><Cell ss:StyleID="total"><Data ss:Type="String">TOTAL:</Data></Cell><Cell ss:StyleID="total"><Data ss:Type="Number">'+totalHrs+'</Data></Cell><Cell/></Row>';
+    xml+='</Table></Worksheet></Workbook>';
+    // Download
+    const blob=new Blob([xml],{type:"application/vnd.ms-excel"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    const fname="3C_Timesheet"+(custFilter?"_"+custFilter.replace(/\s/g,"_"):"")+"_"+(dateFrom||"all")+".xls";
+    a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    setToast("Timesheet downloaded: "+fname);setTimeout(()=>setToast(""),3000);
+  };
+
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Customer Billing Export</h3>
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
@@ -426,10 +480,13 @@ function BillingExport({wos,pos,timeEntries,customers}){
       <div><label style={LS}>To</label><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={IS}/></div>
       <div><label style={LS}>Customer</label><select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">All Customers</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
     </div>
-    <div style={{marginBottom:10}}><span style={LS}>Columns to export</span><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{Object.entries(allCols).map(([k,v])=><button key={k} onClick={()=>toggleCol(k)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(cols.includes(k)?B.cyan:B.border),background:cols.includes(k)?B.cyanGlow:"transparent",color:cols.includes(k)?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{v}</button>)}</div></div>
+    <div style={{marginBottom:10}}><span style={LS}>Columns to export (clipboard only)</span><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{Object.entries(allCols).map(([k,v])=><button key={k} onClick={()=>toggleCol(k)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(cols.includes(k)?B.cyan:B.border),background:cols.includes(k)?B.cyanGlow:"transparent",color:cols.includes(k)?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{v}</button>)}</div></div>
     <div style={{marginBottom:14,fontSize:12,color:B.textMuted}}>{completed.length} completed orders{custFilter?" for "+custFilter:""}</div>
-    <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{cols.map(c=><th key={c} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{allCols[c]}</th>)}</tr></thead><tbody>{completed.map(wo=>{const d=getData(wo);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}>{cols.map(c=><td key={c} style={{padding:"6px 8px",fontFamily:c==="wo_id"||c==="hours"||c==="po_total"?M:F,color:c==="wo_id"?B.cyan:c==="hours"?B.cyan:B.text}}>{d[c]}</td>)}</tr>);})}</tbody></table></Card>
-    <button onClick={copyToClip} style={{...BP,width:"100%"}}>📋 Copy {cols.length} Columns to Clipboard</button>
+    <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{cols.map(c=><th key={c} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{allCols[c]}</th>)}</tr></thead><tbody>{completed.map(wo=>{const d=getData(wo);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}>{cols.map(c=><td key={c} style={{padding:"6px 8px",fontFamily:c==="wo_id"||c==="hours"||c==="po_total"?M:F,color:c==="wo_id"?B.cyan:c==="hours"?B.cyan:B.text}}>{c==="hours"?d.hours_display:d[c]}</td>)}</tr>);})}</tbody></table></Card>
+    <div style={{display:"flex",gap:8}}>
+      <button onClick={copyToClip} style={{...BP,flex:1}}>📋 Copy to Clipboard</button>
+      <button onClick={generateXLSX} style={{...BP,flex:1,background:B.green}}>📄 Download 3C Timesheet</button>
+    </div>
   </div>);
 }
 
