@@ -191,13 +191,14 @@ function POMgmt({pos,onUpdatePO,wos}){
 }
 
 // ═══════════════════════════════════════════
-// WORK ORDER DETAIL — with real camera + customer field
+// WORK ORDER DETAIL — Redesigned for field use
 // ═══════════════════════════════════════════
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData}){
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null);
   const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[tDate,setTDate]=useState(new Date().toISOString().slice(0,10)),[note,setNote]=useState("");
   const[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
   const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(new Date().toISOString().slice(0,10));
+  const[showDetails,setShowDetails]=useState(false),[showTimeEntries,setShowTimeEntries]=useState(false),[showPhotos,setShowPhotos]=useState(false),[showPOs,setShowPOs]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.wo_id===wo.id);const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const woPhotos=photos.filter(p=>p.wo_id===wo.id);
   const hasData=woTime.length>0||woPOs.length>0||woPhotos.length>0||(wo.notes&&wo.notes.trim()&&wo.notes!=="No details.")||parseFloat(wo.hours_total||0)>0;
@@ -209,65 +210,106 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,canEdit,pos,onCreatePO,timeEn
   const addFieldNote=async()=>{if(!note.trim()||saving)return;setSaving(true);const ts=new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});const newNotes=(wo.field_notes||"")+"\n["+ts+" — "+userName+"] "+note.trim();const{error}=await sb().from("work_orders").update({field_notes:newNotes}).eq("id",wo.id);if(error)console.error("field note error:",error);await loadData();setSaving(false);setNote("");msg("Field note added");};
   const[editingDetails,setEditingDetails]=useState(false),[detailsText,setDetailsText]=useState(wo.notes||"");
   const saveDetails=async()=>{if(saving)return;setSaving(true);const{error}=await sb().from("work_orders").update({notes:detailsText}).eq("id",wo.id);if(error)console.error("save details error:",error);await loadData();setSaving(false);setEditingDetails(false);msg("Job details updated");};
-  const changeStatus=async(newStatus)=>{if(saving)return;setSaving(true);await onUpdateWO({...wo,status:newStatus});setSaving(false);msg("Status changed to "+SL[newStatus]);};
+  const changeStatus=async(newStatus)=>{if(saving)return;setSaving(true);await onUpdateWO({...wo,status:newStatus});setSaving(false);msg("Status → "+SL[newStatus]);};
   const markComplete=async()=>{if(saving)return;if(woTime.length===0){setSigErr("You must log at least one time entry before completing.");return;}if(!compDate){setSigErr("Completion date required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required.");return;}setSigErr("");setSaving(true);await onUpdateWO({...wo,status:"completed",date_completed:compDate,signature:sigCanvas._getData()});setSaving(false);setShowComplete(false);msg("Completed & Signed");};
   const tryDelete=async()=>{const msg2=hasData?"This work order has data. Are you SURE you want to delete "+wo.wo_id+"? This cannot be undone.":"Delete "+wo.wo_id+"? This cannot be undone.";if(!window.confirm(msg2))return;setSaving(true);const{error}=await sb().from("work_orders").delete().eq("id",wo.id);if(error){console.error("delete error:",error);setSaving(false);return;}await loadData();setSaving(false);onBack();};
+
+  const BIG={padding:"14px 18px",borderRadius:8,border:"none",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:F,minHeight:48,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flex:"1 1 0"};
+  const SEC={...BIG,background:B.surface,border:"1px solid "+B.border,color:B.textMuted};
+  const Toggle=({label,count,open,setOpen})=><button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"12px 14px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:open?0:8}}><span style={{fontSize:13,fontWeight:700,color:B.text}}>{label}{count>0&&<span style={{marginLeft:6,fontFamily:M,color:B.cyan,fontSize:12}}>({count})</span>}</span><span style={{color:B.textDim,fontSize:14}}>{open?"▾":"▸"}</span></button>;
+
   return(<div><Toast msg={toast}/>
-    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
-    <Card style={{maxWidth:600}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,flexWrap:"wrap",gap:8}}>
-        <div><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><h2 style={{margin:"2px 0 0",fontSize:18,fontWeight:800,color:B.text}}>{wo.title}</h2>{wo.customer&&<div style={{fontSize:11,color:B.purple,marginTop:2}}>👤 {wo.customer}</div>}</div>
-        <div style={{display:"flex",gap:6}}><Badge color={PC[wo.priority]}>{wo.priority}</Badge><DSBadge ok={woPhotos.length>0}/></div>
+    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,fontFamily:F,padding:"8px 0"}}>← Back to Orders</button>
+
+    {/* HEADER — WO ID, title, customer, status */}
+    <Card style={{maxWidth:640,marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wo.wo_id}</span><Badge color={PC[wo.priority]}>{wo.priority}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge></div><h2 style={{margin:"4px 0 0",fontSize:20,fontWeight:800,color:B.text}}>{wo.title}</h2>{wo.customer&&<div style={{fontSize:12,color:B.purple,marginTop:4}}>👤 {wo.customer}</div>}</div>
+        <DSBadge ok={woPhotos.length>0}/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-        <div><span style={LS}>Status</span><br/><select value={wo.status} onChange={e=>changeStatus(e.target.value)} style={{...IS,width:"auto",padding:"4px 8px",fontSize:12,cursor:"pointer",background:SC[wo.status]+"22",color:SC[wo.status],fontWeight:700,border:"1px solid "+SC[wo.status]+"44"}}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select></div>
-        <div><span style={LS}>Type</span><br/><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"—"}</Badge></div>
-        <div><span style={LS}>Due</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.due_date}</span></div>
-        <div><span style={LS}>Assigned</span><br/>{isManager?<select value={wo.assignee||"Unassigned"} onChange={async e=>{await onUpdateWO({...wo,assignee:e.target.value});}} style={{...IS,width:"auto",padding:"4px 8px",fontSize:12,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{(users||[]).filter(u=>u.active!==false).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>:<span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.assignee}</span>}</div>
-        <div style={{gridColumn:"1 / -1"}}><span style={LS}>Crew</span><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{(wo.crew||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.purple+"22",color:B.purple,fontSize:11,fontWeight:600}}>{t}<button onClick={async()=>{const nc=(wo.crew||[]).filter(x=>x!==t);await onUpdateWO({...wo,crew:nc});}} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0,marginLeft:2}}>×</button></span>)}{(wo.crew||[]).length===0&&<span style={{fontSize:11,color:B.textDim}}>No additional techs</span>}<select onChange={async e=>{if(!e.target.value)return;const nc=[...(wo.crew||[]),e.target.value];await onUpdateWO({...wo,crew:nc});e.target.value="";}} style={{...IS,width:"auto",padding:"3px 8px",fontSize:11,cursor:"pointer"}}><option value="">+ Add tech</option>{(users||[]).filter(u=>u.active!==false&&u.name!==wo.assignee&&!(wo.crew||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div></div>
-        <div><span style={LS}>Location / Room</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.location||"—"}</span></div>
-        <div><span style={LS}>Building #</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.building||"—"}</span></div>
-        <div><span style={LS}>Hours</span><br/><span style={{fontSize:13,fontWeight:600,color:B.text}}>{wo.hours_total||0}h</span></div>
-        {wo.date_completed&&<div><span style={LS}>Completed</span><br/><span style={{fontSize:13,fontWeight:600,color:B.green}}>{wo.date_completed}</span></div>}
+      {/* Status bar — big, tappable */}
+      <div style={{display:"flex",gap:6,marginBottom:12}}>{[["pending","Pending"],["in_progress","In Progress"],["completed","Completed"]].map(([k,l])=><button key={k} onClick={()=>changeStatus(k)} style={{flex:1,padding:"10px 6px",borderRadius:6,border:wo.status===k?"2px solid "+SC[k]:"1px solid "+B.border,background:wo.status===k?SC[k]+"22":"transparent",color:wo.status===k?SC[k]:B.textDim,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12}}>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>DUE</span><br/><span style={{fontWeight:700,color:B.text}}>{wo.due_date}</span></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>HOURS</span><br/><span style={{fontWeight:700,color:B.cyan,fontFamily:M}}>{wo.hours_total||0}h</span></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>LOCATION</span><br/><span style={{fontWeight:600,color:B.text}}>{wo.location||"—"}{wo.building&&" · Bldg "+wo.building}</span></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>ASSIGNED</span><br/><span style={{fontWeight:600,color:B.text}}>{wo.assignee}{wo.crew&&wo.crew.length>0&&<span style={{color:B.purple}}> +{wo.crew.length}</span>}</span></div>
       </div>
-      {wo.signature&&<div style={{marginBottom:14}}><span style={LS}>Signature</span><div style={{marginTop:4,background:B.bg,borderRadius:6,border:"1px solid "+B.border,padding:8,display:"inline-block"}}><img src={wo.signature} alt="Sig" style={{maxWidth:280,height:"auto",display:"block"}}/></div></div>}
-      {woPOs.length>0&&<div style={{marginBottom:14}}><span style={LS}>Purchase Orders</span><div style={{display:"flex",flexDirection:"column",gap:4,marginTop:4}}>{woPOs.map(po=><div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.bg,borderRadius:4,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:12}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:6}}>{po.description}</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.text}}>${parseFloat(po.amount||0).toFixed(2)}</span><Badge color={PSC[po.status]}>{po.status}</Badge></div></div>)}</div></div>}
-      <div style={{background:B.bg,borderRadius:6,padding:14,border:"1px solid "+B.border,marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={LS}>Job Details</span>{isManager&&!editingDetails&&<button onClick={()=>{setDetailsText(wo.notes||"");setEditingDetails(true);}} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer"}}>Edit</button>}</div>
-        {editingDetails?<div style={{marginTop:6}}><textarea value={detailsText} onChange={e=>setDetailsText(e.target.value)} rows={4} style={{...IS,resize:"vertical",lineHeight:1.5}}/><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={()=>setEditingDetails(false)} style={{...BS,flex:1,padding:"6px 12px",fontSize:11}}>Cancel</button><button onClick={saveDetails} disabled={saving} style={{...BP,flex:1,padding:"6px 12px",fontSize:11,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div></div>:<p style={{margin:"4px 0 0",color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.notes||"No details."}</p>}
-      </div>
-      <div style={{background:B.bg,borderRadius:6,padding:14,border:"1px solid "+B.border,marginBottom:14}}>
-        <span style={LS}>Field Notes</span>
-        {wo.field_notes?<p style={{margin:"4px 0 0",color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.field_notes}</p>:<p style={{margin:"4px 0 0",color:B.textDim,fontSize:12,fontStyle:"italic"}}>No field notes yet</p>}
-        <div style={{display:"flex",gap:6,marginTop:8}}><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Add field note..." style={{...IS,flex:1}} onKeyDown={e=>e.key==="Enter"&&addFieldNote()}/><button onClick={addFieldNote} disabled={saving} style={BP}>Add</button></div>
-      </div>
-      {woTime.length>0&&<div style={{marginBottom:14}}><span style={LS}>Time Entries</span>{woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:70}}>{te.logged_date}</span><span style={{fontFamily:M,color:B.cyan,minWidth:35}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer"}}>Edit</button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:10,cursor:"pointer"}}>×</button></>}</div>)}</div>}
-      {woPhotos.length>0&&<div style={{marginBottom:14}}><span style={LS}>Photos ({woPhotos.length})</span><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{woPhotos.map((p,i)=><div key={i} style={{borderRadius:6,overflow:"hidden",border:"1px solid "+B.border}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:80,height:80,objectFit:"cover",display:"block"}}/>:<div style={{width:80,height:80,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:10,color:B.textDim}}>📷 {p.filename}</div>}</div>)}</div></div>}
-      {canEdit&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:16}}>
-        <CameraUpload woId={wo.id} userName={userName} onUploaded={loadData}/>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {wo.status!=="completed"&&<button onClick={()=>{setSigErr("");setShowComplete(true)}} style={{...BP,flex:"1 1 auto",background:B.green}}>✓ Complete</button>}
-          <button onClick={()=>setShowTime(true)} style={{...BS,flex:"1 1 auto"}}>⏱ Time</button>
-          <button onClick={()=>setShowPO(true)} style={{...BS,flex:"1 1 auto"}}>📄 PO#</button>
-        </div>
-      </div>}
-      <div style={{marginTop:canEdit?0:16}}><button onClick={tryDelete} disabled={saving} style={{...BS,width:"100%",color:B.red,borderColor:B.red+"44"}}>🗑 Delete Work Order</button></div>
+      {wo.date_completed&&<div style={{marginTop:8,padding:"8px 10px",background:B.greenGlow,borderRadius:6,fontSize:12}}><span style={{color:B.green,fontWeight:700}}>✓ Completed {wo.date_completed}</span></div>}
     </Card>
-    {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:12}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={IS}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={IS} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Log"}</button></div></div></Modal>}
+
+    {/* BIG ACTION BUTTONS — the main things a tech does */}
+    {canEdit&&wo.status!=="completed"&&<div style={{display:"flex",gap:8,marginBottom:12,maxWidth:640}}>
+      <button onClick={()=>setShowTime(true)} style={{...BIG,background:B.cyan,color:B.bg}}>⏱ Log Time</button>
+      <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>📷 Photo</button>
+      <button onClick={()=>{setSigErr("");setShowComplete(true)}} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
+    </div>}
+
+    {/* Camera (hidden trigger, activated by Photo button above) */}
+    {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} userName={userName} onUploaded={loadData}/></div>}
+    {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} userName={userName} onUploaded={loadData}/></div>}
+
+    {/* FIELD NOTES — always visible, quick add */}
+    <Card style={{maxWidth:640,marginBottom:12}}>
+      <span style={LS}>Field Notes</span>
+      {wo.field_notes?<p style={{margin:"4px 0 8px",color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.field_notes}</p>:<p style={{margin:"4px 0 8px",color:B.textDim,fontSize:12,fontStyle:"italic"}}>No field notes yet</p>}
+      <div style={{display:"flex",gap:6}}><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Type a note..." style={{...IS,flex:1,fontSize:14,padding:"12px 14px"}} onKeyDown={e=>e.key==="Enter"&&addFieldNote()}/><button onClick={addFieldNote} disabled={saving} style={{...BP,padding:"12px 18px",fontSize:14}}>Add</button></div>
+    </Card>
+
+    {/* COLLAPSIBLE SECTIONS — tap to expand, keeps page clean */}
+    <div style={{maxWidth:640,display:"flex",flexDirection:"column",gap:0}}>
+
+      <Toggle label="Job Details" count={0} open={showDetails} setOpen={setShowDetails}/>
+      {showDetails&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
+        {isManager&&!editingDetails?<div><p style={{margin:0,color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.notes||"No details."}</p><button onClick={()=>{setDetailsText(wo.notes||"");setEditingDetails(true);}} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",marginTop:6}}>Edit Details</button></div>:editingDetails?<div><textarea value={detailsText} onChange={e=>setDetailsText(e.target.value)} rows={4} style={{...IS,resize:"vertical",lineHeight:1.5}}/><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={()=>setEditingDetails(false)} style={{...BS,flex:1,padding:"8px"}}>Cancel</button><button onClick={saveDetails} disabled={saving} style={{...BP,flex:1,padding:"8px"}}>{saving?"Saving...":"Save"}</button></div></div>:<p style={{margin:0,color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.notes||"No details."}</p>}
+      </Card>}
+
+      <Toggle label="Time Entries" count={woTime.length} open={showTimeEntries} setOpen={setShowTimeEntries}/>
+      {showTimeEntries&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
+        {woTime.length===0?<div style={{color:B.textDim,fontSize:12}}>No time logged yet</div>:woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",fontSize:13,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:75}}>{te.logged_date}</span><span style={{fontFamily:M,color:B.cyan,minWidth:40,fontWeight:700}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<div style={{display:"flex",gap:6}}><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:"4px"}}>✏️</button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:"4px"}}>🗑</button></div>}</div>)}
+        {canEdit&&<button onClick={()=>setShowTime(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Log Time</button>}
+      </Card>}
+
+      <Toggle label="Photos" count={woPhotos.length} open={showPhotos} setOpen={setShowPhotos}/>
+      {showPhotos&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
+        {woPhotos.length===0?<div style={{color:B.textDim,fontSize:12}}>No photos yet</div>:<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{woPhotos.map((p,i)=><div key={i} style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>📷 {p.filename}</div>}</div>)}</div>}
+      </Card>}
+
+      <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
+      {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
+        {woPOs.map(po=><div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span></div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.text}}>${parseFloat(po.amount||0).toFixed(2)}</span><Badge color={PSC[po.status]}>{po.status}</Badge></div></div>)}
+        {canEdit&&<button onClick={()=>setShowPO(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Request PO</button>}
+      </Card>}
+
+      {wo.signature&&<Card style={{marginBottom:8}}><span style={LS}>Completion Signature</span><div style={{marginTop:4}}><img src={wo.signature} alt="Sig" style={{maxWidth:280,height:"auto",display:"block",borderRadius:6}}/></div></Card>}
+
+      {/* Crew section */}
+      <Card style={{marginBottom:8}}>
+        <span style={LS}>Crew</span>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{(wo.crew||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:6,background:B.purple+"22",color:B.purple,fontSize:12,fontWeight:600}}>{t}<button onClick={async()=>{const nc=(wo.crew||[]).filter(x=>x!==t);await onUpdateWO({...wo,crew:nc});}} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:0}}>×</button></span>)}{(wo.crew||[]).length===0&&<span style={{fontSize:12,color:B.textDim}}>No additional crew</span>}
+        <select onChange={async e=>{if(!e.target.value)return;const nc=[...(wo.crew||[]),e.target.value];await onUpdateWO({...wo,crew:nc});e.target.value="";}} style={{...IS,width:"auto",padding:"6px 10px",fontSize:12,cursor:"pointer",marginLeft:6}}><option value="">+ Add</option>{(users||[]).filter(u=>u.active!==false&&u.name!==wo.assignee&&!(wo.crew||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
+      </Card>
+
+      {/* Delete — small, at the bottom, not prominent */}
+      <button onClick={tryDelete} disabled={saving} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F,marginBottom:20}}>Delete Work Order</button>
+    </div>
+
+    {/* MODALS */}
+    {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>setShowPO(false)}/>}
     {showComplete&&<Modal title="Complete Work Order" onClose={()=>setShowComplete(false)} wide><div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{background:B.bg,borderRadius:6,padding:12,border:"1px solid "+B.border}}><div style={{fontSize:13,fontWeight:700,color:B.text}}>{wo.wo_id} — {wo.title}</div></div>
-      <div><label style={LS}>Completion Date <span style={{color:B.red}}>*</span></label><input type="date" value={compDate} onChange={e=>setCompDate(e.target.value)} style={IS}/></div>
-      <div><span style={LS}>Technician Signature <span style={{color:B.red}}>*</span></span><div style={{marginTop:4}}><SignaturePad onSign={setSigCanvas}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}><div style={{fontSize:10,color:B.textDim}}>Draw your signature above</div><button onClick={()=>{if(sigCanvas&&sigCanvas._clear)sigCanvas._clear();setSigErr("");}} style={{background:"none",border:"none",color:B.orange,fontSize:11,cursor:"pointer",fontFamily:F}}>Clear</button></div></div>
-      {sigErr&&<div style={{color:B.red,fontSize:12,fontWeight:600}}>{sigErr}</div>}
-      <div style={{display:"flex",gap:8}}><button onClick={()=>setShowComplete(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={markComplete} disabled={saving} style={{...BP,flex:1,background:B.green,opacity:saving?.6:1}}>{saving?"Saving...":"Sign & Complete"}</button></div>
+      <div style={{background:B.bg,borderRadius:8,padding:14,border:"1px solid "+B.border}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{wo.wo_id} — {wo.title}</div></div>
+      <div><label style={LS}>Completion Date <span style={{color:B.red}}>*</span></label><input type="date" value={compDate} onChange={e=>setCompDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div>
+      <div><span style={LS}>Technician Signature <span style={{color:B.red}}>*</span></span><div style={{marginTop:4}}><SignaturePad onSign={setSigCanvas}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}><div style={{fontSize:11,color:B.textDim}}>Draw your signature above</div><button onClick={()=>{if(sigCanvas&&sigCanvas._clear)sigCanvas._clear();setSigErr("");}} style={{background:"none",border:"none",color:B.orange,fontSize:12,cursor:"pointer",fontFamily:F}}>Clear</button></div></div>
+      {sigErr&&<div style={{color:B.red,fontSize:13,fontWeight:600,padding:"8px 12px",background:B.red+"11",borderRadius:6}}>{sigErr}</div>}
+      <div style={{display:"flex",gap:8}}><button onClick={()=>setShowComplete(false)} style={{...SEC}}>Cancel</button><button onClick={markComplete} disabled={saving} style={{...BIG,background:B.green,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Sign & Complete"}</button></div>
     </div></Modal>}
     {editingTime&&<Modal title="Edit Time Entry" onClose={()=>setEditingTime(null)}>
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div><label style={LS}>Date</label><input type="date" value={editingTime.logged_date||""} onChange={e=>setEditingTime({...editingTime,logged_date:e.target.value})} style={IS}/></div>
-        <div><label style={LS}>Hours</label><input type="number" step="0.25" value={editingTime.hours} onChange={e=>setEditingTime({...editingTime,hours:e.target.value})} style={{...IS,fontFamily:M}}/></div>
-        <div><label style={LS}>Description</label><input value={editingTime.description||""} onChange={e=>setEditingTime({...editingTime,description:e.target.value})} style={IS}/></div>
-        <div style={{display:"flex",gap:8}}><button onClick={()=>setEditingTime(null)} style={{...BS,flex:1}}>Cancel</button><button onClick={saveTimeEdit} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div><label style={LS}>Date</label><input type="date" value={editingTime.logged_date||""} onChange={e=>setEditingTime({...editingTime,logged_date:e.target.value})} style={{...IS,padding:14,fontSize:14}}/></div>
+        <div><label style={LS}>Hours</label><input type="number" step="0.25" value={editingTime.hours} onChange={e=>setEditingTime({...editingTime,hours:e.target.value})} style={{...IS,fontFamily:M,padding:14,fontSize:16}}/></div>
+        <div><label style={LS}>Description</label><input value={editingTime.description||""} onChange={e=>setEditingTime({...editingTime,description:e.target.value})} style={{...IS,padding:14,fontSize:14}}/></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setEditingTime(null)} style={{...SEC}}>Cancel</button><button onClick={saveTimeEdit} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
       </div>
     </Modal>}
   </div>);
@@ -463,11 +505,39 @@ function Settings(){return(<div><h3 style={{margin:"0 0 14px",fontSize:15,fontWe
 // DASHBOARDS — with new tabs
 // ═══════════════════════════════════════════
 function TechDash({user,onLogout,D,A,syncing}){
-  const[tab,setTab]=useState("orders");const my=D.wos.filter(o=>o.assignee===user.name);const myTime=D.time.filter(t=>t.technician===user.name);
+  const[tab,setTab]=useState("today");
+  const my=D.wos.filter(o=>o.assignee===user.name||(o.crew&&o.crew.includes(user.name)));
+  const myActive=my.filter(o=>o.status!=="completed");
+  const myCompleted=my.filter(o=>o.status==="completed");
+  const myTime=D.time.filter(t=>t.technician===user.name);
+  const todayStr=new Date().toISOString().slice(0,10);
+  const todayHours=myTime.filter(t=>t.logged_date===todayStr).reduce((s,t)=>s+parseFloat(t.hours||0),0);
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"orders",label:"Work Orders",icon:"📋"},{key:"schedule",label:"Schedule",icon:"📅"},{key:"time",label:"Time Log",icon:"⏱"}]}>
-    {tab==="orders"&&<><div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Active" value={my.filter(o=>o.status!=="completed").length} icon="📋" color={B.cyan}/><StatCard label="Hours" value={my.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.green}/><StatCard label="Done" value={my.filter(o=>o.status==="completed").length} icon="✓" color={B.green}/></div><WOList orders={my} {...wlp}/></>}
-    {tab==="schedule"&&<SchedView schedule={D.schedule} userName={user.name}/>}
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"}]}>
+    {tab==="today"&&<>
+      {/* Today's summary - big, clear */}
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+        <StatCard label="Active Jobs" value={myActive.length} icon="🔧" color={B.cyan}/>
+        <StatCard label="Today's Hours" value={todayHours.toFixed(1)+"h"} icon="⏱" color={B.green}/>
+        <StatCard label="Completed" value={myCompleted.length} icon="✓" color={B.green}/>
+      </div>
+      {/* Active jobs first - these are what matter */}
+      {myActive.length>0&&<div style={{marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Active Jobs</div>
+        <WOList orders={myActive} {...wlp}/>
+      </div>}
+      {myActive.length===0&&<Card style={{textAlign:"center",padding:30,marginBottom:16}}>
+        <div style={{fontSize:28,marginBottom:8}}>✅</div>
+        <div style={{fontSize:16,fontWeight:700,color:B.green}}>All caught up!</div>
+        <div style={{fontSize:12,color:B.textDim,marginTop:4}}>No active work orders right now.</div>
+      </Card>}
+      {/* Quick access to recent completed */}
+      {myCompleted.length>0&&<div>
+        <div style={{fontSize:13,fontWeight:800,color:B.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Recently Completed</div>
+        <WOList orders={myCompleted.slice(0,3)} {...wlp}/>
+      </div>}
+    </>}
+    {tab==="orders"&&<WOList orders={my} {...wlp}/>}
     {tab==="time"&&<TimeLog timeEntries={myTime} wos={D.wos}/>}
   </Shell>);
 }
