@@ -304,7 +304,10 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       </Card>
 
       {/* Delete — small, at the bottom, not prominent */}
-      <button onClick={tryDelete} disabled={saving} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F,marginBottom:20}}>Delete Work Order</button>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        <button onClick={async()=>{if(!window.confirm("Duplicate "+wo.wo_id+"? This creates a new WO with the same details."))return;setSaving(true);await onCreateWO({title:wo.title,priority:wo.priority,assignee:wo.assignee||"Unassigned",due_date:"TBD",notes:wo.notes||"",location:wo.location||"",wo_type:wo.wo_type||"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);msg("Duplicated! Check your work orders.");}} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.cyan+"33",background:"transparent",color:B.cyan+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>📋 Duplicate WO</button>
+        <button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete WO</button>
+      </div>
     </div>
 
     {/* MODALS */}
@@ -395,14 +398,18 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {flt.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No orders</div>}
       {flt.map(wo=>{const wp=pos.filter(p=>p.wo_id===wo.id);const wph=photos.filter(p=>p.wo_id===wo.id);return(
-        <Card key={wo.id} onClick={()=>setSel(wo)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px"}}>
+        <Card key={wo.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px"}}>
           <div style={{width:3,height:36,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0}}>
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span><Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wph.length>0&&<span style={{fontSize:10,color:B.textDim}}>📷{wph.length}</span>}{wp.length>0&&<span style={{fontSize:10,color:B.purple}}>📄{wp.length} PO</span>}</div>
             <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
             <div style={{fontSize:11,color:B.textDim,marginTop:1}}>{wo.customer&&<span>👤 {wo.customer} · </span>}{wo.location&&<span>📍 {wo.location}</span>}</div>
           </div>
-          <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:11,color:B.textDim}}>{wo.assignee}{wo.crew&&wo.crew.length>0&&<span style={{color:B.purple}}> +{wo.crew.length}</span>}</div><div style={{fontSize:11,fontWeight:600,color:B.textMuted}}>Due {wo.due_date}</div></div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+            <div style={{fontSize:11,color:B.textDim}}>{wo.assignee}{wo.crew&&wo.crew.length>0&&<span style={{color:B.purple}}> +{wo.crew.length}</span>}</div>
+            {wo.status!=="completed"&&<select value={wo.status} onChange={async e=>{e.stopPropagation();await onUpdateWO({...wo,status:e.target.value});}} onClick={e=>e.stopPropagation()} style={{padding:"3px 6px",borderRadius:4,border:"1px solid "+(SC[wo.status]||B.border),background:(SC[wo.status]||B.textDim)+"22",color:SC[wo.status]||B.textDim,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:F,appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 3px center"}}><option value="pending">Pending</option><option value="in_progress">Active</option></select>}
+            {wo.status==="completed"&&<span style={{fontSize:10,color:B.green,fontWeight:600}}>✓ Done</span>}
+          </div>
         </Card>);})}
     </div></div>);
 }
@@ -560,7 +567,8 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
       <button onClick={()=>setShowCustomCols(!showCustomCols)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer",marginTop:6,fontFamily:F}}>{showCustomCols?"▾ Hide custom":"▸ Customize columns"}</button>
       {showCustomCols&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>{Object.entries(allCols).map(([k,v])=><button key={k} onClick={()=>setCols(prev=>prev.includes(k)?prev.filter(c=>c!==k):[...prev,k])} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(cols.includes(k)?B.cyan:B.border),background:cols.includes(k)?B.cyanGlow:"transparent",color:cols.includes(k)?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{v}</button>)}</div>}
     </div>
-    <div style={{marginBottom:14,fontSize:12,color:B.textMuted}}>{completed.length} completed orders{custFilter?" for "+custFilter:""}</div>
+    {/* Billing Stats */}
+    {(()=>{const totalHrs=completed.reduce((s,wo)=>{const ft=timeEntries.filter(t=>t.wo_id===wo.id).filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});return s+ft.reduce((ss,t)=>ss+parseFloat(t.hours||0),0);},0);const totalPOs=completed.reduce((s,wo)=>s+pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((ss,p)=>ss+parseFloat(p.amount||0),0),0);const pendingPOs=completed.reduce((s,wo)=>s+pos.filter(p=>p.wo_id===wo.id&&p.status==="pending").length,0);const avgHrs=completed.length>0?(totalHrs/completed.length).toFixed(1):0;return(<div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Work Orders" value={completed.length} icon="📋" color={B.cyan}/><StatCard label="Total Hours" value={totalHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/><StatCard label="Avg Hrs/WO" value={avgHrs+"h"} icon="📊" color={B.green}/><StatCard label="PO Total" value={"$"+totalPOs.toFixed(2)} icon="💰" color={B.purple}/>{pendingPOs>0&&<StatCard label="Pending POs" value={pendingPOs} icon="⏳" color={B.red}/>}</div>);})()}
     <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{cols.map(c=><th key={c} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{allCols[c]}</th>)}</tr></thead><tbody>{completed.map(wo=>{const d=getData(wo);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}>{cols.map(c=><td key={c} style={{padding:"6px 8px",fontFamily:c==="wo_id"||c==="hours"||c==="po_total"?M:F,color:c==="wo_id"?B.cyan:c==="hours"?B.cyan:B.text}}>{c==="hours"?d.hours_display:d[c]}</td>)}</tr>);})}</tbody></table></Card>
     <div style={{display:"flex",gap:8}}>
       <button onClick={copyToClip} style={{...BP,flex:1}}>📋 Copy</button>
@@ -570,6 +578,7 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
     {showEmail&&<Modal title="Send Timesheet via Email" onClose={()=>setShowEmail(false)} wide>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border,fontSize:12,color:B.textMuted}}>Attaching 3C Timesheet (.xls) with {completed.length} entries{custFilter?" for "+custFilter:""} from <span style={{color:B.cyan}}>service@3crefrigeration.com</span></div>
+        {(()=>{const warnings=[];const zeroHrs=completed.filter(wo=>{const ft=timeEntries.filter(t=>t.wo_id===wo.id).filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});return ft.reduce((s,t)=>s+parseFloat(t.hours||0),0)===0;});const noDesc=completed.filter(wo=>!wo.work_performed&&!wo.notes||wo.notes==="No details.");const noDate=completed.filter(wo=>!wo.date_completed);if(zeroHrs.length>0)warnings.push({icon:"⏱",msg:zeroHrs.length+" WO"+(zeroHrs.length>1?"s have":" has")+" 0 hours logged: "+zeroHrs.map(w=>w.wo_id).join(", ")});if(noDesc.length>0)warnings.push({icon:"📝",msg:noDesc.length+" WO"+(noDesc.length>1?"s have":" has")+" no work description: "+noDesc.map(w=>w.wo_id).join(", ")});if(noDate.length>0)warnings.push({icon:"📅",msg:noDate.length+" WO"+(noDate.length>1?"s have":" has")+" no completion date"});return warnings.length>0?<div style={{display:"flex",flexDirection:"column",gap:4}}>{warnings.map((w,i)=><div key={i} style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:6,padding:"8px 12px",fontSize:11,color:B.orange,display:"flex",alignItems:"center",gap:8}}><span>{w.icon}</span><span>{w.msg}</span></div>)}</div>:null;})()}
         <div><label style={LS}>Email Template</label><select onChange={e=>{const t=(emailTemplates||[]).find(x=>x.id===e.target.value);applyTemplate(t);}} style={{...IS,cursor:"pointer"}}><option value="">— Default —</option>{(emailTemplates||[]).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
         <div style={{position:"relative"}}><label style={LS}>To <span style={{color:B.red}}>*</span></label><input value={emailTo} onChange={e=>{setEmailTo(e.target.value);setSuggestions(filterContacts(e.target.value));setShowSugTo(true);}} onFocus={()=>{setSuggestions(filterContacts(emailTo));setShowSugTo(true);}} onBlur={()=>setTimeout(()=>setShowSugTo(false),200)} placeholder="customer@example.com" style={{...IS,fontSize:14,padding:12}}/><SugBox items={suggestions} show={showSugTo} onPick={e=>{setEmailTo(e);setShowSugTo(false);}}/></div>
         <div style={{position:"relative"}}><label style={LS}>CC <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={emailCC} onChange={e=>{setEmailCC(e.target.value);setSuggestions(filterContacts(e.target.value.split(",").pop().trim()));setShowSugCC(true);}} onFocus={()=>{setSuggestions(filterContacts(emailCC.split(",").pop().trim()));setShowSugCC(true);}} onBlur={()=>setTimeout(()=>setShowSugCC(false),200)} placeholder="boss@example.com" style={{...IS,fontSize:14,padding:12}}/><SugBox items={suggestions} show={showSugCC} onPick={e=>{const parts=emailCC.split(",").map(s=>s.trim()).filter(Boolean);parts.pop();parts.push(e);setEmailCC(parts.join(", "));setShowSugCC(false);}}/></div>
@@ -759,7 +768,35 @@ function AdminDash({user,onLogout,D,A,syncing}){
 // ═══════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════
+function CustomerPortal({customerSlug}){
+  const[data,setData]=useState(null),[loading,setLoading]=useState(true);
+  useEffect(()=>{const load=async()=>{const client=sb();const name=decodeURIComponent(customerSlug);const{data:wos}=await client.from("work_orders").select("*").eq("customer",name).order("date_completed",{ascending:false});const{data:time}=await client.from("time_entries").select("*");setData({wos:wos||[],time:time||[],name});setLoading(false);};load();},[customerSlug]);
+  if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+  if(!data||data.wos.length===0)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text}}><Logo/><div style={{marginTop:20,fontSize:14,color:B.textDim}}>No work orders found for this customer.</div></div>;
+  const active=data.wos.filter(o=>o.status!=="completed");const done=data.wos.filter(o=>o.status==="completed");
+  const totalHrs=data.wos.reduce((s,wo)=>s+data.time.filter(t=>t.wo_id===wo.id).reduce((ss,t)=>ss+parseFloat(t.hours||0),0),0);
+  return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text}}>
+    <div style={{background:B.surface,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Customer Portal</div></div>
+    <div style={{maxWidth:900,margin:"0 auto",padding:20}}>
+      <h2 style={{fontSize:20,fontWeight:800,marginBottom:4}}>{data.name}</h2>
+      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Active" value={active.length} icon="🔧" color={B.cyan}/><StatCard label="Completed" value={done.length} icon="✓" color={B.green}/><StatCard label="Total Hours" value={totalHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/></div>
+      {active.length>0&&<><h3 style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:8}}>Active Work Orders</h3>{active.map(wo=><Card key={wo.id} style={{padding:"12px 16px",marginBottom:6}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.customer_wo||wo.wo_id}</span><Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge></div><div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{wo.title}</div>{wo.location&&<div style={{fontSize:11,color:B.textDim}}>📍 {wo.building} — {wo.location}</div>}</div><div style={{fontSize:11,color:B.textDim}}>Due: {wo.due_date}</div></div>
+      </Card>)}</>}
+      {done.length>0&&<><h3 style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:8,marginTop:16}}>Completed</h3>{done.slice(0,20).map(wo=>{const hrs=data.time.filter(t=>t.wo_id===wo.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);return<Card key={wo.id} style={{padding:"12px 16px",marginBottom:6}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.customer_wo||wo.wo_id}</span><span style={{fontSize:10,color:B.green}}>✓ {wo.date_completed}</span></div><div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{wo.title}</div>{wo.work_performed&&<div style={{fontSize:11,color:B.textMuted,marginTop:2}}>{wo.work_performed}</div>}{wo.location&&<div style={{fontSize:11,color:B.textDim}}>📍 {wo.building} — {wo.location}</div>}</div><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.cyan}}>{hrs}h</div></div>
+      </Card>;})}
+      {done.length>20&&<div style={{textAlign:"center",fontSize:11,color:B.textDim,padding:10}}>Showing 20 of {done.length} completed orders</div>}</>}
+    </div>
+  </div>);
+}
+
 export default function App(){
+  // Check for customer portal route
+  const hash=window.location.hash;
+  const portalMatch=hash.match(/#\/portal\/(.+)/);
+  if(portalMatch)return <CustomerPortal customerSlug={portalMatch[1]}/>;
+
   const[authUser,setAuthUser]=useState(null);const[appUser,setAppUser]=useState(null);
   const[data,setData]=useState(null);const[loading,setLoading]=useState(true);const[syncing,setSyncing]=useState(false);
 
