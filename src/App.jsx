@@ -60,20 +60,33 @@ function SignaturePad({onSign}){
   return <canvas ref={canvasRef} width={320} height={140} style={{border:"1px solid "+B.border,borderRadius:6,touchAction:"none",cursor:"crosshair",width:"100%",maxWidth:320,height:140}}/>;
 }
 
-function CameraUpload({woId,onUploaded,userName}){
+function CameraUpload({woId,woName,onUploaded,userName}){
   const fileRef=useRef(null);
   const[uploading,setUploading]=useState(false);
   const handleFile=async(e)=>{
     const file=e.target.files?.[0];if(!file||uploading)return;
     setUploading(true);
-    const ext=file.name.split(".").pop();
-    const path=`${woId}/${Date.now()}.${ext}`;
-    const{error}=await sb().storage.from("photos").upload(path,file);
-    if(!error){
-      const{data:{publicUrl}}=sb().storage.from("photos").getPublicUrl(path);
-      await sb().from("photos").insert({wo_id:woId,filename:file.name,photo_url:publicUrl,uploaded_by:userName,drive_synced:true});
-      if(onUploaded)onUploaded();
-    }else{console.error("Upload error:",error);}
+    try{
+      // Convert to base64
+      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      // Compress if image is large (>1MB)
+      let finalB64=b64;let finalMime=file.type;
+      if(file.size>1024*1024&&file.type.startsWith("image/")){
+        const img=new Image();const url=URL.createObjectURL(file);
+        await new Promise(res=>{img.onload=res;img.src=url;});
+        const canvas=document.createElement("canvas");const maxW=1200;const scale=Math.min(1,maxW/img.width);
+        canvas.width=img.width*scale;canvas.height=img.height*scale;
+        canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+        finalB64=canvas.toDataURL("image/jpeg",0.8).split(",")[1];finalMime="image/jpeg";
+        URL.revokeObjectURL(url);
+      }
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:finalB64,fileName:Date.now()+"_"+file.name,mimeType:finalMime,folderPath:"3C FieldOps/Work Orders/"+(woName||woId)})});
+      const result=await resp.json();
+      if(result.success){
+        await sb().from("photos").insert({wo_id:woId,filename:file.name,photo_url:result.thumbnailUrl,uploaded_by:userName,drive_synced:true});
+        if(onUploaded)onUploaded();
+      }else{console.error("Drive upload error:",result.error);}
+    }catch(err){console.error("Upload error:",err);}
     setUploading(false);
     if(fileRef.current)fileRef.current.value="";
   };
@@ -81,7 +94,7 @@ function CameraUpload({woId,onUploaded,userName}){
     <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
     <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{...BS,width:"100%",padding:14,opacity:uploading?.6:1}}>
       <div style={{fontSize:24,marginBottom:4}}>📷</div>
-      <div style={{fontSize:12}}>{uploading?"Uploading...":"Tap to Take Photo or Choose from Gallery"}</div>
+      <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":"Tap to Take Photo or Choose from Gallery"}</div>
     </button>
   </div>);
 }
@@ -265,8 +278,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
     </div>}
 
     {/* Camera (hidden trigger, activated by Photo button above) */}
-    {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} userName={userName} onUploaded={loadData}/></div>}
-    {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} userName={userName} onUploaded={loadData}/></div>}
+    {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData}/></div>}
+    {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData}/></div>}
 
     {/* FIELD NOTES — always visible, quick add */}
     <Card style={{maxWidth:640,marginBottom:12}}>
@@ -694,157 +707,79 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
   </div>);
 }
 // ═══════════════════════════════════════════
-// PROJECTS MODULE
+// PROJECTS MODULE — with Chambers, Budget, WO Integration
 // ═══════════════════════════════════════════
-function ProjectList({projects,onSelect,onCreate,users,customers}){
-  const[showCreate,setShowCreate]=useState(false),[name,setName]=useState(""),[desc,setDesc]=useState(""),[cust,setCust]=useState(""),[loc,setLoc]=useState(""),[saving,setSaving]=useState(false);
-  const active=projects.filter(p=>p.status==="active");const archived=projects.filter(p=>p.status==="archived");
+function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
+  const[showCreate,setShowCreate]=useState(false),[name,setName]=useState(""),[desc,setDesc]=useState(""),[cust,setCust]=useState(""),[loc,setLoc]=useState(""),[budget,setBudget]=useState(""),[saving,setSaving]=useState(false);
+  const isMgr=userRole==="admin"||userRole==="manager";const active=projects.filter(p=>p.status==="active");const archived=projects.filter(p=>p.status==="archived");
   const[showArchived,setShowArchived]=useState(false);
-  const go=async()=>{if(!name.trim()||saving)return;if(cleanText(name,"Project Name")===null||cleanText(desc,"Description")===null)return;setSaving(true);await onCreate({name:name.trim(),description:desc.trim(),customer:cust,location:loc.trim(),status:"active",assigned_techs:[]});setSaving(false);setShowCreate(false);setName("");setDesc("");setCust("");setLoc("");};
+  const go=async()=>{if(!name.trim()||saving)return;if(cleanText(name,"Project Name")===null||cleanText(desc,"Description")===null)return;setSaving(true);await onCreate({name:name.trim(),description:desc.trim(),customer:cust,location:loc.trim(),budget:parseFloat(budget)||0,status:"active",assigned_techs:[]});setSaving(false);setShowCreate(false);setName("");setDesc("");setCust("");setLoc("");setBudget("");};
   return(<div>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Projects</h3>
-      <button onClick={()=>setShowCreate(true)} style={{...BP,fontSize:12}}>+ New Project</button>
-    </div>
-    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Active" value={active.length} icon="🏗️" color={B.cyan}/>
-      <StatCard label="Archived" value={archived.length} icon="📁" color={B.textDim}/>
-    </div>
-    {active.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>🏗️</div><div style={{fontSize:13}}>No active projects. Create one to get started.</div></Card>}
-    {active.map(p=><Card key={p.id} onClick={()=>onSelect(p)} style={{padding:"14px 16px",marginBottom:8,cursor:"pointer",borderLeft:"3px solid "+B.cyan}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><div style={{fontSize:14,fontWeight:700,color:B.text}}>{p.name}</div>{p.customer&&<div style={{fontSize:11,color:B.purple,marginTop:2}}>👤 {p.customer}</div>}{p.description&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>{p.description.slice(0,80)}{p.description.length>80?"...":""}</div>}</div>
-        <div style={{textAlign:"right"}}>{p.assigned_techs&&p.assigned_techs.length>0&&<div style={{fontSize:11,color:B.textDim}}>{p.assigned_techs.length} tech{p.assigned_techs.length>1?"s":""}</div>}<div style={{fontSize:10,color:B.textDim}}>{new Date(p.created_at).toLocaleDateString()}</div></div>
-      </div>
-    </Card>)}
-    {archived.length>0&&<><button onClick={()=>setShowArchived(!showArchived)} style={{width:"100%",padding:"10px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginTop:16}}><span style={{fontSize:12,fontWeight:600,color:B.textDim}}>📁 Archived ({archived.length})</span><span style={{color:B.textDim}}>{showArchived?"▾":"▸"}</span></button>
-    {showArchived&&archived.map(p=><Card key={p.id} onClick={()=>onSelect(p)} style={{padding:"12px 16px",marginTop:6,cursor:"pointer",opacity:.6}}><div style={{fontSize:13,fontWeight:600,color:B.textMuted}}>{p.name}</div></Card>)}</>}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Projects</h3><button onClick={()=>setShowCreate(true)} style={{...BP,fontSize:12}}>+ New Project</button></div>
+    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Active" value={active.length} icon="🏗️" color={B.cyan}/><StatCard label="Archived" value={archived.length} icon="📁" color={B.textDim}/></div>
+    {active.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>🏗️</div><div style={{fontSize:13}}>No active projects.</div></Card>}
+    {active.map(p=><Card key={p.id} onClick={()=>onSelect(p)} style={{padding:"14px 16px",marginBottom:8,cursor:"pointer",borderLeft:"3px solid "+B.cyan}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>{p.name}</div>{p.customer&&<div style={{fontSize:11,color:B.purple,marginTop:2}}>👤 {p.customer}</div>}</div><div style={{textAlign:"right"}}>{p.budget>0&&<div style={{fontSize:11,fontFamily:M,color:B.green}}>${p.budget.toLocaleString()}</div>}{p.assigned_techs&&p.assigned_techs.length>0&&<div style={{fontSize:11,color:B.textDim}}>{p.assigned_techs.length} techs</div>}</div></div></Card>)}
+    {archived.length>0&&<><button onClick={()=>setShowArchived(!showArchived)} style={{width:"100%",padding:"10px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginTop:16}}><span style={{fontSize:12,fontWeight:600,color:B.textDim}}>📁 Archived ({archived.length})</span><span style={{color:B.textDim}}>{showArchived?"▾":"▸"}</span></button>{showArchived&&archived.map(p=><Card key={p.id} onClick={()=>onSelect(p)} style={{padding:"12px 16px",marginTop:6,cursor:"pointer",opacity:.6}}><div style={{fontSize:13,fontWeight:600,color:B.textMuted}}>{p.name}</div></Card>)}</>}
     {showCreate&&<Modal title="New Project" onClose={()=>setShowCreate(false)} wide><div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div><label style={LS}>Project Name <span style={{color:B.red}}>*</span></label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Building 7513 Chiller Replacement" style={IS}/></div>
-      <div><label style={LS}>Description</label><textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={3} placeholder="Scope of work, timeline, etc." style={{...IS,resize:"vertical"}}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>setCust(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-        <div><label style={LS}>Location</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Building, site, etc." style={IS}/></div>
-      </div>
+      <div><label style={LS}>Project Name *</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Building 7513 Chiller Replacement" style={IS}/></div>
+      <div><label style={LS}>Description</label><textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={3} placeholder="Scope of work..." style={{...IS,resize:"vertical"}}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Customer</label><select value={cust} onChange={e=>setCust(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>{isMgr&&<div><label style={LS}>Budget ($)</label><input value={budget} onChange={e=>setBudget(e.target.value)} type="number" placeholder="15000" style={{...IS,fontFamily:M}}/></div>}</div>
+      <div><label style={LS}>Location</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Building, site" style={IS}/></div>
       <div style={{display:"flex",gap:8}}><button onClick={()=>setShowCreate(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Creating...":"Create Project"}</button></div>
     </div></Modal>}
   </div>);
 }
-
-function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName}){
+function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole,allWOs,onCreateWO,allPOs}){
   const[tab,setTab]=useState("overview"),[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
-  const[milestones,setMilestones]=useState([]),[parts,setParts]=useState([]),[notes,setNotes]=useState([]),[photos,setPhotos]=useState([]),[drawings,setDrawings]=useState([]);
+  const[chambers,setChambers]=useState([]),[milestones,setMilestones]=useState([]),[parts,setParts]=useState([]),[notes,setNotes]=useState([]),[photos,setPhotos]=useState([]),[drawings,setDrawings]=useState([]);
+  const[newChamber,setNewChamber]=useState(""),[selChamber,setSelChamber]=useState(null);
   const[newMilestone,setNewMilestone]=useState(""),[newPart,setNewPart]=useState(""),[newPartQty,setNewPartQty]=useState(1),[newNote,setNewNote]=useState("");
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
-
-  const loadProjectData=async()=>{const c=sb();
-    const[m,p,n,ph,d]=await Promise.all([c.from("project_milestones").select("*").eq("project_id",project.id).order("sort_order"),c.from("project_parts").select("*").eq("project_id",project.id).order("created_at"),c.from("project_notes").select("*").eq("project_id",project.id).order("created_at",{ascending:false}),c.from("project_photos").select("*").eq("project_id",project.id).order("uploaded_at",{ascending:false}),c.from("project_drawings").select("*").eq("project_id",project.id).order("uploaded_at",{ascending:false})]);
-    setMilestones(m.data||[]);setParts(p.data||[]);setNotes(n.data||[]);setPhotos(ph.data||[]);setDrawings(d.data||[]);};
-  useEffect(()=>{loadProjectData();},[project.id]);
-
-  const addMilestone=async()=>{if(!newMilestone.trim())return;if(cleanText(newMilestone,"Milestone")===null)return;await sb().from("project_milestones").insert({project_id:project.id,title:newMilestone.trim(),sort_order:milestones.length});setNewMilestone("");await loadProjectData();msg("Milestone added");};
-  const toggleMilestone=async(m)=>{await sb().from("project_milestones").update({completed:!m.completed,completed_at:!m.completed?new Date().toISOString():null}).eq("id",m.id);await loadProjectData();};
-  const deleteMilestone=async(id)=>{await sb().from("project_milestones").delete().eq("id",id);await loadProjectData();};
-
-  const addPart=async()=>{if(!newPart.trim())return;if(cleanText(newPart,"Part Name")===null)return;await sb().from("project_parts").insert({project_id:project.id,name:newPart.trim(),quantity:newPartQty||1});setNewPart("");setNewPartQty(1);await loadProjectData();msg("Part added");};
-  const togglePart=async(p)=>{await sb().from("project_parts").update({received:!p.received,received_at:!p.received?new Date().toISOString():null}).eq("id",p.id);await loadProjectData();};
-  const deletePart=async(id)=>{await sb().from("project_parts").delete().eq("id",id);await loadProjectData();};
-
-  const addNote=async()=>{if(!newNote.trim())return;if(cleanText(newNote,"Note")===null)return;await sb().from("project_notes").insert({project_id:project.id,note:newNote.trim(),author:userName});setNewNote("");await loadProjectData();msg("Note added");};
-
-  const uploadPhoto=async(file)=>{if(!file)return;setSaving(true);const fname=Date.now()+"_"+file.name;const{error}=await sb().storage.from("photos").upload("projects/"+project.id+"/"+fname,file);if(error){msg("Upload failed");setSaving(false);return;}const{data:{publicUrl}}=sb().storage.from("photos").getPublicUrl("projects/"+project.id+"/"+fname);await sb().from("project_photos").insert({project_id:project.id,photo_url:publicUrl,uploaded_by:userName});setSaving(false);await loadProjectData();msg("Photo uploaded");};
-
-  const uploadDrawing=async(file)=>{if(!file)return;setSaving(true);const fname=Date.now()+"_"+file.name;const{error}=await sb().storage.from("photos").upload("projects/"+project.id+"/drawings/"+fname,file);if(error){msg("Upload failed");setSaving(false);return;}const{data:{publicUrl}}=sb().storage.from("photos").getPublicUrl("projects/"+project.id+"/drawings/"+fname);await sb().from("project_drawings").insert({project_id:project.id,file_url:publicUrl,name:file.name,uploaded_by:userName});setSaving(false);await loadProjectData();msg("Drawing uploaded");};
-
-  const toggleTech=async(techName)=>{const current=project.assigned_techs||[];const updated=current.includes(techName)?current.filter(t=>t!==techName):[...current,techName];await onUpdate({...project,assigned_techs:updated});};
-
-  const milestoneDone=milestones.filter(m=>m.completed).length;const milestoneTotal=milestones.length;
-  const partsReceived=parts.filter(p=>p.received).length;const partsTotal=parts.length;
-
+  const loadPD=async()=>{const c=sb();const[ch,m,p,n,ph,d]=await Promise.all([c.from("project_chambers").select("*").eq("project_id",project.id).order("sort_order"),c.from("project_milestones").select("*").eq("project_id",project.id).order("sort_order"),c.from("project_parts").select("*").eq("project_id",project.id).order("created_at"),c.from("project_notes").select("*").eq("project_id",project.id).order("created_at",{ascending:false}),c.from("project_photos").select("*").eq("project_id",project.id).order("uploaded_at",{ascending:false}),c.from("project_drawings").select("*").eq("project_id",project.id).order("uploaded_at",{ascending:false})]);setChambers(ch.data||[]);setMilestones(m.data||[]);setParts(p.data||[]);setNotes(n.data||[]);setPhotos(ph.data||[]);setDrawings(d.data||[]);};
+  useEffect(()=>{loadPD();},[project.id]);
+  const addChamber=async()=>{if(!newChamber.trim())return;if(cleanText(newChamber,"Chamber")===null)return;await sb().from("project_chambers").insert({project_id:project.id,name:newChamber.trim(),sort_order:chambers.length});setNewChamber("");await loadPD();msg("Chamber added");};
+  const deleteChamber=async(id)=>{if(!window.confirm("Delete chamber and all its data?"))return;await sb().from("project_chambers").delete().eq("id",id);if(selChamber===id)setSelChamber(null);await loadPD();};
+  const chM=selChamber?milestones.filter(m=>m.chamber_id===selChamber):milestones.filter(m=>!m.chamber_id);
+  const chP=selChamber?parts.filter(p=>p.chamber_id===selChamber):parts.filter(p=>!p.chamber_id);
+  const addMilestone=async()=>{if(!newMilestone.trim())return;if(cleanText(newMilestone,"Milestone")===null)return;await sb().from("project_milestones").insert({project_id:project.id,chamber_id:selChamber||null,title:newMilestone.trim(),sort_order:chM.length});setNewMilestone("");await loadPD();msg("Milestone added");};
+  const toggleMilestone=async(m)=>{await sb().from("project_milestones").update({completed:!m.completed,completed_at:!m.completed?new Date().toISOString():null}).eq("id",m.id);await loadPD();};
+  const delMilestone=async(id)=>{await sb().from("project_milestones").delete().eq("id",id);await loadPD();};
+  const addPart=async()=>{if(!newPart.trim())return;if(cleanText(newPart,"Part")===null)return;await sb().from("project_parts").insert({project_id:project.id,chamber_id:selChamber||null,name:newPart.trim(),quantity:newPartQty||1});setNewPart("");setNewPartQty(1);await loadPD();msg("Part added");};
+  const togglePart=async(p)=>{await sb().from("project_parts").update({received:!p.received,received_at:!p.received?new Date().toISOString():null}).eq("id",p.id);await loadPD();};
+  const delPart=async(id)=>{await sb().from("project_parts").delete().eq("id",id);await loadPD();};
+  const addNote=async()=>{if(!newNote.trim())return;if(cleanText(newNote,"Note")===null)return;await sb().from("project_notes").insert({project_id:project.id,note:newNote.trim(),author:userName});setNewNote("");await loadPD();msg("Note added");};
+  const upPhoto=async(file)=>{if(!file)return;setSaving(true);try{const b64=await new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.onerror=j;f.readAsDataURL(file);});let fb=b64,fm=file.type;if(file.size>1048576&&file.type.startsWith("image/")){const img=new Image();const u=URL.createObjectURL(file);await new Promise(r=>{img.onload=r;img.src=u;});const cv=document.createElement("canvas");const s=Math.min(1,1200/img.width);cv.width=img.width*s;cv.height=img.height*s;cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);fb=cv.toDataURL("image/jpeg",0.8).split(",")[1];fm="image/jpeg";URL.revokeObjectURL(u);}const rp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:fb,fileName:Date.now()+"_"+file.name,mimeType:fm,folderPath:"3C FieldOps/Projects/"+project.name+"/Photos"})});const rs=await rp.json();if(rs.success){await sb().from("project_photos").insert({project_id:project.id,chamber_id:selChamber||null,photo_url:rs.thumbnailUrl,uploaded_by:userName});await loadPD();msg("Photo uploaded");}else msg("Failed");}catch(e){msg("Error");}setSaving(false);};
+  const upDraw=async(file)=>{if(!file)return;setSaving(true);try{const b64=await new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.onerror=j;f.readAsDataURL(file);});const rp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:b64,fileName:file.name,mimeType:file.type||"application/pdf",folderPath:"3C FieldOps/Projects/"+project.name+"/Drawings"})});const rs=await rp.json();if(rs.success){await sb().from("project_drawings").insert({project_id:project.id,file_url:rs.webViewLink,name:file.name,uploaded_by:userName});await loadPD();msg("Drawing uploaded");}else msg("Failed");}catch(e){msg("Error");}setSaving(false);};
+  const toggleTech=async(t)=>{const c=project.assigned_techs||[];await onUpdate({...project,assigned_techs:c.includes(t)?c.filter(x=>x!==t):[...c,t]});};
+  const isMgr=userRole==="admin"||userRole==="manager";
+  const mDone=milestones.filter(m=>m.completed).length,mTot=milestones.length;
+  const pDone=parts.filter(p=>p.received).length,pTot=parts.length;
+  const pWOs=(allWOs||[]).filter(w=>w.project_id===project.id);
+  const pHrs=pWOs.reduce((s,w)=>s+parseFloat(w.hours_total||0),0);
+  const pSpend=(allPOs||[]).filter(p=>pWOs.some(w=>w.id===p.wo_id)&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const bLeft=(project.budget||0)-pSpend;
   return(<div><Toast msg={toast}/>
-    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F,marginBottom:10}}>← Back to Projects</button>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-      <div><h2 style={{margin:0,fontSize:20,fontWeight:800,color:B.text}}>{project.name}</h2>{project.customer&&<div style={{fontSize:12,color:B.purple,marginTop:2}}>👤 {project.customer}</div>}{project.location&&<div style={{fontSize:11,color:B.textDim}}>📍 {project.location}</div>}</div>
-      <div style={{display:"flex",gap:6}}>
-        <select value={project.status} onChange={async e=>{await onUpdate({...project,status:e.target.value});msg("Status updated");}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:11,cursor:"pointer",fontFamily:F}}><option value="active">Active</option><option value="archived">Archived</option></select>
-      </div>
-    </div>
-
-    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Milestones" value={milestoneDone+"/"+milestoneTotal} icon="🎯" color={milestoneTotal>0&&milestoneDone===milestoneTotal?B.green:B.cyan}/>
-      <StatCard label="Parts" value={partsReceived+"/"+partsTotal} icon="🔩" color={partsTotal>0&&partsReceived===partsTotal?B.green:B.orange}/>
-      <StatCard label="Photos" value={photos.length} icon="📷" color={B.purple}/>
-      <StatCard label="Team" value={(project.assigned_techs||[]).length} icon="👥" color={B.cyan}/>
-    </div>
-
-    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{[["overview","Overview"],["milestones","Milestones"],["parts","Parts"],["photos","Photos"],["drawings","Drawings"],["notes","Notes"],["team","Team"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
-
-    {tab==="overview"&&<div>
-      {project.description&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Description</span><p style={{margin:"4px 0 0",color:B.text,fontSize:13,lineHeight:1.5}}>{project.description}</p></Card>}
-      {milestoneTotal>0&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Milestone Progress</span><div style={{marginTop:8,background:B.bg,borderRadius:4,height:8,overflow:"hidden"}}><div style={{width:(milestoneTotal>0?milestoneDone/milestoneTotal*100:0)+"%",height:"100%",background:B.cyan,borderRadius:4,transition:"width .3s"}}/></div><div style={{fontSize:11,color:B.textDim,marginTop:4}}>{milestoneDone} of {milestoneTotal} complete</div></Card>}
-      {partsTotal>0&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Parts Status</span><div style={{marginTop:8,background:B.bg,borderRadius:4,height:8,overflow:"hidden"}}><div style={{width:(partsTotal>0?partsReceived/partsTotal*100:0)+"%",height:"100%",background:B.orange,borderRadius:4,transition:"width .3s"}}/></div><div style={{fontSize:11,color:B.textDim,marginTop:4}}>{partsReceived} of {partsTotal} received</div></Card>}
-      {notes.length>0&&<Card style={{padding:14}}><span style={LS}>Latest Note</span><div style={{marginTop:6,fontSize:12,color:B.text}}>{notes[0].note}</div><div style={{fontSize:10,color:B.textDim,marginTop:4}}>— {notes[0].author}, {new Date(notes[0].created_at).toLocaleDateString()}</div></Card>}
-    </div>}
-
-    {tab==="milestones"&&<div>
-      <div style={{display:"flex",gap:6,marginBottom:12}}><input value={newMilestone} onChange={e=>setNewMilestone(e.target.value)} placeholder="Add a milestone..." style={{...IS,flex:1,padding:12}} onKeyDown={e=>e.key==="Enter"&&addMilestone()}/><button onClick={addMilestone} style={{...BP,padding:"12px 18px"}}>Add</button></div>
-      {milestones.map(m=><Card key={m.id} style={{padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:m.completed?.6:1}}>
-        <button onClick={()=>toggleMilestone(m)} style={{width:24,height:24,borderRadius:6,border:"2px solid "+(m.completed?B.green:B.border),background:m.completed?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>{m.completed&&<span style={{color:"#fff",fontSize:14}}>✓</span>}</button>
-        <div style={{flex:1}}><span style={{fontSize:13,fontWeight:600,color:B.text,textDecoration:m.completed?"line-through":"none"}}>{m.title}</span>{m.completed_at&&<div style={{fontSize:10,color:B.textDim}}>Completed {new Date(m.completed_at).toLocaleDateString()}</div>}</div>
-        <button onClick={()=>deleteMilestone(m.id)} style={{background:"none",border:"none",color:B.red+"66",fontSize:14,cursor:"pointer"}}>×</button>
-      </Card>)}
-    </div>}
-
-    {tab==="parts"&&<div>
-      <div style={{display:"flex",gap:6,marginBottom:12}}><input value={newPart} onChange={e=>setNewPart(e.target.value)} placeholder="Part name..." style={{...IS,flex:1,padding:12}} onKeyDown={e=>e.key==="Enter"&&addPart()}/><input value={newPartQty} onChange={e=>setNewPartQty(parseInt(e.target.value)||1)} type="number" min="1" style={{...IS,width:60,padding:12,fontFamily:M,textAlign:"center"}}/><button onClick={addPart} style={{...BP,padding:"12px 18px"}}>Add</button></div>
-      {parts.map(p=><Card key={p.id} style={{padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
-        <button onClick={()=>togglePart(p)} style={{width:24,height:24,borderRadius:6,border:"2px solid "+(p.received?B.green:B.orange),background:p.received?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>{p.received&&<span style={{color:"#fff",fontSize:14}}>✓</span>}</button>
-        <div style={{flex:1}}><span style={{fontSize:13,fontWeight:600,color:B.text,textDecoration:p.received?"line-through":"none"}}>{p.name}</span><span style={{fontFamily:M,fontSize:11,color:B.textDim,marginLeft:6}}>×{p.quantity}</span>{p.received_at&&<div style={{fontSize:10,color:B.green}}>Received {new Date(p.received_at).toLocaleDateString()}</div>}</div>
-        <button onClick={()=>deletePart(p.id)} style={{background:"none",border:"none",color:B.red+"66",fontSize:14,cursor:"pointer"}}>×</button>
-      </Card>)}
-      {parts.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No parts added yet</div>}
-    </div>}
-
-    {tab==="photos"&&<div>
-      <label style={{...BP,display:"inline-block",cursor:"pointer",marginBottom:12,fontSize:12}}>{saving?"Uploading...":"📷 Upload Photo"}<input type="file" accept="image/*" capture="environment" onChange={e=>uploadPhoto(e.target.files[0])} style={{display:"none"}}/></label>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>{photos.map(p=><div key={p.id} style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border}}><img src={p.photo_url} alt="" style={{width:"100%",height:120,objectFit:"cover"}}/><div style={{padding:"6px 8px",background:B.surface}}><div style={{fontSize:10,color:B.textDim}}>{p.uploaded_by}</div><div style={{fontSize:9,color:B.textDim}}>{new Date(p.uploaded_at).toLocaleDateString()}</div></div></div>)}</div>
-      {photos.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No photos yet</div>}
-    </div>}
-
-    {tab==="drawings"&&<div>
-      <label style={{...BP,display:"inline-block",cursor:"pointer",marginBottom:12,fontSize:12}}>{saving?"Uploading...":"📐 Upload Drawing"}<input type="file" accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf" onChange={e=>uploadDrawing(e.target.files[0])} style={{display:"none"}}/></label>
-      {drawings.map(d=><Card key={d.id} style={{padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:20}}>📐</span>
-        <div style={{flex:1}}><a href={d.file_url} target="_blank" rel="noreferrer" style={{fontSize:13,fontWeight:600,color:B.cyan,textDecoration:"none"}}>{d.name}</a><div style={{fontSize:10,color:B.textDim}}>{d.uploaded_by} — {new Date(d.uploaded_at).toLocaleDateString()}</div></div>
-      </Card>)}
-      {drawings.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No drawings uploaded yet</div>}
-    </div>}
-
-    {tab==="notes"&&<div>
-      <div style={{display:"flex",gap:6,marginBottom:12}}><input value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add a note..." style={{...IS,flex:1,padding:12,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addNote()}/><button onClick={addNote} style={{...BP,padding:"12px 18px"}}>Add</button></div>
-      {notes.map(n=><Card key={n.id} style={{padding:"10px 14px",marginBottom:6}}>
-        <div style={{fontSize:13,color:B.text,lineHeight:1.5}}>{n.note}</div>
-        <div style={{fontSize:10,color:B.textDim,marginTop:4}}>— {n.author}, {new Date(n.created_at).toLocaleString()}</div>
-      </Card>)}
-      {notes.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No notes yet</div>}
-    </div>}
-
-    {tab==="team"&&<div>
-      <span style={LS}>Assign technicians to this project</span>
-      <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>{(users||[]).filter(u=>u.active!==false).map(u=>{const assigned=(project.assigned_techs||[]).includes(u.name);return<Card key={u.id} onClick={()=>toggleTech(u.name)} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",border:assigned?"2px solid "+B.cyan:"1px solid "+B.border}}>
-        <div style={{width:24,height:24,borderRadius:6,border:"2px solid "+(assigned?B.cyan:B.border),background:assigned?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{assigned&&<span style={{color:B.bg,fontSize:14,fontWeight:800}}>✓</span>}</div>
-        <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>{u.name}</div><div style={{fontSize:10,color:B.textDim}}>{u.role} {u.title&&"— "+u.title}</div></div>
-      </Card>;})}</div>
-    </div>}
-
-    <div style={{marginTop:20}}><button onClick={async()=>{if(!window.confirm("Delete project '"+project.name+"'? This cannot be undone."))return;await onDelete(project.id);onBack();}} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete Project</button></div>
+    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F,marginBottom:10}}>← Back</button>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}><div><h2 style={{margin:0,fontSize:20,fontWeight:800,color:B.text}}>{project.name}</h2>{project.customer&&<div style={{fontSize:12,color:B.purple,marginTop:2}}>👤 {project.customer}</div>}{project.location&&<div style={{fontSize:11,color:B.textDim}}>📍 {project.location}</div>}</div><select value={project.status} onChange={async e=>{await onUpdate({...project,status:e.target.value});}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:11,cursor:"pointer",fontFamily:F}}><option value="active">Active</option><option value="archived">Archived</option></select></div>
+    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Milestones" value={mDone+"/"+mTot} icon="🎯" color={mTot>0&&mDone===mTot?B.green:B.cyan}/><StatCard label="Parts" value={pDone+"/"+pTot} icon="🔩" color={pTot>0&&pDone===pTot?B.green:B.orange}/><StatCard label="WOs" value={pWOs.length} icon="📋" color={B.cyan}/><StatCard label="Hours" value={pHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/>{isMgr&&project.budget>0&&<StatCard label="Budget Left" value={"$"+bLeft.toLocaleString()} icon="💰" color={bLeft<0?B.red:B.green}/>}</div>
+    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",overflowX:"auto"}}>{[["overview","Overview"],["chambers","Chambers"],["milestones","Milestones"],["parts","Parts"],["workorders","Work Orders"],["photos","Photos"],["drawings","Drawings"],["notes","Notes"],["team","Team"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 12px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F,whiteSpace:"nowrap"}}>{l}</button>)}</div>
+    {(tab==="milestones"||tab==="parts"||tab==="photos")&&chambers.length>0&&<div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}><button onClick={()=>setSelChamber(null)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(selChamber===null?B.cyan:B.border),background:selChamber===null?B.cyanGlow:"transparent",color:selChamber===null?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>All</button>{chambers.map(c=><button key={c.id} onClick={()=>setSelChamber(c.id)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(selChamber===c.id?B.cyan:B.border),background:selChamber===c.id?B.cyanGlow:"transparent",color:selChamber===c.id?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{c.name}</button>)}</div>}
+    {tab==="overview"&&<div>{project.description&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Description</span><p style={{margin:"4px 0 0",color:B.text,fontSize:13,lineHeight:1.5}}>{project.description}</p></Card>}{isMgr&&project.budget>0&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Budget</span><div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:12}}><span>Budget: <strong>${(project.budget||0).toLocaleString()}</strong></span><span>Spent: <strong style={{color:B.orange}}>${pSpend.toLocaleString()}</strong></span><span style={{color:bLeft<0?B.red:B.green}}>Left: <strong>${bLeft.toLocaleString()}</strong></span></div><div style={{marginTop:8,background:B.bg,borderRadius:4,height:8,overflow:"hidden"}}><div style={{width:Math.min(100,project.budget>0?pSpend/project.budget*100:0)+"%",height:"100%",background:bLeft<0?B.red:B.orange,borderRadius:4}}/></div></Card>}{mTot>0&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Milestones</span><div style={{marginTop:8,background:B.bg,borderRadius:4,height:8,overflow:"hidden"}}><div style={{width:(mTot>0?mDone/mTot*100:0)+"%",height:"100%",background:B.cyan,borderRadius:4}}/></div><div style={{fontSize:11,color:B.textDim,marginTop:4}}>{mDone}/{mTot}</div></Card>}{chambers.length>0&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Chambers ({chambers.length})</span>{chambers.map(c=>{const cm=milestones.filter(m=>m.chamber_id===c.id);const cp=parts.filter(p=>p.chamber_id===c.id);return<div key={c.id} onClick={()=>{setSelChamber(c.id);setTab("milestones");}} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:"pointer"}}><span style={{fontSize:12,fontWeight:600,color:B.text}}>{c.name}</span><div style={{display:"flex",gap:12}}>{cm.length>0&&<span style={{fontSize:10,color:cm.filter(m=>m.completed).length===cm.length?B.green:B.textDim}}>🎯 {cm.filter(m=>m.completed).length}/{cm.length}</span>}{cp.length>0&&<span style={{fontSize:10,color:cp.filter(p=>p.received).length===cp.length?B.green:B.textDim}}>🔩 {cp.filter(p=>p.received).length}/{cp.length}</span>}</div></div>;})}</Card>}</div>}
+    {tab==="chambers"&&<div><div style={{display:"flex",gap:6,marginBottom:12}}><input value={newChamber} onChange={e=>setNewChamber(e.target.value)} placeholder="e.g. 338 CR, 377 WR" style={{...IS,flex:1,padding:12}} onKeyDown={e=>e.key==="Enter"&&addChamber()}/><button onClick={addChamber} style={{...BP,padding:"12px 18px"}}>Add</button></div>{chambers.map(c=>{const cm=milestones.filter(m=>m.chamber_id===c.id);const cp=parts.filter(p=>p.chamber_id===c.id);return<Card key={c.id} style={{padding:"12px 16px",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}><div onClick={()=>{setSelChamber(c.id);setTab("milestones");}} style={{cursor:"pointer",flex:1}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{c.name}</div><div style={{display:"flex",gap:12,marginTop:4}}>{cm.length>0&&<span style={{fontSize:10,color:B.textDim}}>🎯 {cm.filter(m=>m.completed).length}/{cm.length}</span>}{cp.length>0&&<span style={{fontSize:10,color:B.textDim}}>🔩 {cp.filter(p=>p.received).length}/{cp.length}</span>}</div></div><button onClick={()=>deleteChamber(c.id)} style={{background:"none",border:"none",color:B.red+"66",fontSize:14,cursor:"pointer"}}>×</button></Card>;})}{chambers.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No chambers. Add for multi-unit projects.</div>}</div>}
+    {tab==="milestones"&&<div><div style={{display:"flex",gap:6,marginBottom:12}}><input value={newMilestone} onChange={e=>setNewMilestone(e.target.value)} placeholder="Add milestone..." style={{...IS,flex:1,padding:12}} onKeyDown={e=>e.key==="Enter"&&addMilestone()}/><button onClick={addMilestone} style={{...BP,padding:"12px 18px"}}>Add</button></div>{chM.map(m=><Card key={m.id} style={{padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:m.completed?.6:1}}><button onClick={()=>toggleMilestone(m)} style={{width:24,height:24,borderRadius:6,border:"2px solid "+(m.completed?B.green:B.border),background:m.completed?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>{m.completed&&<span style={{color:"#fff",fontSize:14}}>✓</span>}</button><div style={{flex:1}}><span style={{fontSize:13,fontWeight:600,color:B.text,textDecoration:m.completed?"line-through":"none"}}>{m.title}</span>{m.completed_at&&<div style={{fontSize:10,color:B.textDim}}>Done {new Date(m.completed_at).toLocaleDateString()}</div>}</div><button onClick={()=>delMilestone(m.id)} style={{background:"none",border:"none",color:B.red+"66",fontSize:14,cursor:"pointer"}}>×</button></Card>)}{chM.length===0&&<div style={{textAlign:"center",padding:20,color:B.textDim,fontSize:12}}>No milestones{selChamber?" for this chamber":""}</div>}</div>}
+    {tab==="parts"&&<div><div style={{display:"flex",gap:6,marginBottom:12}}><input value={newPart} onChange={e=>setNewPart(e.target.value)} placeholder="Part name..." style={{...IS,flex:1,padding:12}} onKeyDown={e=>e.key==="Enter"&&addPart()}/><input value={newPartQty} onChange={e=>setNewPartQty(parseInt(e.target.value)||1)} type="number" min="1" style={{...IS,width:60,padding:12,fontFamily:M,textAlign:"center"}}/><button onClick={addPart} style={{...BP,padding:"12px 18px"}}>Add</button></div>{chP.map(p=><Card key={p.id} style={{padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}><button onClick={()=>togglePart(p)} style={{width:24,height:24,borderRadius:6,border:"2px solid "+(p.received?B.green:B.orange),background:p.received?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>{p.received&&<span style={{color:"#fff",fontSize:14}}>✓</span>}</button><div style={{flex:1}}><span style={{fontSize:13,fontWeight:600,color:B.text,textDecoration:p.received?"line-through":"none"}}>{p.name}</span><span style={{fontFamily:M,fontSize:11,color:B.textDim,marginLeft:6}}>×{p.quantity}</span>{p.received_at&&<div style={{fontSize:10,color:B.green}}>Received {new Date(p.received_at).toLocaleDateString()}</div>}</div><button onClick={()=>delPart(p.id)} style={{background:"none",border:"none",color:B.red+"66",fontSize:14,cursor:"pointer"}}>×</button></Card>)}{chP.length===0&&<div style={{textAlign:"center",padding:20,color:B.textDim,fontSize:12}}>No parts{selChamber?" for this chamber":""}</div>}</div>}
+    {tab==="workorders"&&<div><button onClick={async()=>{await onCreateWO({title:project.name,priority:"medium",assignee:"Unassigned",due_date:"TBD",notes:"Project: "+project.name,location:project.location||"",wo_type:"CM",building:"",customer:project.customer||"",customer_wo:"",crew:project.assigned_techs||[],project_id:project.id});msg("WO created");}} style={{...BP,marginBottom:12,fontSize:12}}>+ Create WO for Project</button>{pWOs.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No linked work orders</div>}{pWOs.map(wo=><Card key={wo.id} style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(SC[wo.status]||B.border)}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge></div><div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{wo.title}</div></div><span style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.cyan}}>{parseFloat(wo.hours_total||0)}h</span></div></Card>)}</div>}
+    {tab==="photos"&&<div><label style={{...BP,display:"inline-block",cursor:"pointer",marginBottom:12,fontSize:12}}>{saving?"Uploading...":"📷 Upload Photo"}<input type="file" accept="image/*" capture="environment" onChange={e=>upPhoto(e.target.files[0])} style={{display:"none"}}/></label><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>{(selChamber?photos.filter(p=>p.chamber_id===selChamber):photos).map(p=><div key={p.id} style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border}}><img src={p.photo_url} alt="" style={{width:"100%",height:120,objectFit:"cover"}}/><div style={{padding:"6px 8px",background:B.surface,fontSize:10,color:B.textDim}}>{p.uploaded_by}</div></div>)}</div>{photos.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No photos</div>}</div>}
+    {tab==="drawings"&&<div><label style={{...BP,display:"inline-block",cursor:"pointer",marginBottom:12,fontSize:12}}>{saving?"Uploading...":"📐 Upload Drawing"}<input type="file" accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf" onChange={e=>upDraw(e.target.files[0])} style={{display:"none"}}/></label>{drawings.map(d=><Card key={d.id} style={{padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📐</span><div style={{flex:1}}><a href={d.file_url} target="_blank" rel="noreferrer" style={{fontSize:13,fontWeight:600,color:B.cyan,textDecoration:"none"}}>{d.name}</a><div style={{fontSize:10,color:B.textDim}}>{d.uploaded_by}</div></div></Card>)}{drawings.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No drawings</div>}</div>}
+    {tab==="notes"&&<div><div style={{display:"flex",gap:6,marginBottom:12}}><input value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add note..." style={{...IS,flex:1,padding:12,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addNote()}/><button onClick={addNote} style={{...BP,padding:"12px 18px"}}>Add</button></div>{notes.map(n=><Card key={n.id} style={{padding:"10px 14px",marginBottom:6}}><div style={{fontSize:13,color:B.text,lineHeight:1.5}}>{n.note}</div><div style={{fontSize:10,color:B.textDim,marginTop:4}}>— {n.author}, {new Date(n.created_at).toLocaleString()}</div></Card>)}</div>}
+    {tab==="team"&&<div><span style={LS}>Assign technicians</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>{(users||[]).filter(u=>u.active!==false).map(u=>{const a=(project.assigned_techs||[]).includes(u.name);return<Card key={u.id} onClick={()=>toggleTech(u.name)} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",border:a?"2px solid "+B.cyan:"1px solid "+B.border}}><div style={{width:24,height:24,borderRadius:6,border:"2px solid "+(a?B.cyan:B.border),background:a?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{a&&<span style={{color:B.bg,fontSize:14,fontWeight:800}}>✓</span>}</div><div><div style={{fontSize:13,fontWeight:600,color:B.text}}>{u.name}</div><div style={{fontSize:10,color:B.textDim}}>{u.role}</div></div></Card>;})}</div></div>}
+    <div style={{marginTop:20}}><button onClick={async()=>{if(!window.confirm("Delete project?"))return;await onDelete(project.id);onBack();}} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete Project</button></div>
   </div>);
 }
-
-function Projects({projects,users,customers,userName,onAdd,onUpdate,onDelete}){
+function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onDelete,allWOs,onCreateWO,allPOs}){
   const[sel,setSel]=useState(null);
-  if(sel){const fresh=projects.find(p=>p.id===sel.id);if(!fresh){setSel(null);return null;}return <ProjectDetail project={fresh} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async(id)=>{await onDelete(id);setSel(null);}} users={users} userName={userName}/>;}
-  return <ProjectList projects={projects} onSelect={setSel} onCreate={onAdd} users={users} customers={customers}/>;
+  if(sel){const f=projects.find(p=>p.id===sel.id);if(!f){setSel(null);return null;}return<ProjectDetail project={f} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async id=>{await onDelete(id);setSel(null);}} users={users} userName={userName} userRole={userRole} allWOs={allWOs} onCreateWO={onCreateWO} allPOs={allPOs}/>;}
+  return<ProjectList projects={projects} onSelect={setSel} onCreate={onAdd} users={users} customers={customers} userRole={userRole}/>;
 }
 
 // ═══════════════════════════════════════════
@@ -890,7 +825,7 @@ function TechDash({user,onLogout,D,A,syncing}){
     </>}
     {tab==="orders"&&<WOList orders={my} {...wlp}/>}
     {tab==="time"&&<TimeLog timeEntries={myTime} wos={D.wos}/>}
-    {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject}/>}
+    {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos}/>}
   </Shell>);
 }
 
@@ -906,7 +841,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
-    {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject}/>}
+    {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos}/>}
   </Shell>);
 }
 
@@ -923,7 +858,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="settings"&&<Settings emailTemplates={D.emailTemplates} onAddTemplate={A.addEmailTemplate} onUpdateTemplate={A.updateEmailTemplate} onDeleteTemplate={A.deleteEmailTemplate}/>}
-    {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject}/>}
+    {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos}/>}
   </Shell>);
 }
 
