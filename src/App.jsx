@@ -845,6 +845,89 @@ function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onD
   if(sel){const f=projects.find(p=>p.id===sel.id);if(!f){setSel(null);return null;}return<ProjectDetail project={f} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async id=>{await onDelete(id);setSel(null);}} users={users} userName={userName} userRole={userRole} allWOs={allWOs} onCreateWO={onCreateWO} allPOs={allPOs} allTime={allTime} customers={customers}/>;}
   return<ProjectList projects={projects} onSelect={setSel} onCreate={onAdd} users={users} customers={customers} userRole={userRole}/>;
 }
+// ═══════════════════════════════════════════
+// KNOWLEDGE BASE
+// ═══════════════════════════════════════════
+function KnowledgeBase({userName,userRole}){
+  const isMgr=userRole==="admin"||userRole==="manager";
+  const[articles,setArticles]=useState([]),[loading,setLoading]=useState(true);
+  const[tab,setTab]=useState("all"),[search,setSearch]=useState(""),[showCreate,setShowCreate]=useState(false),[selArticle,setSelArticle]=useState(null);
+  const[title,setTitle]=useState(""),[category,setCategory]=useState("guide"),[content,setContent]=useState(""),[symptoms,setSymptoms]=useState(""),[fixSteps,setFixSteps]=useState(""),[partNum,setPartNum]=useState(""),[supplier,setSupplier]=useState(""),[tags,setTags]=useState(""),[saving,setSaving]=useState(false),[toast,setToast]=useState("");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const load=async()=>{const{data}=await sb().from("kb_articles").select("*").order("created_at",{ascending:false});setArticles(data||[]);setLoading(false);};
+  useEffect(()=>{load();},[]);
+  const cats={guide:"📖 Troubleshooting",manual:"📄 Manuals & Specs",tip:"💡 Tips & Tricks",parts:"🔩 Parts Reference"};
+  const catColors={guide:B.cyan,manual:B.purple,tip:B.green,parts:B.orange};
+  const filtered=articles.filter(a=>{if(!isMgr&&a.status!=="approved")return false;if(tab!=="all"&&tab!=="pending"&&a.category!==tab)return false;if(tab==="pending"&&a.status!=="pending")return false;if(search){const s=search.toLowerCase();return a.title.toLowerCase().includes(s)||a.content?.toLowerCase().includes(s)||a.symptoms?.toLowerCase().includes(s)||a.tags?.some(t=>t.toLowerCase().includes(s))||(a.part_number||"").toLowerCase().includes(s);}return true;});
+  const pendingCount=articles.filter(a=>a.status==="pending").length;
+  const resetForm=()=>{setTitle("");setCategory("guide");setContent("");setSymptoms("");setFixSteps("");setPartNum("");setSupplier("");setTags("");};
+  const openEdit=(a)=>{setTitle(a.title);setCategory(a.category);setContent(a.content||"");setSymptoms(a.symptoms||"");setFixSteps(a.fix_steps||"");setPartNum(a.part_number||"");setSupplier(a.supplier||"");setTags((a.tags||[]).join(", "));setSelArticle(a);setShowCreate(true);};
+  const save=async()=>{if(!title.trim()||saving)return;if(cleanText(title,"Title")===null||cleanText(content,"Content")===null)return;setSaving(true);const obj={title:title.trim(),category,content:content.trim(),symptoms:symptoms.trim(),fix_steps:fixSteps.trim(),part_number:partNum.trim(),supplier:supplier.trim(),tags:tags.split(",").map(t=>t.trim()).filter(Boolean),status:isMgr?"approved":"pending",author:userName};if(selArticle){await sb().from("kb_articles").update({...obj,updated_at:new Date().toISOString()}).eq("id",selArticle.id);}else{await sb().from("kb_articles").insert(obj);}setSaving(false);setShowCreate(false);resetForm();setSelArticle(null);await load();msg(selArticle?"Updated":isMgr?"Published":"Submitted for approval");};
+  const approve=async(id)=>{await sb().from("kb_articles").update({status:"approved",approved_by:userName,approved_at:new Date().toISOString()}).eq("id",id);await load();msg("Approved");};
+  const reject=async(id)=>{if(!window.confirm("Reject this article?"))return;await sb().from("kb_articles").delete().eq("id",id);await load();msg("Removed");};
+  const del=async(id)=>{if(!window.confirm("Delete this article?"))return;await sb().from("kb_articles").delete().eq("id",id);await load();msg("Deleted");};
+  const uploadFile=async(file,articleId)=>{if(!file)return;setSaving(true);try{const b64=await new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.onerror=j;f.readAsDataURL(file);});const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:b64,fileName:file.name,mimeType:file.type||"application/pdf",folderPath:"3C FieldOps/Knowledge Base"})});const result=await resp.json();if(result.success){await sb().from("kb_articles").update({file_url:result.webViewLink,file_name:file.name}).eq("id",articleId);await load();msg("File uploaded");}}catch(e){msg("Upload failed");}setSaving(false);};
+
+  if(selArticle&&!showCreate){const a=articles.find(x=>x.id===selArticle.id);if(!a){setSelArticle(null);return null;}return(<div><Toast msg={toast}/>
+    <button onClick={()=>setSelArticle(null)} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F,marginBottom:10}}>← Back</button>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+      <div><Badge color={catColors[a.category]}>{cats[a.category]}</Badge><h2 style={{margin:"6px 0 0",fontSize:20,fontWeight:800,color:B.text}}>{a.title}</h2><div style={{fontSize:11,color:B.textDim,marginTop:4}}>By {a.author} · {new Date(a.created_at).toLocaleDateString()}{a.status==="pending"&&<span style={{color:B.orange,marginLeft:8}}>⏳ Pending approval</span>}</div></div>
+      <div style={{display:"flex",gap:6}}>{isMgr&&<button onClick={()=>openEdit(a)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button>}{isMgr&&<button onClick={()=>{del(a.id);setSelArticle(null);}} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>Delete</button>}</div>
+    </div>
+    {a.tags&&a.tags.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>{a.tags.map(t=><span key={t} style={{padding:"2px 8px",borderRadius:4,background:B.cyanGlow,color:B.cyan,fontSize:10,fontWeight:600}}>{t}</span>)}</div>}
+    {a.symptoms&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+B.orange}}><span style={{fontSize:10,fontWeight:700,color:B.orange,textTransform:"uppercase"}}>Symptoms</span><p style={{margin:"6px 0 0",color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.symptoms}</p></Card>}
+    {a.fix_steps&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+B.green}}><span style={{fontSize:10,fontWeight:700,color:B.green,textTransform:"uppercase"}}>Fix / Steps</span><p style={{margin:"6px 0 0",color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.fix_steps}</p></Card>}
+    {a.content&&<Card style={{padding:14,marginBottom:12}}><p style={{margin:0,color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.content}</p></Card>}
+    {(a.part_number||a.supplier)&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+B.purple}}><span style={{fontSize:10,fontWeight:700,color:B.purple,textTransform:"uppercase"}}>Parts Info</span>{a.part_number&&<div style={{marginTop:6,fontSize:13,color:B.text}}>Part #: <strong style={{fontFamily:M}}>{a.part_number}</strong></div>}{a.supplier&&<div style={{fontSize:13,color:B.text}}>Supplier: <strong>{a.supplier}</strong></div>}</Card>}
+    {a.file_url&&<Card style={{padding:14,marginBottom:12}}><a href={a.file_url} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:8,color:B.cyan,textDecoration:"none"}}><span style={{fontSize:20}}>📄</span><div><div style={{fontSize:13,fontWeight:600}}>{a.file_name||"Attached File"}</div><div style={{fontSize:10,color:B.textDim}}>Tap to view/download</div></div></a></Card>}
+    {isMgr&&!a.file_url&&<label style={{...BS,display:"inline-block",cursor:"pointer",fontSize:11}}>{saving?"Uploading...":"📎 Attach File"}<input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" onChange={e=>uploadFile(e.target.files[0],a.id)} style={{display:"none"}}/></label>}
+    {isMgr&&a.status==="pending"&&<div style={{display:"flex",gap:8,marginTop:16}}><button onClick={()=>approve(a.id)} style={{...BP,flex:1,background:B.green}}>✓ Approve</button><button onClick={()=>{reject(a.id);setSelArticle(null);}} style={{...BP,flex:1,background:B.red}}>✗ Reject</button></div>}
+  </div>);}
+
+  return(<div><Toast msg={toast}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Knowledge Base</h3>
+      <button onClick={()=>{resetForm();setSelArticle(null);setShowCreate(true);}} style={{...BP,fontSize:12}}>+ New Article</button>
+    </div>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search articles, symptoms, parts..." style={{...IS,marginBottom:12,padding:12,fontSize:14}}/>
+    <div style={{display:"flex",gap:4,marginBottom:14,flexWrap:"wrap",overflowX:"auto"}}>
+      <button onClick={()=>setTab("all")} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+(tab==="all"?B.cyan:B.border),background:tab==="all"?B.cyanGlow:"transparent",color:tab==="all"?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>All ({articles.filter(a=>isMgr||a.status==="approved").length})</button>
+      {Object.entries(cats).map(([k,v])=><button key={k} onClick={()=>setTab(k)} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+(tab===k?catColors[k]:B.border),background:tab===k?catColors[k]+"22":"transparent",color:tab===k?catColors[k]:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F,whiteSpace:"nowrap"}}>{v}</button>)}
+      {isMgr&&pendingCount>0&&<button onClick={()=>setTab("pending")} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+B.orange,background:tab==="pending"?B.orange+"22":"transparent",color:B.orange,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{"⏳ Pending ("+pendingCount+")"}</button>}
+    </div>
+    {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
+    {!loading&&filtered.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📖</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No articles yet. Add one to get started."}</div></Card>}
+    {filtered.map(a=><Card key={a.id} onClick={()=>setSelArticle(a)} style={{padding:"14px 16px",marginBottom:8,cursor:"pointer",borderLeft:"3px solid "+catColors[a.category]}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><Badge color={catColors[a.category]}>{cats[a.category]?.split(" ")[1]||a.category}</Badge>{a.status==="pending"&&<Badge color={B.orange}>Pending</Badge>}{a.tags&&a.tags.slice(0,3).map(t=><span key={t} style={{fontSize:9,color:B.textDim,background:B.bg,padding:"1px 6px",borderRadius:3}}>{t}</span>)}</div>
+          <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:4}}>{a.title}</div>
+          <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{a.author} · {new Date(a.created_at).toLocaleDateString()}</div>
+        </div>
+        {a.file_url&&<span style={{fontSize:16,flexShrink:0}}>📎</span>}
+      </div>
+    </Card>)}
+    {showCreate&&<Modal title={selArticle?"Edit Article":"New Knowledge Base Article"} onClose={()=>{setShowCreate(false);setSelArticle(null);}} wide>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={LS}>Title *</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Walk-in cooler not defrosting" style={IS}/></div>
+        <div><label style={LS}>Category</label><select value={category} onChange={e=>setCategory(e.target.value)} style={{...IS,cursor:"pointer"}}>{Object.entries(cats).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+        {(category==="guide")&&<>
+          <div><label style={LS}>Symptoms <span style={{color:B.textDim,fontWeight:400}}>(what the tech sees)</span></label><textarea value={symptoms} onChange={e=>setSymptoms(e.target.value)} rows={3} placeholder={"Ice buildup on evaporator coils\nBox temp rising above setpoint\nDefrost timer not advancing"} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+          <div><label style={LS}>Fix / Steps</label><textarea value={fixSteps} onChange={e=>setFixSteps(e.target.value)} rows={4} placeholder={"1. Check defrost timer — rotate to defrost cycle\n2. Verify heaters are energizing (amp check)\n3. Check defrost termination switch\n4. Inspect drain line for blockage"} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+        </>}
+        {category==="parts"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div><label style={LS}>Part Number</label><input value={partNum} onChange={e=>setPartNum(e.target.value)} placeholder="PN-12345" style={{...IS,fontFamily:M}}/></div>
+            <div><label style={LS}>Supplier</label><input value={supplier} onChange={e=>setSupplier(e.target.value)} placeholder="Carrier, Emerson, etc." style={IS}/></div>
+          </div>
+        </>}
+        <div><label style={LS}>{category==="guide"?"Additional Notes":category==="tip"?"Tip Details":"Description"}</label><textarea value={content} onChange={e=>setContent(e.target.value)} rows={4} placeholder="Enter details..." style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+        <div><label style={LS}>Tags <span style={{color:B.textDim,fontWeight:400}}>(comma-separated)</span></label><input value={tags} onChange={e=>setTags(e.target.value)} placeholder="defrost, walk-in, cooler, Heatcraft" style={IS}/></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>{setShowCreate(false);setSelArticle(null);}} style={{...BS,flex:1}}>Cancel</button><button onClick={save} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(isMgr?(selArticle?"Save":"Publish"):"Submit for Approval")}</button></div>
+      </div>
+    </Modal>}
+  </div>);
+}
 
 // ═══════════════════════════════════════════
 // DASHBOARDS — with new tabs
@@ -858,7 +941,7 @@ function TechDash({user,onLogout,D,A,syncing}){
   const todayStr=new Date().toISOString().slice(0,10);
   const todayHours=myTime.filter(t=>t.logged_date===todayStr).reduce((s,t)=>s+parseFloat(t.hours||0),0);
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"projects",label:"Projects",icon:"🏗️"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="today"&&<>
       {/* Smart Time Reminder */}
       {myActive.filter(o=>{if(o.status!=="in_progress")return false;const lastTime=D.time.filter(t=>t.wo_id===o.id).sort((a,b)=>(b.logged_date||"").localeCompare(a.logged_date||""))[0];if(!lastTime)return true;const last=new Date(lastTime.logged_date);const hrs=(Date.now()-last.getTime())/3600000;return hrs>8;}).map(wo=><div key={wo.id+"reminder"} style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
@@ -890,13 +973,14 @@ function TechDash({user,onLogout,D,A,syncing}){
     {tab==="orders"&&<WOList orders={my} {...wlp}/>}
     {tab==="time"&&<TimeLog timeEntries={myTime} wos={D.wos}/>}
     {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
+    {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
   </Shell>);
 }
 
 function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
@@ -906,13 +990,14 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
+    {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
   </Shell>);
 }
 
 function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
@@ -923,6 +1008,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="settings"&&<Settings emailTemplates={D.emailTemplates} onAddTemplate={A.addEmailTemplate} onUpdateTemplate={A.updateEmailTemplate} onDeleteTemplate={A.deleteEmailTemplate}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
+    {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
   </Shell>);
 }
 
