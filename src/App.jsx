@@ -204,6 +204,7 @@ function POMgmt({pos,onUpdatePO,wos}){
 // ═══════════════════════════════════════════
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData}){
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1);
+  const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
   const[showFollowUp,setShowFollowUp]=useState(false),[fuNotes,setFuNotes]=useState("");
   const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[tDate,setTDate]=useState(new Date().toISOString().slice(0,10)),[note,setNote]=useState("");
   const[cmpH,setCmpH]=useState(""),[cmpD,setCmpD]=useState(""),[cmpDate,setCmpDate]=useState(new Date().toISOString().slice(0,10));
@@ -250,7 +251,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>HOURS</span><br/><span style={{fontWeight:700,color:B.cyan,fontFamily:M}}>{wo.hours_total||0}h</span></div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>LOCATION</span><br/><span style={{fontWeight:600,color:B.text}}>{wo.location||"—"}{wo.building&&" · Bldg "+wo.building}</span></div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>ASSIGNED</span><br/><span style={{fontWeight:600,color:B.text}}>{wo.assignee}{wo.crew&&wo.crew.length>0&&<span style={{color:B.purple}}> +{wo.crew.length}</span>}</span></div>
-        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6,gridColumn:"1 / -1"}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>CUSTOMER WO#</span><br/><input value={wo.customer_wo||""} onChange={async e=>{await sb().from("work_orders").update({customer_wo:e.target.value}).eq("id",wo.id);}} onBlur={()=>loadData()} placeholder="Enter customer WO# from their TMS" style={{background:"transparent",border:"none",color:B.text,fontWeight:600,fontSize:12,fontFamily:M,padding:0,width:"100%",outline:"none"}}/></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6,gridColumn:"1 / -1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>CUSTOMER WO#</span>{wo.customer_wo&&<button onClick={async()=>{await sb().from("work_orders").update({tms_entered:!wo.tms_entered}).eq("id",wo.id);await loadData();}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",cursor:"pointer",padding:0}}><div style={{width:16,height:16,borderRadius:3,border:"2px solid "+(wo.tms_entered?B.green:B.border),background:wo.tms_entered?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{wo.tms_entered&&<span style={{color:"#fff",fontSize:10}}>✓</span>}</div><span style={{fontSize:10,color:wo.tms_entered?B.green:B.textDim}}>Entered in TMS</span></button>}</div><input value={localCustWO} onChange={e=>setLocalCustWO(e.target.value)} onBlur={async()=>{if(localCustWO!==(wo.customer_wo||"")){await sb().from("work_orders").update({customer_wo:localCustWO}).eq("id",wo.id);await loadData();}}} placeholder="Enter customer WO# from their TMS" style={{background:"transparent",border:"none",color:B.text,fontWeight:600,fontSize:12,fontFamily:M,padding:"4px 0 0",width:"100%",outline:"none"}}/></div>
       </div>
       {wo.date_completed&&<div style={{marginTop:8,padding:"8px 10px",background:B.greenGlow,borderRadius:6,fontSize:12}}><span style={{color:B.green,fontWeight:700}}>✓ Completed {wo.date_completed}</span></div>}
       {wo.work_performed&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><span style={LS}>Work Performed</span><p style={{margin:"4px 0 0",color:B.text,fontSize:13,lineHeight:1.5}}>{wo.work_performed}</p></div>}
@@ -984,6 +985,8 @@ export default function App(){
     setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[]});
     setLoading(false);
   },[]);
+  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false}};
+  const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
   useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[],emailTemplates:[],projects:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
@@ -991,8 +994,8 @@ export default function App(){
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
   useEffect(()=>{if(!authUser)return;const client=sb();
-    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>loadData()).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>loadData()).subscribe();
-    const poll=setInterval(()=>loadData(),15000);
+    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>reloadTable("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>reloadTable("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>reloadTable("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>reloadTable("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>reloadTable("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>reloadTable("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>reloadTable("customers")).subscribe();
+    const poll=setInterval(()=>loadData(),30000);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
     const checkRecurringPMs=async()=>{
       const{data:tpls}=await client.from("recurring_templates").select("*").eq("active",true);
@@ -1024,34 +1027,35 @@ export default function App(){
   },[authUser,loadData]);
 
   const withSync=fn=>async(...args)=>{setSyncing(true);try{await fn(...args);await loadData();}finally{setSyncing(false);}};
+  const withTableSync=(table,fn)=>async(...args)=>{setSyncing(true);try{await fn(...args);await reloadTable(table);}finally{setSyncing(false);}};
   const notify=async(type,title,message,forRole)=>{await sb().from("notifications").insert({type,title,message,for_role:forRole||null});};
 
   const actions={
     loadData,
     createWO:withSync(async(wo)=>{const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;await sb().from("work_orders").insert({...wo,wo_id:"WO-"+(ln+1),status:"pending",hours_total:0});await notify("wo_created","New Work Order","WO-"+(ln+1)+": "+wo.title);}),
-    updateWO:withSync(async(wo)=>{const{id,...rest}=wo;const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);if(rest.status==="completed")await notify("wo_completed","WO Completed",wo.wo_id+" completed","admin");}),
-    deleteWO:withSync(async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
+    updateWO:withTableSync("work_orders",async(wo)=>{const{id,...rest}=wo;const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);}),
+    deleteWO:withTableSync("work_orders",async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
     createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
-    updatePO:withSync(async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
-    addTime:withSync(async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
-    updateTime:withSync(async(te)=>{const{id,...rest}=te;await sb().from("time_entries").update(rest).eq("id",id);}),
-    deleteTime:withSync(async(id)=>{await sb().from("time_entries").delete().eq("id",id);}),
-    addPhoto:withSync(async(ph)=>{await sb().from("photos").insert({...ph,uploaded_by:appUser.name,drive_synced:true});}),
-    addUser:withSync(async(u)=>{await sb().from("users").insert(u);}),
-    updateUser:withSync(async(u)=>{const{id,...rest}=u;await sb().from("users").update(rest).eq("id",id);}),
-    deleteUser:withSync(async(id)=>{await sb().from("users").delete().eq("id",id);}),
-    addTemplate:withSync(async(t)=>{await sb().from("recurring_templates").insert(t);}),
-    deleteTemplate:withSync(async(id)=>{await sb().from("recurring_templates").delete().eq("id",id);}),
-    addCustomer:withSync(async(c)=>{await sb().from("customers").insert(c);}),
-    updateCustomer:withSync(async(c)=>{const{id,...rest}=c;await sb().from("customers").update(rest).eq("id",id);}),
-    deleteCustomer:withSync(async(id)=>{await sb().from("customers").delete().eq("id",id);}),
-    addEmailTemplate:withSync(async(t)=>{await sb().from("email_templates").insert(t);}),
-    updateEmailTemplate:withSync(async(t)=>{const{id,...rest}=t;await sb().from("email_templates").update(rest).eq("id",id);}),
-    deleteEmailTemplate:withSync(async(id)=>{await sb().from("email_templates").delete().eq("id",id);}),
-    addProject:withSync(async(p)=>{await sb().from("projects").insert(p);}),
-    updateProject:withSync(async(p)=>{const{id,...rest}=p;await sb().from("projects").update(rest).eq("id",id);}),
-    deleteProject:withSync(async(id)=>{await sb().from("projects").delete().eq("id",id);}),
-    markRead:withSync(async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
+    updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
+    addTime:withTableSync("time_entries",async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
+    updateTime:withTableSync("time_entries",async(te)=>{const{id,...rest}=te;await sb().from("time_entries").update(rest).eq("id",id);}),
+    deleteTime:withTableSync("time_entries",async(id)=>{await sb().from("time_entries").delete().eq("id",id);}),
+    addPhoto:withTableSync("photos",async(ph)=>{await sb().from("photos").insert({...ph,uploaded_by:appUser.name,drive_synced:true});}),
+    addUser:withTableSync("users",async(u)=>{await sb().from("users").insert(u);}),
+    updateUser:withTableSync("users",async(u)=>{const{id,...rest}=u;await sb().from("users").update(rest).eq("id",id);}),
+    deleteUser:withTableSync("users",async(id)=>{await sb().from("users").delete().eq("id",id);}),
+    addTemplate:withTableSync("recurring_templates",async(t)=>{await sb().from("recurring_templates").insert(t);}),
+    deleteTemplate:withTableSync("recurring_templates",async(id)=>{await sb().from("recurring_templates").delete().eq("id",id);}),
+    addCustomer:withTableSync("customers",async(c)=>{await sb().from("customers").insert(c);}),
+    updateCustomer:withTableSync("customers",async(c)=>{const{id,...rest}=c;await sb().from("customers").update(rest).eq("id",id);}),
+    deleteCustomer:withTableSync("customers",async(id)=>{await sb().from("customers").delete().eq("id",id);}),
+    addEmailTemplate:withTableSync("email_templates",async(t)=>{await sb().from("email_templates").insert(t);}),
+    updateEmailTemplate:withTableSync("email_templates",async(t)=>{const{id,...rest}=t;await sb().from("email_templates").update(rest).eq("id",id);}),
+    deleteEmailTemplate:withTableSync("email_templates",async(id)=>{await sb().from("email_templates").delete().eq("id",id);}),
+    addProject:withTableSync("projects",async(p)=>{await sb().from("projects").insert(p);}),
+    updateProject:withTableSync("projects",async(p)=>{const{id,...rest}=p;await sb().from("projects").update(rest).eq("id",id);}),
+    deleteProject:withTableSync("projects",async(id)=>{await sb().from("projects").delete().eq("id",id);}),
+    markRead:withTableSync("notifications",async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
     quickApprovePO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"approved"}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_approved",title:"PO Approved",message:poId+" has been approved",for_role:null});await loadData();}},
     quickRejectPO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"rejected"}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_rejected",title:"PO Rejected",message:poId+" has been rejected",for_role:null});await loadData();}},
   };
