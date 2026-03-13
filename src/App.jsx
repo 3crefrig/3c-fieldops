@@ -420,7 +420,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
         <Card key={wo.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px"}}>
           <div style={{width:3,height:36,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
           <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span><Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wph.length>0&&<span style={{fontSize:10,color:B.textDim}}>📷{wph.length}</span>}{wp.length>0&&<span style={{fontSize:10,color:B.purple}}>📄{wp.length} PO</span>}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.purple}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{parseFloat(wo.hours_total||0)>0&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,color:B.cyan}}>{parseFloat(wo.hours_total||0)}h</span>}{wph.length>0&&<span style={{fontSize:10,color:B.textDim}}>📷{wph.length}</span>}{wp.length>0&&<span style={{fontSize:10,color:B.purple}}>📄{wp.length} PO</span>}{wo.customer_wo&&<span onClick={async e=>{e.stopPropagation();await onUpdateWO({...wo,tms_entered:!wo.tms_entered});}} style={{fontSize:10,fontWeight:600,cursor:"pointer",padding:"1px 6px",borderRadius:3,background:wo.tms_entered?B.green+"22":B.orange+"22",color:wo.tms_entered?B.green:B.orange}}>{wo.tms_entered?"✓ TMS":"TMS"}</span>}</div>
             <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
             <div style={{fontSize:11,color:B.textDim,marginTop:1}}>{wo.customer&&<span>👤 {wo.customer} · </span>}{wo.location&&<span>📍 {wo.location}</span>}</div>
           </div>
@@ -438,19 +438,20 @@ function WOOverview({orders,wlp,pos,time}){
   const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay());weekStart.setHours(0,0,0,0);
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
   const getWODate=(wo)=>{const d=wo.date_completed||wo.created_at||wo.due_date;return d?new Date(d):new Date();};
-  // This week = all active/pending + completed this week
   const active=orders.filter(o=>o.status!=="completed");
   const completedThisWeek=orders.filter(o=>o.status==="completed"&&getWODate(o)>=weekStart);
   const thisWeek=[...active,...completedThisWeek];
-  // Past = completed before this week
   const past=orders.filter(o=>o.status==="completed"&&getWODate(o)<weekStart);
   const[showArchive,setShowArchive]=useState(false);
   const[archiveMonth,setArchiveMonth]=useState(null);
+  const[filter,setFilter]=useState("all");
+  const tmsPending=orders.filter(o=>o.customer_wo&&!o.tms_entered).length;
 
   const months={};past.forEach(wo=>{const d=getWODate(wo);const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");const label=d.toLocaleString("default",{month:"long",year:"numeric"});if(!months[key])months[key]={label,orders:[]};months[key].orders.push(wo);});
   const sortedMonths=Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0]));
   const weekLabel=weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" \u2014 "+weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
   const pendingPOs=pos.filter(p=>p.status==="pending").length;
+  const filteredWeek=filter==="all"?thisWeek:filter==="pending"?thisWeek.filter(o=>o.status==="pending"):filter==="active"?thisWeek.filter(o=>o.status==="in_progress"):filter==="done"?thisWeek.filter(o=>o.status==="completed"):filter==="tms"?thisWeek.filter(o=>o.customer_wo&&!o.tms_entered):thisWeek;
 
   return(<div>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
@@ -458,12 +459,14 @@ function WOOverview({orders,wlp,pos,time}){
       <StatCard label="Done This Week" value={completedThisWeek.length} icon="✓" color={B.green}/>
       <StatCard label="Hours" value={thisWeek.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)+"h"} icon="⏱" color={B.orange}/>
       <StatCard label="Pending POs" value={pendingPOs} icon="📄" color={B.purple}/>
+      {tmsPending>0&&<StatCard label="TMS Needed" value={tmsPending} icon="⚠️" color={B.orange}/>}
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontSize:14,fontWeight:800,color:B.text}}>This Week <span style={{fontWeight:400,fontSize:12,color:B.textDim,marginLeft:6}}>{weekLabel}</span></div>
       <span style={{fontFamily:M,fontSize:12,color:B.cyan}}>{thisWeek.length} orders</span>
     </div>
-    {thisWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>No work orders this week</div></Card>:<WOList orders={thisWeek} {...wlp}/>}
+    <div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["active","Active"],["done","Done"],["tms","TMS Needed"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+(filter===k?k==="tms"?B.orange:B.cyan:B.border),background:filter===k?(k==="tms"?B.orange:B.cyan)+"22":"transparent",color:filter===k?(k==="tms"?B.orange:B.cyan):B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="tms"&&tmsPending>0?" ("+tmsPending+")":""}</button>)}</div>
+    {filteredWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>{filter==="tms"?"All customer WOs entered in TMS":"No work orders"}</div></Card>:<WOList orders={filteredWeek} {...wlp}/>}
     {past.length>0&&<div style={{marginTop:20}}>
       <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📁</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
