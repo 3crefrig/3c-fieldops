@@ -417,17 +417,25 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {flt.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No orders</div>}
       {flt.map(wo=>{const wp=pos.filter(p=>p.wo_id===wo.id);const wph=photos.filter(p=>p.wo_id===wo.id);return(
-        <Card key={wo.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px"}}>
-          <div style={{width:3,height:36,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.purple}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{parseFloat(wo.hours_total||0)>0&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,color:B.cyan}}>{parseFloat(wo.hours_total||0)}h</span>}{wph.length>0&&<span style={{fontSize:10,color:B.textDim}}>📷{wph.length}</span>}{wp.length>0&&<span style={{fontSize:10,color:B.purple}}>📄{wp.length} PO</span>}{wo.customer_wo&&<span onClick={async e=>{e.stopPropagation();await onUpdateWO({...wo,tms_entered:!wo.tms_entered});}} style={{fontSize:10,fontWeight:600,cursor:"pointer",padding:"1px 6px",borderRadius:3,background:wo.tms_entered?B.green+"22":B.orange+"22",color:wo.tms_entered?B.green:B.orange}}>{wo.tms_entered?"✓ TMS":"TMS"}</span>}</div>
-            <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
-            <div style={{fontSize:11,color:B.textDim,marginTop:1}}>{wo.customer&&<span>👤 {wo.customer} · </span>}{wo.location&&<span>📍 {wo.location}</span>}</div>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-            <div style={{fontSize:11,color:B.textDim}}>{wo.crew&&wo.crew.length>0?[wo.assignee,...wo.crew].filter(Boolean).filter(n=>n!=="Unassigned").join(", ")||"Unassigned":wo.assignee}</div>
-            {wo.status!=="completed"&&<select value={wo.status} onChange={async e=>{e.stopPropagation();await onUpdateWO({...wo,status:e.target.value});}} onClick={e=>e.stopPropagation()} style={{padding:"3px 6px",borderRadius:4,border:"1px solid "+(SC[wo.status]||B.border),background:(SC[wo.status]||B.textDim)+"22",color:SC[wo.status]||B.textDim,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:F,appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 3px center"}}><option value="pending">Pending</option><option value="in_progress">Active</option></select>}
-            {wo.status==="completed"&&<span style={{fontSize:10,color:B.green,fontWeight:600}}>✓ Done</span>}
+        <Card key={wo.id} style={{padding:"14px 16px",marginBottom:6}}>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.purple}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge></div>
+              <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
+              <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{wo.customer&&<span>{"👤 "+wo.customer}</span>}{wo.location&&<span>{" · 📍 "+wo.location}</span>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,flexWrap:"wrap"}}>
+                {parseFloat(wo.hours_total||0)>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>{parseFloat(wo.hours_total||0)}h</span>}
+                {wo.date_completed&&<span style={{fontSize:10,color:B.green}}>{"Completed "+new Date(wo.date_completed).toLocaleDateString()}</span>}
+                {wo.crew&&wo.crew.length>0&&<span style={{fontSize:10,color:B.textDim}}>{[wo.assignee,...wo.crew].filter(Boolean).filter(n=>n!=="Unassigned").join(", ")}</span>}
+                {!wo.crew?.length&&wo.assignee&&wo.assignee!=="Unassigned"&&<span style={{fontSize:10,color:B.textDim}}>{wo.assignee}</span>}
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}}>
+              {wo.status!=="completed"&&<select value={wo.status} onChange={async e=>{e.stopPropagation();await onUpdateWO({...wo,status:e.target.value});}} onClick={e=>e.stopPropagation()} style={{padding:"3px 6px",borderRadius:4,border:"1px solid "+(SC[wo.status]||B.border),background:(SC[wo.status]||B.textDim)+"22",color:SC[wo.status]||B.textDim,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:F,appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 3px center"}}><option value="pending">Pending</option><option value="in_progress">Active</option></select>}
+              {wo.status==="completed"&&<span style={{fontSize:10,color:B.green,fontWeight:600}}>✓ Done</span>}
+              {wo.customer_wo&&<button onClick={async e=>{e.stopPropagation();await onUpdateWO({...wo,tms_entered:!wo.tms_entered});}} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:4,border:"1px solid "+(wo.tms_entered?B.green:B.orange),background:wo.tms_entered?B.green+"18":B.orange+"18",color:wo.tms_entered?B.green:B.orange,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:F}}><span style={{width:14,height:14,borderRadius:3,border:"2px solid "+(wo.tms_entered?B.green:B.orange),background:wo.tms_entered?B.green:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{wo.tms_entered&&<span style={{color:"#fff",fontSize:9,lineHeight:1}}>✓</span>}</span>TMS</button>}
+            </div>
           </div>
         </Card>);})}
     </div></div>);
