@@ -139,7 +139,7 @@ function FirstSetup({authUser,onDone}){
 
 function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO}){
   return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column"}}>
-    <div style={{background:B.surface,padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border}}>
+    <div style={{background:B.surface,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8}}>
       <Logo/>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         {syncing&&<span style={{fontSize:10,color:B.orange}}>syncing...</span>}
@@ -150,7 +150,7 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
       </div>
     </div>
     <div style={{background:B.surface,padding:"0 20px",display:"flex",gap:2,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100}}>{tabs.map(t=><button key={t.key} onClick={()=>setTab(t.key)} style={{padding:"10px 14px",border:"none",background:"none",fontSize:12,fontWeight:600,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap"}}>{t.icon} {t.label}</button>)}</div>
-    <div style={{flex:1,padding:20,overflowY:"auto"}}>{children}</div>
+    <div style={{flex:1,padding:"16px 12px",overflowY:"auto",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
   </div>);
 }
 
@@ -189,8 +189,9 @@ function POMgmt({pos,onUpdatePO,wos}){
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
   const approve=async(po)=>{await onUpdatePO({...po,status:"approved"});msg("PO "+po.po_id+" approved");};
   const reject=async(po)=>{await onUpdatePO({...po,status:"rejected"});msg("PO "+po.po_id+" rejected");};
+  const approved=pos.filter(p=>p.status==="approved");const approvedAmt=approved.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
   return(<div><Toast msg={toast}/>
-    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total POs" value={pos.length} icon="📄" color={B.cyan}/><StatCard label="Pending" value={pc} icon="⏳" color={B.orange}/><StatCard label="Approved" value={pos.filter(p=>p.status==="approved").length} icon="✓" color={B.green}/><StatCard label="Approved $" value={"$"+pos.filter(p=>p.status==="approved").reduce((s,p)=>s+(parseFloat(p.amount)||0),0).toLocaleString()} icon="💰" color={B.purple}/></div>
+    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total POs" value={pos.length} icon="📄" color={B.cyan}/><StatCard label="Pending" value={pc} icon="⏳" color={B.orange}/><StatCard label="Approved" value={approved.length} icon="✓" color={B.green}/><StatCard label="Approved $" value={"$"+approvedAmt.toLocaleString()} icon="💰" color={B.purple}/></div>
     <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["approved","Approved"],["rejected","Rejected"],["revised","Revised"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="pending"&&pc>0?" ("+pc+")":""}</button>)}</div>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search POs by #, description, tech, customer..." style={{...IS,marginBottom:14,padding:"8px 12px",fontSize:12}}/>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -217,6 +218,23 @@ function POMgmt({pos,onUpdatePO,wos}){
 // ═══════════════════════════════════════════
 // WORK ORDER DETAIL — Redesigned for field use
 // ═══════════════════════════════════════════
+function ActivityLog({woId}){
+  const[log,setLog]=useState([]),[show,setShow]=useState(false);
+  const load=async()=>{const{data}=await sb().from("wo_activity").select("*").eq("wo_id",woId).order("created_at",{ascending:false}).limit(20);setLog(data||[]);};
+  useEffect(()=>{if(show&&log.length===0)load();},[show]);
+  return(<div style={{marginBottom:16}}>
+    <button onClick={()=>setShow(!show)} style={{width:"100%",padding:"10px 14px",background:B.bg,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+      <span style={{fontSize:12,fontWeight:600,color:B.textDim}}>📝 Activity Log</span><span style={{color:B.textDim,fontSize:12}}>{show?"▾":"▸"}</span>
+    </button>
+    {show&&<div style={{border:"1px solid "+B.border,borderTop:"none",borderRadius:"0 0 8px 8px",padding:"8px 14px",background:B.surface}}>
+      {log.length===0&&<div style={{padding:10,textAlign:"center",color:B.textDim,fontSize:11}}>No activity recorded yet</div>}
+      {log.map(l=><div key={l.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:"1px solid "+B.border}}>
+        <div style={{width:6,height:6,borderRadius:"50%",background:l.action==="created"?B.green:l.action==="completed"?B.green:B.cyan,marginTop:5,flexShrink:0}}/>
+        <div style={{flex:1}}><div style={{fontSize:11,color:B.text}}>{l.details||l.action}</div><div style={{fontSize:9,color:B.textDim}}>{l.actor} · {new Date(l.created_at).toLocaleString()}</div></div>
+      </div>)}
+    </div>}
+  </div>);
+}
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData}){
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
@@ -324,6 +342,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         <select onChange={async e=>{if(!e.target.value)return;const nc=[...(wo.crew||[]),e.target.value];await onUpdateWO({...wo,crew:nc});e.target.value="";}} style={{...IS,width:"auto",padding:"6px 10px",fontSize:12,cursor:"pointer",marginLeft:6}}><option value="">+ Add</option>{(users||[]).filter(u=>u.active!==false&&u.name!==wo.assignee&&!(wo.crew||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
       </Card>
 
+      {/* Activity Log */}
+      <ActivityLog woId={wo.id}/>
       {/* Delete — small, at the bottom, not prominent */}
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         <button onClick={async()=>{if(!window.confirm("Duplicate "+wo.wo_id+"? This creates a new WO with the same details."))return;setSaving(true);await onCreateWO({title:wo.title,priority:wo.priority,assignee:wo.assignee||"Unassigned",due_date:"TBD",notes:wo.notes||"",location:wo.location||"",wo_type:wo.wo_type||"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);msg("Duplicated! Check your work orders.");}} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.cyan+"33",background:"transparent",color:B.cyan+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>📋 Duplicate WO</button>
@@ -389,7 +409,8 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos}){
   const assignable=users.filter(u=>u.active!==false);
   const techs=assignable.filter(u=>u.role==="technician");
   // Smart suggestion: tech with fewest active jobs
-  const suggested=techs.length>0?techs.reduce((best,t)=>{const active=(allWos||[]).filter(o=>o.assignee===t.name&&o.status!=="completed").length;const bestActive=(allWos||[]).filter(o=>o.assignee===best.name&&o.status!=="completed").length;return active<bestActive?t:best;},techs[0]):null;
+  const activeCounts={};(allWos||[]).filter(o=>o.status!=="completed").forEach(o=>{activeCounts[o.assignee]=(activeCounts[o.assignee]||0)+1;});
+  const suggested=techs.length>0?techs.reduce((best,t)=>(activeCounts[t.name]||0)<(activeCounts[best.name]||0)?t:best,techs[0]):null;
   const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState(isManager?"Unassigned":userName),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false),[loc,setLoc]=useState(""),[woType,setWoType]=useState("CM"),[bldg,setBldg]=useState(""),[cust,setCust]=useState(""),[custWO,setCustWO]=useState(""),[crew,setCrew]=useState([]);
   const go=async()=>{const finalTitle=title.trim()||custWO.trim();if(!finalTitle||saving)return;if(cleanText(finalTitle,"Title")===null||cleanText(notes,"Notes")===null)return;setSaving(true);await onSave({title:finalTitle,priority:pri,assignee:assign,crew,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust,customer_wo:custWO.trim()||null});setSaving(false);};
   return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
@@ -407,26 +428,38 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos}){
 }
 
 function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,userName,userRole,loadData}){
-  const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState("");
+  const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false);
+  const toggleBulk=(id)=>setBulkSel(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  const bulkAction=async(action)=>{for(const id of bulkSel){const wo=orders.find(o=>o.id===id);if(!wo)continue;if(action==="complete")await onUpdateWO({...wo,status:"completed",date_completed:new Date().toISOString().slice(0,10)});else if(action==="active")await onUpdateWO({...wo,status:"in_progress"});else if(action==="pending")await onUpdateWO({...wo,status:"pending"});}setBulkSel([]);setBulkMode(false);};
   const custList=[...new Set(orders.map(o=>o.customer).filter(Boolean))].sort();
   const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders}/>;
   if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData}/>;}
   const today=new Date().toISOString().slice(0,10);
+  const poByWO={},phByWO={};pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
       {canEdit&&<button onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
+      {canEdit&&<button onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim}}>{bulkMode?"Cancel":"☑ Bulk"}</button>}
     </div>
+    {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
+      <span style={{fontSize:11,fontWeight:700,color:B.cyan}}>{bulkSel.length} selected</span>
+      <button onClick={()=>bulkAction("active")} style={{...BS,padding:"4px 10px",fontSize:10}}>→ Active</button>
+      <button onClick={()=>bulkAction("complete")} style={{...BS,padding:"4px 10px",fontSize:10,borderColor:B.green,color:B.green}}>✓ Complete</button>
+      <button onClick={()=>bulkAction("pending")} style={{...BS,padding:"4px 10px",fontSize:10}}>→ Pending</button>
+      <button onClick={()=>setBulkSel(flt.map(o=>o.id))} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginLeft:"auto"}}>Select All</button>
+    </div>}
     <div style={{display:"flex",gap:6,marginBottom:14}}>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
       {custList.length>1&&<select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,width:"auto",padding:"8px 10px",fontSize:11,cursor:"pointer"}}><option value="">All Customers</option>{custList.map(c=><option key={c} value={c}>{c}</option>)}</select>}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
-      {flt.map(wo=>{const wp=pos.filter(p=>p.wo_id===wo.id);const wph=photos.filter(p=>p.wo_id===wo.id);const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const noTime=wo.status==="in_progress"&&parseFloat(wo.hours_total||0)===0;return(
+      {flt.map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const noTime=wo.status==="in_progress"&&parseFloat(wo.hours_total||0)===0;return(
         <Card key={wo.id} style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
+            {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:800}}>✓</span>}</button>}
             <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
             <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.purple}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge></div>
@@ -734,6 +767,35 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
     {tab==="other"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>{[["🔔","Notifications"],["📱","Devices"],["🔐","Security"],["☁️","Storage"],["📊","Reports"],["🏢","Company"],["🔧","Integrations"]].map(([ic,lb])=><Card key={lb} style={{padding:"18px 14px",textAlign:"center",cursor:"pointer"}}><div style={{fontSize:24,marginBottom:6}}>{ic}</div><div style={{fontSize:12,fontWeight:600,color:B.textMuted}}>{lb}</div></Card>)}</div>}
   </div>);
 }
+
+// ═══════════════════════════════════════════
+// DASHBOARD ANALYTICS
+// ═══════════════════════════════════════════
+function DashAnalytics({wos,time,pos}){
+  const weeks=[];const now=new Date();
+  for(let i=3;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
+    const wkWos=wos.filter(o=>{const d=o.date_completed?new Date(o.date_completed):o.created_at?new Date(o.created_at):null;return d&&d>=ws&&d<=we;});
+    const completed=wkWos.filter(o=>o.status==="completed").length;
+    const hrs=time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+    const poAmt=pos.filter(p=>{const d=new Date(p.created_at);return d>=ws&&d<=we&&p.status==="approved";}).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const label=ws.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    weeks.push({label,completed,hrs,poAmt});
+  }
+  const maxHrs=Math.max(...weeks.map(w=>w.hrs),1);
+  const maxCompleted=Math.max(...weeks.map(w=>w.completed),1);
+  return(<Card style={{padding:16,marginBottom:16}}>
+    <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:12}}>4-Week Trend</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>HOURS WORKED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.cyan}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:B.cyan,borderRadius:3,height:Math.max(4,w.hrs/maxHrs*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
+      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>WOs COMPLETED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.green}}>{w.completed}</span><div style={{width:"100%",background:B.green,borderRadius:3,height:Math.max(4,w.completed/maxCompleted*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
+    </div>
+    <div style={{display:"flex",justifyContent:"space-around",marginTop:14,padding:"10px 0",borderTop:"1px solid "+B.border}}>
+      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.cyan}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:9,color:B.textDim}}>Total Hours</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.green}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:9,color:B.textDim}}>Completed</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.purple}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>PO Spend</div></div>
+    </div>
+  </Card>);
+}
 // ═══════════════════════════════════════════
 // PROJECTS MODULE — with Chambers, Budget, WO Integration
 // ═══════════════════════════════════════════
@@ -960,6 +1022,208 @@ function KnowledgeBase({userName,userRole}){
     </Modal>}
   </div>);
 }
+// ═══════════════════════════════════════════
+// INVOICE GENERATOR
+// ═══════════════════════════════════════════
+function InvoiceGenerator({wos,pos,time,users,customers}){
+  const[cust,setCust]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
+  const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
+  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState("");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const customer=customers.find(c=>c.name===cust);
+  // Filter completed WOs for customer in date range
+  const filteredWOs=wos.filter(w=>{if(w.customer!==cust||w.status!=="completed")return false;const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
+  // Get time entries for filtered WOs
+  const filteredTime=time.filter(t=>filteredWOs.some(w=>w.id===t.wo_id));
+  // Group hours by technician
+  const techHours={};filteredTime.forEach(t=>{if(!techHours[t.technician])techHours[t.technician]=0;techHours[t.technician]+=parseFloat(t.hours||0);});
+  // POs for filtered WOs
+  const filteredPOs=pos.filter(p=>filteredWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");
+  const partsTotal=filteredPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  // PM/CM counts
+  const pmCount=filteredWOs.filter(w=>w.wo_type==="PM").length;
+  const cmCount=filteredWOs.filter(w=>w.wo_type==="CM").length;
+  // Default tiers based on customer
+  const defaultTiers=cust.includes("DUMC")||cust.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
+  const[tiers,setTiers]=useState(defaultTiers);
+  useEffect(()=>{if(customer?.billing_rate_override){setTiers(prev=>prev.map(t=>({...t,rate:customer.billing_rate_override})));}else{setTiers(cust.includes("DUMC")||cust.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}]);}},[cust]);
+  // Auto-generate invoice number
+  useEffect(()=>{if(!invoiceNum){const now=new Date();setInvoiceNum(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+"01");}},[]);
+
+  const generateXLSX=()=>{
+    // Build the Excel using HTML table approach (browser-compatible)
+    const tierHours={};tiers.forEach(t=>{tierHours[t.name]=0;});
+    Object.entries(tierAssign).forEach(([tech,tier])=>{if(tier&&tierHours[tier]!==undefined)tierHours[tier]+=(techHours[tech]||0);});
+    // Completion notes
+    const notes=filteredWOs.map(w=>({wo:w.wo_id,custWO:w.customer_wo||"",title:w.title,notes:w.work_performed||w.notes||"",date:w.date_completed||""})).filter(n=>n.notes);
+    const dateRange=dateFrom&&dateTo?dateFrom+" to "+dateTo:"";
+
+    let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
+    xml+='<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel">';
+    xml+='<Styles>';
+    xml+='<Style ss:ID="title"><Font ss:FontName="Palatino Linotype" ss:Size="18"/><Alignment ss:Horizontal="Right"/></Style>';
+    xml+='<Style ss:ID="header"><Font ss:FontName="Palatino Linotype" ss:Size="10" ss:Bold="1"/></Style>';
+    xml+='<Style ss:ID="normal"><Font ss:FontName="Palatino Linotype" ss:Size="10"/></Style>';
+    xml+='<Style ss:ID="money"><Font ss:FontName="Palatino Linotype" ss:Size="10"/><NumberFormat ss:Format="$#,##0.00"/></Style>';
+    xml+='<Style ss:ID="moneyBold"><Font ss:FontName="Palatino Linotype" ss:Size="10" ss:Bold="1"/><NumberFormat ss:Format="$#,##0.00"/></Style>';
+    xml+='<Style ss:ID="bold"><Font ss:FontName="Palatino Linotype" ss:Size="10" ss:Bold="1"/></Style>';
+    xml+='<Style ss:ID="small"><Font ss:FontName="Palatino Linotype" ss:Size="9"/></Style>';
+    xml+='</Styles>';
+    xml+='<Worksheet ss:Name="Invoice"><Table ss:DefaultColumnWidth="80">';
+    xml+='<Column ss:Index="1" ss:Width="85"/><Column ss:Index="2" ss:Width="180"/><Column ss:Index="3" ss:Width="75"/><Column ss:Index="4" ss:Width="85"/><Column ss:Index="5" ss:Width="80"/><Column ss:Index="6" ss:Width="75"/>';
+    const r=(style,cells)=>{xml+='<Row>';cells.forEach((c,i)=>{const s=c.style||style;const t=typeof c.v==="number"?"Number":"String";xml+='<Cell ss:StyleID="'+s+'"'+(c.merge?' ss:MergeAcross="'+c.merge+'"':"")+"><Data ss:Type=\""+t+"\">"+((c.v!==undefined&&c.v!==null)?c.v:"")+"</Data></Cell>";});xml+='</Row>';};
+    const blank=()=>{xml+='<Row><Cell><Data ss:Type="String"></Data></Cell></Row>';};
+
+    // Header
+    r("normal",[{v:"3C Refrigeration, LLC",merge:2},{},{},{v:"INVOICE",style:"title"}]);
+    blank();
+    r("normal",[{v:"3065 Gwyn Rd."},{},{},{},{v:"Date:"},{v:new Date().toLocaleDateString()}]);
+    r("normal",[{v:"Elon, N.C. 27244"},{},{},{},{v:"Invoice #:"},{v:invoiceNum}]);
+    r("normal",[{v:"Phone: 336-264-0935"},{},{},{},{v:"Customer ID:"},{v:customer?.name?.substring(0,10)||cust}]);
+    r("normal",[{v:"Email: service@3crefrigeration.com"}]);
+    r("normal",[{v:"FAX: (877) 278-4608"}]);
+    r("normal",[{v:"N.C. License 4923"}]);
+    r("normal",[{v:"Vendor Number 126337"}]);
+    blank();
+    // Bill to
+    r("normal",[{v:"To:"},{v:customer?.contact_name||"Accounts Payable",merge:1}]);
+    r("normal",[{},{v:customer?.address||"",merge:1}]);
+    blank();blank();
+    // Line
+    r("header",[{v:"Purchase Order"},{},{v:"Job"},{v:"Payment Terms",merge:1},{},{v:"Due Date"}]);
+    r("normal",[{v:poNum},{},{v:jobDesc||"Repairs"},{v:customer?.payment_terms||"Net 30",merge:1}]);
+    blank();
+    // Column headers
+    r("header",[{v:"Qty"},{v:"Description",merge:2},{},{v:""},{v:"Unit Price"},{v:"Line Total"}]);
+    r("bold",[{},{v:"Labor"}]);
+
+    // Labor tiers
+    let laborTotal=0;
+    tiers.forEach(t=>{const hrs=tierHours[t.name]||0;const total=hrs*t.rate;laborTotal+=total;r("normal",[{v:hrs,style:"normal"},{v:t.name},{},{},{v:t.rate,style:"money"},{v:total,style:"money"}]);});
+    blank();
+
+    // Description/notes
+    if(includeNotes&&notes.length>0){
+      r("bold",[{},{v:"Description:",merge:2}]);
+      notes.forEach(n=>{r("small",[{},{v:(n.custWO?"["+n.custWO+"] ":"")+n.title+" ("+n.date+")",merge:3}]);if(n.notes)r("small",[{},{v:"  "+n.notes.substring(0,200),merge:3}]);});
+      blank();
+    }
+
+    // Parts
+    if(includeParts&&partsTotal>0){
+      r("bold",[{},{v:"Parts:",merge:2},{},{},{},{v:partsTotal,style:"money"}]);
+      filteredPOs.forEach(p=>{r("small",[{},{v:"  "+p.description+(p.po_id?" ("+p.po_id+")":""),merge:2},{},{},{v:parseFloat(p.amount||0),style:"money"}]);});
+      blank();
+    }
+
+    // PM Breakdown
+    if(includeBreakdown&&(pmCount>0||cmCount>0)){
+      r("bold",[{},{v:"Breakdown:"}]);
+      if(pmCount>0)r("normal",[{v:pmCount},{v:"Preventative maintenance"},{},{},{},{v:pmCount*75,style:"money"}]);
+      if(cmCount>0)r("normal",[{v:cmCount},{v:"Corrective maintenance"},{},{},{},{v:cmCount*75,style:"money"}]);
+      blank();
+    }
+
+    // Totals
+    const subtotal=laborTotal+partsTotal;
+    blank();
+    r("normal",[{},{},{},{},{v:"Subtotal",style:"bold"},{v:subtotal,style:"money"}]);
+    r("normal",[{},{},{},{},{v:"Sales Tax",style:"bold"},{v:0,style:"money"}]);
+    r("normal",[{},{},{},{},{v:"Total",style:"bold"},{v:subtotal,style:"moneyBold"}]);
+    blank();
+    r("normal",[{v:"Make all checks payable to 3C Refrigeration, LLC",merge:4}]);
+    r("normal",[{v:"Thank you for your business!",merge:4}]);
+
+    xml+='</Table></Worksheet></Workbook>';
+    const blob=new Blob([xml],{type:"application/vnd.ms-excel"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
+    a.href=url;a.download="3C_Invoice_"+(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_")+"_"+invoiceNum+".xls";
+    a.click();URL.revokeObjectURL(url);
+    msg("Invoice downloaded!");
+  };
+
+  return(<div><Toast msg={toast}/>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Invoice Generator</h3>
+
+    {step===1&&<Card style={{padding:18,maxWidth:600}}>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Date Range</div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={LS}>From</label><input value={dateFrom} onChange={e=>setDateFrom(e.target.value)} type="date" style={IS}/></div>
+          <div><label style={LS}>To</label><input value={dateTo} onChange={e=>setDateTo(e.target.value)} type="date" style={IS}/></div>
+        </div>
+        {cust&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
+          <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WOs · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> techs · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
+          {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsTotal.toLocaleString()} in approved POs</div>}
+        </div>}
+        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(filteredWOs.length===0){msg("No completed WOs found");return;}setStep(2);}} style={{...BP}} disabled={!cust||filteredWOs.length===0}>Next: Assign Labor Tiers</button>
+      </div>
+    </Card>}
+
+    {step===2&&<Card style={{padding:18,maxWidth:600}}>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>Step 2: Assign Labor Tiers</div>
+      <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Assign each tech's hours to a billing tier</div>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>LABOR TIERS (editable)</div>
+        {tiers.map((t,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
+          <input value={t.name} onChange={e=>{const n=[...tiers];n[i].name=e.target.value;setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}}/>
+          <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate} onChange={e=>{const n=[...tiers];n[i].rate=parseFloat(e.target.value)||0;setTiers(n);}} type="number" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}}/><span style={{fontSize:11,color:B.textDim}}>/hr</span></div>
+          {tiers.length>1&&<button onClick={()=>setTiers(tiers.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer"}}>×</button>}
+        </div>)}
+        <button onClick={()=>setTiers([...tiers,{name:"New Tier",rate:0}])} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Tier</button>
+      </div>
+      <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>ASSIGN TECHS</div>
+      {Object.entries(techHours).map(([tech,hrs])=><div key={tech} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
+        <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>{tech}</div><div style={{fontSize:11,fontFamily:M,color:B.cyan}}>{hrs.toFixed(1)}h</div></div>
+        <select value={tierAssign[tech]||""} onChange={e=>setTierAssign({...tierAssign,[tech]:e.target.value})} style={{...IS,width:"auto",padding:"6px 10px",fontSize:11,cursor:"pointer"}}>
+          <option value="">— Select Tier —</option>{tiers.map(t=><option key={t.name} value={t.name}>{t.name} ({"$"+t.rate}/hr)</option>)}
+        </select>
+      </div>)}
+      {Object.keys(techHours).length>0&&Object.values(tierAssign).filter(Boolean).length<Object.keys(techHours).length&&<div style={{marginTop:8,padding:8,background:B.orange+"15",borderRadius:6,fontSize:11,color:B.orange}}>⚠ Assign all techs to a tier before generating</div>}
+      <div style={{display:"flex",gap:8,marginTop:14}}>
+        <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
+        <button onClick={()=>{if(Object.values(tierAssign).filter(Boolean).length<Object.keys(techHours).length){msg("Assign all techs first");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
+      </div>
+    </Card>}
+
+    {step===3&&<Card style={{padding:18,maxWidth:600}}>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 3: Invoice Details</div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={LS}>Invoice # (YYMM##)</label><input value={invoiceNum} onChange={e=>setInvoiceNum(e.target.value)} placeholder="250301" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>PO Number</label><input value={poNum} onChange={e=>setPoNum(e.target.value)} placeholder="e.g. 4605021670" style={{...IS,fontFamily:M}}/></div>
+        </div>
+        <div><label style={LS}>Job Description</label><input value={jobDesc} onChange={e=>setJobDesc(e.target.value)} placeholder="Repairs, PMs, etc." style={IS}/></div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeNotes(!includeNotes)}>
+            <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeNotes?B.cyan:B.border),background:includeNotes?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeNotes&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
+            <span style={{fontSize:12,color:B.text}}>Include completion notes / work descriptions</span>
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeParts(!includeParts)}>
+            <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeParts?B.cyan:B.border),background:includeParts?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeParts&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
+            <span style={{fontSize:12,color:B.text}}>Include parts / materials ({"$"+partsTotal.toLocaleString()})</span>
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeBreakdown(!includeBreakdown)}>
+            <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeBreakdown?B.cyan:B.border),background:includeBreakdown?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeBreakdown&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
+            <span style={{fontSize:12,color:B.text}}>Include PM/CM breakdown ({pmCount} PM, {cmCount} CM)</span>
+          </label>
+        </div>
+        {/* Preview */}
+        <div style={{background:B.bg,borderRadius:8,padding:14,marginTop:4}}>
+          <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>PREVIEW</div>
+          {tiers.map(t=>{const hrs=Object.entries(tierAssign).filter(([_,tier])=>tier===t.name).reduce((s,[tech])=>s+(techHours[tech]||0),0);return hrs>0?<div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {hrs.toFixed(1)}h × {"$"+t.rate}</span><span style={{fontFamily:M}}>{"$"+(hrs*t.rate).toFixed(2)}</span></div>:null;})}
+          {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
+          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>{const hrs=Object.entries(tierAssign).filter(([_,tier])=>tier===t.name).reduce((s2,[tech])=>s2+(techHours[tech]||0),0);return s+hrs*t.rate;},0)+(includeParts?partsTotal:0)).toFixed(2)}</span></div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setStep(2)} style={{...BS,flex:1}}>Back</button>
+          <button onClick={generateXLSX} style={{...BP,flex:1}}>📄 Download Invoice</button>
+        </div>
+      </div>
+    </Card>}
+  </div>);
+}
 
 // ═══════════════════════════════════════════
 // DASHBOARDS — with new tabs
@@ -1013,7 +1277,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/>}
+    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
@@ -1029,12 +1293,13 @@ function MgrDash({user,onLogout,D,A,syncing}){
 function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/>}
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
+    {tab==="invoices"&&<InvoiceGenerator wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
@@ -1149,8 +1414,9 @@ export default function App(){
 
   const actions={
     loadData,
-    createWO:withSync(async(wo)=>{const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;await sb().from("work_orders").insert({...wo,wo_id:"WO-"+(ln+1),status:"pending",hours_total:0});await notify("wo_created","New Work Order","WO-"+(ln+1)+": "+wo.title);}),
-    updateWO:withTableSync("work_orders",async(wo)=>{const{id,...rest}=wo;const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);}),
+    logActivity:async(woId,action,details)=>{try{await sb().from("wo_activity").insert({wo_id:woId,action,details,actor:appUser?.name||"System"});}catch(e){}},
+    createWO:withSync(async(wo)=>{const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);const{data:inserted}=await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0}).select("id").single();await notify("wo_created","New Work Order",newId+": "+wo.title);if(inserted)await sb().from("wo_activity").insert({wo_id:inserted.id,action:"created",details:"Work order created",actor:appUser?.name||"System"});}),
+    updateWO:withTableSync("work_orders",async(wo)=>{const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.status==="completed"&&old?.status!=="completed")await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");}),
     deleteWO:withTableSync("work_orders",async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
     createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
     updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
