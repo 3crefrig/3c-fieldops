@@ -1050,97 +1050,24 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){const now=new Date();setInvoiceNum(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+"01");}},[]);
 
-  const generateXLSX=()=>{
-    // Build the Excel using HTML table approach (browser-compatible)
+  const generateXLSX=async()=>{
     const tierHours={};tiers.forEach(t=>{tierHours[t.name]=0;});
     Object.entries(tierAssign).forEach(([tech,tier])=>{if(tier&&tierHours[tier]!==undefined)tierHours[tier]+=(techHours[tech]||0);});
-    // Completion notes
-    const notes=filteredWOs.map(w=>({wo:w.wo_id,custWO:w.customer_wo||"",title:w.title,notes:w.work_performed||w.notes||"",date:w.date_completed||""})).filter(n=>n.notes);
-    const dateRange=dateFrom&&dateTo?dateFrom+" to "+dateTo:"";
-
-    let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
-    xml+='<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel">';
-    xml+='<Styles>';
-    xml+='<Style ss:ID="title"><Font ss:FontName="Palatino Linotype" ss:Size="18"/><Alignment ss:Horizontal="Right"/></Style>';
-    xml+='<Style ss:ID="header"><Font ss:FontName="Palatino Linotype" ss:Size="10" ss:Bold="1"/></Style>';
-    xml+='<Style ss:ID="normal"><Font ss:FontName="Palatino Linotype" ss:Size="10"/></Style>';
-    xml+='<Style ss:ID="money"><Font ss:FontName="Palatino Linotype" ss:Size="10"/><NumberFormat ss:Format="$#,##0.00"/></Style>';
-    xml+='<Style ss:ID="moneyBold"><Font ss:FontName="Palatino Linotype" ss:Size="10" ss:Bold="1"/><NumberFormat ss:Format="$#,##0.00"/></Style>';
-    xml+='<Style ss:ID="bold"><Font ss:FontName="Palatino Linotype" ss:Size="10" ss:Bold="1"/></Style>';
-    xml+='<Style ss:ID="small"><Font ss:FontName="Palatino Linotype" ss:Size="9"/></Style>';
-    xml+='</Styles>';
-    xml+='<Worksheet ss:Name="Invoice"><Table ss:DefaultColumnWidth="80">';
-    xml+='<Column ss:Index="1" ss:Width="85"/><Column ss:Index="2" ss:Width="180"/><Column ss:Index="3" ss:Width="75"/><Column ss:Index="4" ss:Width="85"/><Column ss:Index="5" ss:Width="80"/><Column ss:Index="6" ss:Width="75"/>';
-    const r=(style,cells)=>{xml+='<Row>';cells.forEach((c,i)=>{const s=c.style||style;const t=typeof c.v==="number"?"Number":"String";xml+='<Cell ss:StyleID="'+s+'"'+(c.merge?' ss:MergeAcross="'+c.merge+'"':"")+"><Data ss:Type=\""+t+"\">"+((c.v!==undefined&&c.v!==null)?c.v:"")+"</Data></Cell>";});xml+='</Row>';};
-    const blank=()=>{xml+='<Row><Cell><Data ss:Type="String"></Data></Cell></Row>';};
-
-    // Header
-    r("normal",[{v:"3C Refrigeration, LLC",merge:2},{},{},{v:"INVOICE",style:"title"}]);
-    blank();
-    r("normal",[{v:"3065 Gwyn Rd."},{},{},{},{v:"Date:"},{v:new Date().toLocaleDateString()}]);
-    r("normal",[{v:"Elon, N.C. 27244"},{},{},{},{v:"Invoice #:"},{v:invoiceNum}]);
-    r("normal",[{v:"Phone: 336-264-0935"},{},{},{},{v:"Customer ID:"},{v:customer?.name?.substring(0,10)||cust}]);
-    r("normal",[{v:"Email: service@3crefrigeration.com"}]);
-    r("normal",[{v:"FAX: (877) 278-4608"}]);
-    r("normal",[{v:"N.C. License 4923"}]);
-    r("normal",[{v:"Vendor Number 126337"}]);
-    blank();
-    // Bill to
-    r("normal",[{v:"To:"},{v:customer?.contact_name||"Accounts Payable",merge:1}]);
-    r("normal",[{},{v:customer?.address||"",merge:1}]);
-    blank();blank();
-    // Line
-    r("header",[{v:"Purchase Order"},{},{v:"Job"},{v:"Payment Terms",merge:1},{},{v:"Due Date"}]);
-    r("normal",[{v:poNum},{},{v:jobDesc||"Repairs"},{v:customer?.payment_terms||"Net 30",merge:1}]);
-    blank();
-    // Column headers
-    r("header",[{v:"Qty"},{v:"Description",merge:2},{},{v:""},{v:"Unit Price"},{v:"Line Total"}]);
-    r("bold",[{},{v:"Labor"}]);
-
-    // Labor tiers
-    let laborTotal=0;
-    tiers.forEach(t=>{const hrs=tierHours[t.name]||0;const total=hrs*t.rate;laborTotal+=total;r("normal",[{v:hrs,style:"normal"},{v:t.name},{},{},{v:t.rate,style:"money"},{v:total,style:"money"}]);});
-    blank();
-
-    // Description/notes
-    if(includeNotes&&notes.length>0){
-      r("bold",[{},{v:"Description:",merge:2}]);
-      notes.forEach(n=>{r("small",[{},{v:(n.custWO?"["+n.custWO+"] ":"")+n.title+" ("+n.date+")",merge:3}]);if(n.notes)r("small",[{},{v:"  "+n.notes.substring(0,200),merge:3}]);});
-      blank();
-    }
-
-    // Parts
-    if(includeParts&&partsTotal>0){
-      r("bold",[{},{v:"Parts:",merge:2},{},{},{},{v:partsTotal,style:"money"}]);
-      filteredPOs.forEach(p=>{r("small",[{},{v:"  "+p.description+(p.po_id?" ("+p.po_id+")":""),merge:2},{},{},{v:parseFloat(p.amount||0),style:"money"}]);});
-      blank();
-    }
-
-    // PM Breakdown
-    if(includeBreakdown&&(pmCount>0||cmCount>0)){
-      r("bold",[{},{v:"Breakdown:"}]);
-      if(pmCount>0)r("normal",[{v:pmCount},{v:"Preventative maintenance"},{},{},{},{v:pmCount*75,style:"money"}]);
-      if(cmCount>0)r("normal",[{v:cmCount},{v:"Corrective maintenance"},{},{},{},{v:cmCount*75,style:"money"}]);
-      blank();
-    }
-
-    // Totals
-    const subtotal=laborTotal+partsTotal;
-    blank();
-    r("normal",[{},{},{},{},{v:"Subtotal",style:"bold"},{v:subtotal,style:"money"}]);
-    r("normal",[{},{},{},{},{v:"Sales Tax",style:"bold"},{v:0,style:"money"}]);
-    r("normal",[{},{},{},{},{v:"Total",style:"bold"},{v:subtotal,style:"moneyBold"}]);
-    blank();
-    r("normal",[{v:"Make all checks payable to 3C Refrigeration, LLC",merge:4}]);
-    r("normal",[{v:"Thank you for your business!",merge:4}]);
-
-    xml+='</Table></Worksheet></Workbook>';
-    const blob=new Blob([xml],{type:"application/vnd.ms-excel"});
-    const url=URL.createObjectURL(blob);const a=document.createElement("a");
-    a.href=url;a.download="3C_Invoice_"+(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_")+"_"+invoiceNum+".xls";
-    a.click();URL.revokeObjectURL(url);
-    msg("Invoice downloaded!");
+    const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
+    const tiersData=tiers.map(t=>({name:t.name,rate:t.rate,hours:tierHours[t.name]||0})).filter(t=>t.hours>0||tiers.length<=3);
+    const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:parseFloat(p.amount||0)}));
+    const body={invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.name?.substring(0,10)||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
+    try{
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-invoice",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(body)});
+      if(!resp.ok){msg("Invoice generation failed");return;}
+      const blob=await resp.blob();
+      const url=URL.createObjectURL(blob);const a=document.createElement("a");
+      a.href=url;a.download="3C_Invoice_"+(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_")+"_"+invoiceNum+".xls";
+      a.click();URL.revokeObjectURL(url);
+      msg("Invoice downloaded!");
+    }catch(e){msg("Error: "+e.message);}
   };
+
 
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Invoice Generator</h3>
