@@ -704,102 +704,6 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete}){
 }
 
 // ═══════════════════════════════════════════
-// RECURRING PM TEMPLATES
-// ═══════════════════════════════════════════
-function RecurringPM({templates,onAdd,onDelete,users}){
-  const[showForm,setShowForm]=useState(false),[toast,setToast]=useState("");
-  const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[loc,setLoc]=useState(""),[bldg,setBldg]=useState(""),[notes,setNotes]=useState(""),[freq,setFreq]=useState("monthly"),[nextDue,setNextDue]=useState(""),[cust,setCust]=useState(""),[saving,setSaving]=useState(false);
-  const techs=users.filter(u=>u.role==="technician"&&u.active!==false);
-  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
-  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onAdd({title:title.trim(),priority:pri,assignee:assign,location:loc.trim(),building:bldg.trim(),notes:notes.trim(),customer:cust.trim(),frequency:freq,next_due:nextDue||null,active:true});setShowForm(false);setTitle("");msg("Template created");setSaving(false);};
-  return(<div><Toast msg={toast}/>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Recurring PM Templates</h3>
-    <button onClick={()=>setShowForm(true)} style={{...BP,marginBottom:14,fontSize:12}}>+ New Recurring PM</button>
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {templates.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No recurring templates yet</div>}
-      {templates.map(t=><Card key={t.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.cyan}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-          <div><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.title}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>{t.frequency} · {t.assignee} · {t.location||"No location"}{t.customer&&" · 👤 "+t.customer}</div>{t.next_due&&<div style={{fontSize:11,color:B.orange,marginTop:2}}>Next due: {t.next_due}</div>}</div>
-          <button onClick={async()=>{await onDelete(t.id);msg("Deleted");}} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button>
-        </div></Card>)}
-    </div>
-    {showForm&&<Modal title="New Recurring PM" onClose={()=>setShowForm(false)} wide><div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Monthly Cooler Inspection" style={IS}/></div>
-      <div><label style={LS}>Customer</label><input value={cust} onChange={e=>setCust(e.target.value)} placeholder="ABC Grocery" style={IS}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Frequency</label><select value={freq} onChange={e=>setFreq(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="weekly">Weekly</option><option value="biweekly">Every 2 Weeks</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div><div><label style={LS}>Next Due</label><input type="date" value={nextDue} onChange={e=>setNextDue(e.target.value)} style={IS}/></div></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Location</label><input value={loc} onChange={e=>setLoc(e.target.value)} style={IS}/></div><div><label style={LS}>Building</label><input value={bldg} onChange={e=>setBldg(e.target.value)} style={IS}/></div></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Assignee</label><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{techs.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div></div>
-      <div><label style={LS}>Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} style={{...IS,resize:"vertical"}}/></div>
-      <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Create Template"}</button></div>
-    </div></Modal>}
-  </div>);
-}
-
-function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplate}){
-  const[tab,setTab]=useState("templates"),[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
-  const[tName,setTName]=useState(""),[tSubject,setTSubject]=useState(""),[tBody,setTBody]=useState(""),[saving,setSaving]=useState(false);
-  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
-  const openNew=()=>{setEditing(null);setTName("");setTSubject("3C Refrigeration \u2014 Timesheet");setTBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");setShowForm(true);};
-  const openEdit=(t)=>{setEditing(t);setTName(t.name);setTSubject(t.subject);setTBody(t.body);setShowForm(true);};
-  const go=async()=>{if(!tName.trim()||!tSubject.trim()||saving)return;setSaving(true);const obj={name:tName.trim(),subject:tSubject.trim(),body:tBody.trim()};if(editing){await onUpdateTemplate({...editing,...obj});}else{await onAddTemplate(obj);}setSaving(false);setShowForm(false);msg(editing?"Template updated":"Template created");};
-  const del=async(t)=>{if(!window.confirm("Delete template '"+t.name+"'?"))return;await onDeleteTemplate(t.id);msg("Deleted");};
-  return(<div><Toast msg={toast}/>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>System Settings</h3>
-    <div style={{display:"flex",gap:6,marginBottom:16}}>{[["templates","📧 Email Templates"],["other","⚙️ Other Settings"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
-    {tab==="templates"&&<div>
-      <div style={{fontSize:12,color:B.textMuted,marginBottom:12}}>Create email templates for sending timesheets. Templates set the subject line and body text. The timesheet table and Excel attachment are added automatically.</div>
-      <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ New Email Template</button>
-      <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {(!emailTemplates||emailTemplates.length===0)&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:12}}>No templates yet. Click above to create one.</div></Card>}
-        {(emailTemplates||[]).map(t=><Card key={t.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.purple}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>Subject: {t.subject}</div><div style={{fontSize:11,color:B.textDim,marginTop:2,maxHeight:40,overflow:"hidden"}} dangerouslySetInnerHTML={{__html:t.body}}/></div>
-            <div style={{display:"flex",gap:6,flexShrink:0}}><button onClick={()=>openEdit(t)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button><button onClick={()=>del(t)} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button></div>
-          </div></Card>)}
-      </div>
-      {showForm&&<Modal title={editing?"Edit Template":"New Email Template"} onClose={()=>setShowForm(false)} wide>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div><label style={LS}>Template Name</label><input value={tName} onChange={e=>setTName(e.target.value)} placeholder="e.g. Monthly Timesheet, Invoice Follow-up" style={IS}/></div>
-          <div><label style={LS}>Email Subject</label><input value={tSubject} onChange={e=>setTSubject(e.target.value)} placeholder="3C Refrigeration — Timesheet" style={IS}/></div>
-          <div><label style={LS}>Email Body <span style={{color:B.textDim,fontWeight:400}}>(timesheet table and your signature are added automatically below)</span></label><textarea value={tBody} onChange={e=>setTBody(e.target.value)} rows={6} placeholder="<p>Hi,</p><p>Please find attached...</p>" style={{...IS,resize:"vertical",lineHeight:1.5,fontFamily:M,fontSize:12}}/></div>
-          <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border}}><span style={{fontSize:10,color:B.textDim}}>Preview:</span><div style={{marginTop:6,fontSize:12,color:B.textMuted}} dangerouslySetInnerHTML={{__html:tBody||"<em>Empty</em>"}}/></div>
-          <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Create Template")}</button></div>
-        </div>
-      </Modal>}
-    </div>}
-    {tab==="other"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>{[["🔔","Notifications"],["📱","Devices"],["🔐","Security"],["☁️","Storage"],["📊","Reports"],["🏢","Company"],["🔧","Integrations"]].map(([ic,lb])=><Card key={lb} style={{padding:"18px 14px",textAlign:"center",cursor:"pointer"}}><div style={{fontSize:24,marginBottom:6}}>{ic}</div><div style={{fontSize:12,fontWeight:600,color:B.textMuted}}>{lb}</div></Card>)}</div>}
-  </div>);
-}
-
-// ═══════════════════════════════════════════
-// DASHBOARD ANALYTICS
-// ═══════════════════════════════════════════
-function DashAnalytics({wos,time,pos}){
-  const weeks=[];const now=new Date();
-  for(let i=3;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
-    const wkWos=wos.filter(o=>{const d=o.date_completed?new Date(o.date_completed):o.created_at?new Date(o.created_at):null;return d&&d>=ws&&d<=we;});
-    const completed=wkWos.filter(o=>o.status==="completed").length;
-    const hrs=time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
-    const poAmt=pos.filter(p=>{const d=new Date(p.created_at);return d>=ws&&d<=we&&p.status==="approved";}).reduce((s,p)=>s+parseFloat(p.amount||0),0);
-    const label=ws.toLocaleDateString("en-US",{month:"short",day:"numeric"});
-    weeks.push({label,completed,hrs,poAmt});
-  }
-  const maxHrs=Math.max(...weeks.map(w=>w.hrs),1);
-  const maxCompleted=Math.max(...weeks.map(w=>w.completed),1);
-  return(<Card style={{padding:16,marginBottom:16}}>
-    <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:12}}>4-Week Trend</div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>HOURS WORKED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.cyan}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:B.cyan,borderRadius:3,height:Math.max(4,w.hrs/maxHrs*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
-      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>WOs COMPLETED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.green}}>{w.completed}</span><div style={{width:"100%",background:B.green,borderRadius:3,height:Math.max(4,w.completed/maxCompleted*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
-    </div>
-    <div style={{display:"flex",justifyContent:"space-around",marginTop:14,padding:"10px 0",borderTop:"1px solid "+B.border}}>
-      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.cyan}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:9,color:B.textDim}}>Total Hours</div></div>
-      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.green}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:9,color:B.textDim}}>Completed</div></div>
-      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.purple}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>PO Spend</div></div>
-    </div>
-  </Card>);
-}
-// ═══════════════════════════════════════════
 // PROJECTS MODULE — with Chambers, Budget, WO Integration
 // ═══════════════════════════════════════════
 function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
@@ -932,6 +836,102 @@ function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onD
   return<ProjectList projects={projects} onSelect={setSel} onCreate={onAdd} users={users} customers={customers} userRole={userRole}/>;
 }
 // ═══════════════════════════════════════════
+// RECURRING PM TEMPLATES
+// ═══════════════════════════════════════════
+function RecurringPM({templates,onAdd,onDelete,users}){
+  const[showForm,setShowForm]=useState(false),[toast,setToast]=useState("");
+  const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[loc,setLoc]=useState(""),[bldg,setBldg]=useState(""),[notes,setNotes]=useState(""),[freq,setFreq]=useState("monthly"),[nextDue,setNextDue]=useState(""),[cust,setCust]=useState(""),[saving,setSaving]=useState(false);
+  const techs=users.filter(u=>u.role==="technician"&&u.active!==false);
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);await onAdd({title:title.trim(),priority:pri,assignee:assign,location:loc.trim(),building:bldg.trim(),notes:notes.trim(),customer:cust.trim(),frequency:freq,next_due:nextDue||null,active:true});setShowForm(false);setTitle("");msg("Template created");setSaving(false);};
+  return(<div><Toast msg={toast}/>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Recurring PM Templates</h3>
+    <button onClick={()=>setShowForm(true)} style={{...BP,marginBottom:14,fontSize:12}}>+ New Recurring PM</button>
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {templates.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No recurring templates yet</div>}
+      {templates.map(t=><Card key={t.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.cyan}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.title}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>{t.frequency} · {t.assignee} · {t.location||"No location"}{t.customer&&" · 👤 "+t.customer}</div>{t.next_due&&<div style={{fontSize:11,color:B.orange,marginTop:2}}>Next due: {t.next_due}</div>}</div>
+          <button onClick={async()=>{await onDelete(t.id);msg("Deleted");}} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button>
+        </div></Card>)}
+    </div>
+    {showForm&&<Modal title="New Recurring PM" onClose={()=>setShowForm(false)} wide><div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Monthly Cooler Inspection" style={IS}/></div>
+      <div><label style={LS}>Customer</label><input value={cust} onChange={e=>setCust(e.target.value)} placeholder="ABC Grocery" style={IS}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Frequency</label><select value={freq} onChange={e=>setFreq(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="weekly">Weekly</option><option value="biweekly">Every 2 Weeks</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div><div><label style={LS}>Next Due</label><input type="date" value={nextDue} onChange={e=>setNextDue(e.target.value)} style={IS}/></div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Location</label><input value={loc} onChange={e=>setLoc(e.target.value)} style={IS}/></div><div><label style={LS}>Building</label><input value={bldg} onChange={e=>setBldg(e.target.value)} style={IS}/></div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Assignee</label><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{techs.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div></div>
+      <div><label style={LS}>Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} style={{...IS,resize:"vertical"}}/></div>
+      <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Create Template"}</button></div>
+    </div></Modal>}
+  </div>);
+}
+
+function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplate}){
+  const[tab,setTab]=useState("templates"),[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
+  const[tName,setTName]=useState(""),[tSubject,setTSubject]=useState(""),[tBody,setTBody]=useState(""),[saving,setSaving]=useState(false);
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  const openNew=()=>{setEditing(null);setTName("");setTSubject("3C Refrigeration \u2014 Timesheet");setTBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");setShowForm(true);};
+  const openEdit=(t)=>{setEditing(t);setTName(t.name);setTSubject(t.subject);setTBody(t.body);setShowForm(true);};
+  const go=async()=>{if(!tName.trim()||!tSubject.trim()||saving)return;setSaving(true);const obj={name:tName.trim(),subject:tSubject.trim(),body:tBody.trim()};if(editing){await onUpdateTemplate({...editing,...obj});}else{await onAddTemplate(obj);}setSaving(false);setShowForm(false);msg(editing?"Template updated":"Template created");};
+  const del=async(t)=>{if(!window.confirm("Delete template '"+t.name+"'?"))return;await onDeleteTemplate(t.id);msg("Deleted");};
+  return(<div><Toast msg={toast}/>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>System Settings</h3>
+    <div style={{display:"flex",gap:6,marginBottom:16}}>{[["templates","📧 Email Templates"],["other","⚙️ Other Settings"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
+    {tab==="templates"&&<div>
+      <div style={{fontSize:12,color:B.textMuted,marginBottom:12}}>Create email templates for sending timesheets. Templates set the subject line and body text. The timesheet table and Excel attachment are added automatically.</div>
+      <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ New Email Template</button>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {(!emailTemplates||emailTemplates.length===0)&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:12}}>No templates yet. Click above to create one.</div></Card>}
+        {(emailTemplates||[]).map(t=><Card key={t.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.purple}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>Subject: {t.subject}</div><div style={{fontSize:11,color:B.textDim,marginTop:2,maxHeight:40,overflow:"hidden"}} dangerouslySetInnerHTML={{__html:t.body}}/></div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}><button onClick={()=>openEdit(t)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button><button onClick={()=>del(t)} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button></div>
+          </div></Card>)}
+      </div>
+      {showForm&&<Modal title={editing?"Edit Template":"New Email Template"} onClose={()=>setShowForm(false)} wide>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div><label style={LS}>Template Name</label><input value={tName} onChange={e=>setTName(e.target.value)} placeholder="e.g. Monthly Timesheet, Invoice Follow-up" style={IS}/></div>
+          <div><label style={LS}>Email Subject</label><input value={tSubject} onChange={e=>setTSubject(e.target.value)} placeholder="3C Refrigeration — Timesheet" style={IS}/></div>
+          <div><label style={LS}>Email Body <span style={{color:B.textDim,fontWeight:400}}>(timesheet table and your signature are added automatically below)</span></label><textarea value={tBody} onChange={e=>setTBody(e.target.value)} rows={6} placeholder="<p>Hi,</p><p>Please find attached...</p>" style={{...IS,resize:"vertical",lineHeight:1.5,fontFamily:M,fontSize:12}}/></div>
+          <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border}}><span style={{fontSize:10,color:B.textDim}}>Preview:</span><div style={{marginTop:6,fontSize:12,color:B.textMuted}} dangerouslySetInnerHTML={{__html:tBody||"<em>Empty</em>"}}/></div>
+          <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Create Template")}</button></div>
+        </div>
+      </Modal>}
+    </div>}
+    {tab==="other"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>{[["🔔","Notifications"],["📱","Devices"],["🔐","Security"],["☁️","Storage"],["📊","Reports"],["🏢","Company"],["🔧","Integrations"]].map(([ic,lb])=><Card key={lb} style={{padding:"18px 14px",textAlign:"center",cursor:"pointer"}}><div style={{fontSize:24,marginBottom:6}}>{ic}</div><div style={{fontSize:12,fontWeight:600,color:B.textMuted}}>{lb}</div></Card>)}</div>}
+  </div>);
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD ANALYTICS
+// ═══════════════════════════════════════════
+function DashAnalytics({wos,time,pos}){
+  const weeks=[];const now=new Date();
+  for(let i=3;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
+    const wkWos=wos.filter(o=>{const d=o.date_completed?new Date(o.date_completed):o.created_at?new Date(o.created_at):null;return d&&d>=ws&&d<=we;});
+    const completed=wkWos.filter(o=>o.status==="completed").length;
+    const hrs=time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+    const poAmt=pos.filter(p=>{const d=new Date(p.created_at);return d>=ws&&d<=we&&p.status==="approved";}).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const label=ws.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    weeks.push({label,completed,hrs,poAmt});
+  }
+  const maxHrs=Math.max(...weeks.map(w=>w.hrs),1);
+  const maxCompleted=Math.max(...weeks.map(w=>w.completed),1);
+  return(<Card style={{padding:16,marginBottom:16}}>
+    <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:12}}>4-Week Trend</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>HOURS WORKED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.cyan}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:B.cyan,borderRadius:3,height:Math.max(4,w.hrs/maxHrs*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
+      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>WOs COMPLETED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.green}}>{w.completed}</span><div style={{width:"100%",background:B.green,borderRadius:3,height:Math.max(4,w.completed/maxCompleted*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
+    </div>
+    <div style={{display:"flex",justifyContent:"space-around",marginTop:14,padding:"10px 0",borderTop:"1px solid "+B.border}}>
+      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.cyan}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:9,color:B.textDim}}>Total Hours</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.green}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:9,color:B.textDim}}>Completed</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.purple}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>PO Spend</div></div>
+    </div>
+  </Card>);
+}
+// ═══════════════════════════════════════════
 // KNOWLEDGE BASE
 // ═══════════════════════════════════════════
 function KnowledgeBase({userName,userRole}){
@@ -943,8 +943,8 @@ function KnowledgeBase({userName,userRole}){
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const load=async()=>{const{data}=await sb().from("kb_articles").select("*").order("created_at",{ascending:false});setArticles(data||[]);setLoading(false);};
   useEffect(()=>{load();},[]);
-  const cats={guide:"📖 Troubleshooting",manual:"📄 Manuals & Specs",tip:"💡 Tips & Tricks",parts:"🔩 Parts Reference"};
-  const catColors={guide:B.cyan,manual:B.purple,tip:B.green,parts:B.orange};
+  const cats={guide:"📖 Troubleshooting",manual:"📄 Manuals & Specs",tip:"💡 Tips & Tricks",parts:"🔩 Parts Reference",sop:"📋 SOPs"};
+  const catColors={guide:B.cyan,manual:B.purple,tip:B.green,parts:B.orange,sop:B.red};
   const filtered=articles.filter(a=>{if(!isMgr&&a.status!=="approved")return false;if(tab!=="all"&&tab!=="pending"&&a.category!==tab)return false;if(tab==="pending"&&a.status!=="pending")return false;if(search){const s=search.toLowerCase();return a.title.toLowerCase().includes(s)||a.content?.toLowerCase().includes(s)||a.symptoms?.toLowerCase().includes(s)||a.tags?.some(t=>t.toLowerCase().includes(s))||(a.part_number||"").toLowerCase().includes(s);}return true;});
   const pendingCount=articles.filter(a=>a.status==="pending").length;
   const resetForm=()=>{setTitle("");setCategory("guide");setContent("");setSymptoms("");setFixSteps("");setPartNum("");setSupplier("");setTags("");};
@@ -967,8 +967,8 @@ function KnowledgeBase({userName,userRole}){
       <div style={{display:"flex",gap:6}}>{isMgr&&<button onClick={()=>openEdit(a)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button>}{isMgr&&<button onClick={()=>{del(a.id);setSelArticle(null);}} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>Delete</button>}</div>
     </div>
     {a.tags&&a.tags.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>{a.tags.map(t=><span key={t} style={{padding:"2px 8px",borderRadius:4,background:B.cyanGlow,color:B.cyan,fontSize:10,fontWeight:600}}>{t}</span>)}</div>}
-    {a.symptoms&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+B.orange}}><span style={{fontSize:10,fontWeight:700,color:B.orange,textTransform:"uppercase"}}>Symptoms</span><p style={{margin:"6px 0 0",color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.symptoms}</p></Card>}
-    {a.fix_steps&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+B.green}}><span style={{fontSize:10,fontWeight:700,color:B.green,textTransform:"uppercase"}}>Fix / Steps</span><p style={{margin:"6px 0 0",color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.fix_steps}</p></Card>}
+    {a.symptoms&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+(a.category==="sop"?B.red:B.orange)}}><span style={{fontSize:10,fontWeight:700,color:a.category==="sop"?B.red:B.orange,textTransform:"uppercase"}}>{a.category==="sop"?"Scope / Purpose":"Symptoms"}</span><p style={{margin:"6px 0 0",color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.symptoms}</p></Card>}
+    {a.fix_steps&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+(a.category==="sop"?B.red:B.green)}}><span style={{fontSize:10,fontWeight:700,color:a.category==="sop"?B.red:B.green,textTransform:"uppercase"}}>{a.category==="sop"?"Procedure":"Fix / Steps"}</span><p style={{margin:"6px 0 0",color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.fix_steps}</p></Card>}
     {a.content&&<Card style={{padding:14,marginBottom:12}}><p style={{margin:0,color:B.text,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{a.content}</p></Card>}
     {(a.part_number||a.supplier)&&<Card style={{padding:14,marginBottom:12,borderLeft:"3px solid "+B.purple}}><span style={{fontSize:10,fontWeight:700,color:B.purple,textTransform:"uppercase"}}>Parts Info</span>{a.part_number&&<div style={{marginTop:6,fontSize:13,color:B.text}}>Part #: <strong style={{fontFamily:M}}>{a.part_number}</strong></div>}{a.supplier&&<div style={{fontSize:13,color:B.text}}>Supplier: <strong>{a.supplier}</strong></div>}</Card>}
     {aPhotos.length>0&&<Card style={{padding:14,marginBottom:12}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Photos</span><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:8,marginTop:8}}>{aPhotos.map(f=><div key={f.id} style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,position:"relative"}}><a href={f.file_url} target="_blank" rel="noreferrer"><img src={f.thumbnail_url||f.file_url} alt="" style={{width:"100%",height:100,objectFit:"cover"}}/></a><div style={{padding:"4px 6px",background:B.surface,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:9,color:B.textDim}}>{f.uploaded_by}</span>{isMgr&&<button onClick={()=>deleteFile(f.id,a.id)} style={{background:"none",border:"none",color:B.red+"66",fontSize:12,cursor:"pointer"}}>×</button>}</div></div>)}</div></Card>}
@@ -1012,13 +1012,17 @@ function KnowledgeBase({userName,userRole}){
           <div><label style={LS}>Symptoms <span style={{color:B.textDim,fontWeight:400}}>(what the tech sees)</span></label><textarea value={symptoms} onChange={e=>setSymptoms(e.target.value)} rows={3} placeholder={"Ice buildup on evaporator coils\nBox temp rising above setpoint\nDefrost timer not advancing"} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
           <div><label style={LS}>Fix / Steps</label><textarea value={fixSteps} onChange={e=>setFixSteps(e.target.value)} rows={4} placeholder={"1. Check defrost timer — rotate to defrost cycle\n2. Verify heaters are energizing (amp check)\n3. Check defrost termination switch\n4. Inspect drain line for blockage"} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
         </>}
+        {category==="sop"&&<>
+          <div><label style={LS}>Scope / Purpose <span style={{color:B.textDim,fontWeight:400}}>(when does this SOP apply?)</span></label><textarea value={symptoms} onChange={e=>setSymptoms(e.target.value)} rows={2} placeholder={"This procedure applies to all quarterly PM inspections on walk-in coolers."} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+          <div><label style={LS}>Procedure Steps</label><textarea value={fixSteps} onChange={e=>setFixSteps(e.target.value)} rows={6} placeholder={"1. Lock out / tag out unit\n2. Inspect evaporator coils for frost buildup\n3. Check refrigerant pressures\n4. Verify condenser fan motor amps\n5. Clean condenser coils\n6. Check door gaskets and hinges\n7. Record all readings on PM checklist\n8. Restore power and verify operation"} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+        </>}
         {category==="parts"&&<>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div><label style={LS}>Part Number</label><input value={partNum} onChange={e=>setPartNum(e.target.value)} placeholder="PN-12345" style={{...IS,fontFamily:M}}/></div>
             <div><label style={LS}>Supplier</label><input value={supplier} onChange={e=>setSupplier(e.target.value)} placeholder="Carrier, Emerson, etc." style={IS}/></div>
           </div>
         </>}
-        <div><label style={LS}>{category==="guide"?"Additional Notes":category==="tip"?"Tip Details":"Description"}</label><textarea value={content} onChange={e=>setContent(e.target.value)} rows={4} placeholder="Enter details..." style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+        <div><label style={LS}>{category==="guide"?"Additional Notes":category==="tip"?"Tip Details":category==="sop"?"Additional Notes / Safety":"Description"}</label><textarea value={content} onChange={e=>setContent(e.target.value)} rows={4} placeholder={category==="sop"?"Safety notes, PPE requirements, references...":"Enter details..."} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
         <div><label style={LS}>Tags <span style={{color:B.textDim,fontWeight:400}}>(comma-separated)</span></label><input value={tags} onChange={e=>setTags(e.target.value)} placeholder="defrost, walk-in, cooler, Heatcraft" style={IS}/></div>
         <div style={{display:"flex",gap:8}}><button onClick={()=>{setShowCreate(false);setSelArticle(null);}} style={{...BS,flex:1}}>Cancel</button><button onClick={save} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(isMgr?(selArticle?"Save":"Publish"):"Submit for Approval")}</button></div>
       </div>
