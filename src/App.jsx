@@ -29,21 +29,40 @@ const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
 const SL={pending:"Pending",in_progress:"In Progress",completed:"Completed"};
 const PSC={pending:B.orange,approved:B.green,rejected:B.red,revised:B.purple};
 const PSL={pending:"Pending",approved:"Approved",rejected:"Rejected",revised:"Revised"};
-const IS={width:"100%",padding:"10px 12px",borderRadius:6,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box"};
-const LS={fontSize:10,color:B.textDim,fontWeight:700,letterSpacing:0.5,textTransform:"uppercase",marginBottom:4,display:"block"};
-const BP={padding:"10px 18px",borderRadius:6,border:"none",background:B.cyan,color:B.bg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F};
-const BS={padding:"10px 18px",borderRadius:6,border:"1px solid "+B.border,background:B.bg,color:B.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F};
+const IS={width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"};
+const LS={fontSize:9,color:B.textDim,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",marginBottom:5,display:"block"};
+const BP={padding:"11px 20px",borderRadius:8,border:"none",background:B.cyan,color:B.bg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",boxShadow:"0 2px 8px "+B.cyan+"30"};
+const BS={padding:"11px 20px",borderRadius:8,border:"1px solid "+B.border,background:"transparent",color:B.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s"};
 
 function genPO(list){const n=new Date(),pfx=String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0");const mx=list.filter(p=>p.po_id&&p.po_id.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.po_id.slice(4));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
 
-function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default"}} onClick={onClick}/>);}
-function Badge({color,children}){return <span style={{display:"inline-block",padding:"2px 8px",borderRadius:4,background:color+"22",color,fontSize:10,fontWeight:700,textTransform:"uppercase",fontFamily:F}}>{children}</span>;}
-function Card({children,onClick,style}){return <div onClick={onClick} style={{background:B.surface,borderRadius:8,padding:18,border:"1px solid "+B.border,cursor:onClick?"pointer":"default",transition:"border-color .2s",...style}} onMouseEnter={e=>{if(onClick)e.currentTarget.style.borderColor=B.cyan+"60"}} onMouseLeave={e=>{e.currentTarget.style.borderColor=B.border}}>{children}</div>;}
-function StatCard({label,value,icon,color}){return <Card style={{flex:"1 1 120px",minWidth:120,borderLeft:"3px solid "+color,position:"relative",overflow:"hidden"}}><div style={{position:"absolute",top:8,right:10,fontSize:22,opacity:.12}}>{icon}</div><div style={{fontSize:10,color:B.textDim,fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{label}</div><div style={{fontSize:28,fontWeight:900,color,marginTop:2,fontFamily:M}}>{value}</div></Card>;}
-function Modal({title,onClose,children,wide}){return <div style={{position:"fixed",inset:0,zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)"}}><div style={{background:B.surface,borderRadius:12,padding:24,width:"90%",maxWidth:wide?600:420,maxHeight:"85vh",overflowY:"auto",border:"1px solid "+B.border}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h3 style={{margin:0,fontSize:16,fontWeight:800,color:B.text}}>{title}</h3><button onClick={onClose} style={{background:"none",border:"none",color:B.textDim,fontSize:20,cursor:"pointer"}}>×</button></div>{children}</div></div>;}
-function Toast({msg}){useEffect(()=>{if(msg)haptic(30);},[msg]);if(!msg)return null;return <div style={{position:"fixed",top:16,right:16,zIndex:2000,background:B.cyan,color:B.bg,padding:"10px 18px",borderRadius:8,fontSize:13,fontWeight:700}}>✓ {msg}</div>;}
-function DSBadge({ok}){return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 6px",borderRadius:4,background:ok?B.greenGlow:B.orangeGlow,color:ok?B.green:B.orange,fontSize:9,fontWeight:700,textTransform:"uppercase"}}><span style={{width:5,height:5,borderRadius:"50%",background:ok?B.green:B.orange}}/>{ok?"Synced":"Pending"}</span>;}
-function Spinner(){return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{width:32,height:32,border:"3px solid "+B.border,borderTopColor:B.cyan,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;}
+// ── Global CSS Animations ────────────────────────
+const GlobalStyles=()=><style>{`
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 4px 16px rgba(0,212,245,0.35)}50%{box-shadow:0 4px 24px rgba(0,212,245,0.55),0 0 40px rgba(0,212,245,0.15)}}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes badgePop{from{transform:scale(0.8);opacity:0}to{transform:scale(1);opacity:1}}
+.card-hover{transition:border-color .2s,box-shadow .2s,transform .15s}
+.card-hover:hover{box-shadow:0 2px 12px rgba(0,0,0,0.15)}
+.card-hover:active{transform:scale(0.985)}
+.tab-content{animation:fadeIn .2s ease-out}
+`}</style>;
+
+function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
+function Badge({color,children}){return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,background:color+"18",color,fontSize:10,fontWeight:700,textTransform:"uppercase",fontFamily:F,letterSpacing:0.3,border:"1px solid "+color+"30",animation:"badgePop .2s ease-out"}}>{children}</span>;}
+function Card({children,onClick,style}){return <div onClick={onClick} className={onClick?"card-hover":""} style={{background:B.surface,borderRadius:10,padding:18,border:"1px solid "+B.border,cursor:onClick?"pointer":"default",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",transition:"border-color .2s, box-shadow .2s, transform .15s",animation:"slideUp .25s ease-out",...style}} onMouseEnter={e=>{if(onClick){e.currentTarget.style.borderColor=B.cyan+"60";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)";}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.08)";}}>{children}</div>;}
+function StatCard({label,value,icon,color}){return <Card style={{flex:"1 1 130px",minWidth:130,borderLeft:"3px solid "+color,position:"relative",overflow:"hidden",padding:"16px 18px"}}><div style={{position:"absolute",top:-4,right:-4,fontSize:36,opacity:.06,transform:"rotate(-12deg)"}}>{icon}</div><div style={{fontSize:9,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:6}}>{label}</div><div style={{fontSize:30,fontWeight:900,color,fontFamily:M,lineHeight:1,letterSpacing:-0.5}}>{value}</div></Card>;}
+function Modal({title,onClose,children,wide}){return <div style={{position:"fixed",inset:0,zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",animation:"fadeIn .15s ease-out"}}><div style={{background:B.surface,borderRadius:14,padding:28,width:"92%",maxWidth:wide?620:440,maxHeight:"85vh",overflowY:"auto",border:"1px solid "+B.border,boxShadow:"0 20px 60px rgba(0,0,0,0.4)",animation:"modalIn .2s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h3 style={{margin:0,fontSize:17,fontWeight:800,color:B.text,letterSpacing:-0.2}}>{title}</h3><button onClick={onClose} style={{background:B.bg,border:"1px solid "+B.border,color:B.textMuted,width:28,height:28,borderRadius:8,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=B.surfaceActive} onMouseLeave={e=>e.currentTarget.style.background=B.bg}>×</button></div>{children}</div></div>;}
+function Toast({msg}){useEffect(()=>{if(msg)haptic(30);},[msg]);if(!msg)return null;return <div style={{position:"fixed",top:16,right:16,zIndex:2000,background:B.cyan,color:B.bg,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:700,boxShadow:"0 4px 20px rgba(0,212,245,0.3)",animation:"toastIn .25s ease-out"}}>✓ {msg}</div>;}
+function DSBadge({ok}){return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:ok?B.greenGlow:B.orangeGlow,color:ok?B.green:B.orange,fontSize:9,fontWeight:700,textTransform:"uppercase",border:"1px solid "+(ok?B.green:B.orange)+"25"}}><span style={{width:5,height:5,borderRadius:"50%",background:ok?B.green:B.orange}}/>{ok?"Synced":"Pending"}</span>;}
+function Spinner(){return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{width:32,height:32,border:"3px solid "+B.border,borderTopColor:B.cyan,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/></div>;}
+function SkeletonCard(){return <div style={{background:B.surface,borderRadius:10,padding:18,border:"1px solid "+B.border,boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}><div style={{height:10,width:"40%",borderRadius:4,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:18,width:"70%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:10,width:"55%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /></div>;}
+function SkeletonLoader({count}){return <div style={{display:"flex",flexDirection:"column",gap:10,animation:"fadeIn .3s ease-out"}}>{Array.from({length:count||3}).map((_,i)=><SkeletonCard key={i}/>)}</div>;}
+function EmptyState({icon,title,subtitle}){return <div style={{textAlign:"center",padding:"48px 24px",animation:"fadeIn .3s ease-out"}}><div style={{fontSize:40,marginBottom:12,opacity:0.8}}>{icon||"📭"}</div><div style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:6}}>{title||"Nothing here yet"}</div><div style={{fontSize:12,color:B.textDim,lineHeight:1.5,maxWidth:260,margin:"0 auto"}}>{subtitle||""}</div></div>;}
 
 // ═══════════════════════════════════════════
 // SIGNATURE PAD + CAMERA UPLOAD
@@ -132,9 +151,9 @@ function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,us
 // ═══════════════════════════════════════════
 function LoginScreen({authUser,loading}){
   const signIn=async()=>{await sb().auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});};
-  if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F}}><Logo size="large"/><div style={{marginTop:20}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:10}}>Connecting...</div></div>);
-  if(authUser)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,fontFamily:F}}><div style={{width:"100%",maxWidth:400,textAlign:"center"}}><div style={{display:"inline-block",marginBottom:20}}><Logo size="large"/></div><Card><div style={{fontSize:40,marginBottom:10}}>🚫</div><div style={{fontSize:16,fontWeight:800,color:B.red,marginBottom:8}}>Access Denied</div><div style={{fontSize:13,color:B.textMuted,marginBottom:6}}><span style={{fontFamily:M,color:B.text}}>{authUser.email}</span> is not registered.</div><div style={{fontSize:12,color:B.textDim,marginBottom:16}}>Ask your admin to add your Gmail and assign a role.</div><button onClick={async()=>{await sb().auth.signOut();}} style={{...BS,width:"100%"}}>Sign Out</button></Card></div></div>);
-  return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,fontFamily:F}}><div style={{width:"100%",maxWidth:400,textAlign:"center"}}><div style={{display:"inline-block",marginBottom:20}}><Logo size="large"/></div><div style={{width:60,height:2,background:B.cyan,margin:"0 auto 14px",borderRadius:1}}/><div style={{fontSize:11,color:B.textDim,fontWeight:600,letterSpacing:3,textTransform:"uppercase",marginBottom:30}}>Field Service Platform</div><Card><div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:16}}>Sign in with your Google account</div><button onClick={signIn} style={{...BP,width:"100%",padding:14,background:"#fff",color:"#333",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 019.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.94 23.94 0 000 24c0 3.77.89 7.34 2.47 10.52l8.06-5.93z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign in with Google</button><div style={{fontSize:11,color:B.textDim,marginTop:14}}>Your admin must add your Gmail first.</div></Card></div></div>);
+  if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,animation:"fadeIn .4s ease-out"}}><GlobalStyles/><Logo size="large"/><div style={{marginTop:24}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:12,fontWeight:500,letterSpacing:0.3}}>Connecting...</div></div>);
+  if(authUser)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,fontFamily:F,animation:"fadeIn .4s ease-out"}}><GlobalStyles/><div style={{width:"100%",maxWidth:400,textAlign:"center"}}><div style={{display:"inline-block",marginBottom:24}}><Logo size="large"/></div><Card style={{padding:28}}><div style={{fontSize:40,marginBottom:12}}>🚫</div><div style={{fontSize:17,fontWeight:800,color:B.red,marginBottom:8}}>Access Denied</div><div style={{fontSize:13,color:B.textMuted,marginBottom:6,lineHeight:1.5}}><span style={{fontFamily:M,color:B.text,fontSize:12}}>{authUser.email}</span> is not registered.</div><div style={{fontSize:12,color:B.textDim,marginBottom:20,lineHeight:1.5}}>Ask your admin to add your Gmail and assign a role.</div><button onClick={async()=>{await sb().auth.signOut();}} style={{...BS,width:"100%"}}>Sign Out</button></Card></div></div>);
+  return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,fontFamily:F,animation:"fadeIn .5s ease-out"}}><GlobalStyles/><div style={{width:"100%",maxWidth:400,textAlign:"center"}}><div style={{display:"inline-block",marginBottom:24}}><Logo size="large"/></div><div style={{width:48,height:2,background:`linear-gradient(90deg,transparent,${B.cyan},transparent)`,margin:"0 auto 16px",borderRadius:1}}/><div style={{fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:4,textTransform:"uppercase",marginBottom:32}}>Field Service Platform</div><Card style={{padding:28}}><div style={{fontSize:15,fontWeight:700,color:B.text,marginBottom:20}}>Sign in with your Google account</div><button onClick={signIn} style={{...BP,width:"100%",padding:14,background:"#fff",color:"#333",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 2px 8px rgba(0,0,0,0.1)",border:"1px solid #e0e0e0"}}><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 019.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.94 23.94 0 000 24c0 3.77.89 7.34 2.47 10.52l8.06-5.93z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign in with Google</button><div style={{fontSize:11,color:B.textDim,marginTop:16,lineHeight:1.4}}>Your admin must add your Gmail first.</div></Card></div></div>);
 }
 
 function FirstSetup({authUser,onDone}){
@@ -152,19 +171,20 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
   const contentRef=useRef(null);
   useEffect(()=>{const el=contentRef.current;if(!el)return;let startY=0,pulling=false;const ts=(e)=>{if(el.scrollTop===0)startY=e.touches[0].clientY;};const tm=(e)=>{if(!startY)return;const dy=e.touches[0].clientY-startY;if(dy>80&&el.scrollTop===0&&!pulling){pulling=true;haptic(50);window.location.reload();}};const te=()=>{startY=0;pulling=false;};el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);};},[]);
   return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column"}}>
-    <div style={{background:B.surface,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8}}>
+    <GlobalStyles/>
+    <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <button onClick={toggleTheme} style={{background:"none",border:"none",fontSize:16,cursor:"pointer",padding:4}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
-        {syncing&&<span style={{fontSize:10,color:B.orange}}>syncing...</span>}
+        <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
+        {syncing&&<span style={{fontSize:10,color:B.orange,fontWeight:600,animation:"pulseGlow 2s infinite"}}>syncing...</span>}
         <NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/>
         <Badge color={ROLES[user.role]?ROLES[user.role].color:B.textDim}>{user.role}</Badge>
         <span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>
-        <button onClick={onLogout} style={{...BS,padding:"5px 10px",fontSize:11}}>Sign Out</button>
+        <button onClick={onLogout} style={{...BS,padding:"5px 12px",fontSize:11,borderRadius:8,transition:"background .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=B.surfaceActive;}} onMouseLeave={e=>{e.currentTarget.style.background=B.bg;}}>Sign Out</button>
       </div>
     </div>
-    <div style={{background:B.surface,padding:"0 20px",display:"flex",gap:2,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100}}>{tabs.map(t=><button key={t.key} onClick={()=>setTab(t.key)} style={{padding:"10px 14px",border:"none",background:"none",fontSize:12,fontWeight:600,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap"}}>{t.icon} {t.label}</button>)}</div>
-    <div ref={contentRef} style={{flex:1,padding:"16px 12px",overflowY:"auto",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
+    <div style={{background:B.surface,padding:"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}</div>
+    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:"20px 14px",overflowY:"auto",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
   </div>);
 }
 
@@ -935,16 +955,16 @@ function DashAnalytics({wos,time,pos}){
   }
   const maxHrs=Math.max(...weeks.map(w=>w.hrs),1);
   const maxCompleted=Math.max(...weeks.map(w=>w.completed),1);
-  return(<Card style={{padding:16,marginBottom:16}}>
-    <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:12}}>4-Week Trend</div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>HOURS WORKED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.cyan}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:B.cyan,borderRadius:3,height:Math.max(4,w.hrs/maxHrs*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
-      <div><div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:8}}>WOs COMPLETED</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:9,fontFamily:M,color:B.green}}>{w.completed}</span><div style={{width:"100%",background:B.green,borderRadius:3,height:Math.max(4,w.completed/maxCompleted*50)+"px",transition:"height .3s"}}/><span style={{fontSize:8,color:B.textDim}}>{w.label}</span></div>)}</div></div>
+  return(<Card style={{padding:20,marginBottom:16}}>
+    <div style={{fontSize:14,fontWeight:800,color:B.text,marginBottom:16,letterSpacing:-0.2}}>4-Week Trend</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <div><div style={{fontSize:9,color:B.textDim,fontWeight:700,marginBottom:10,letterSpacing:0.8,textTransform:"uppercase"}}>Hours Worked</div><div style={{display:"flex",alignItems:"flex-end",gap:8,height:70}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><span style={{fontSize:10,fontFamily:M,color:B.cyan,fontWeight:700}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:`linear-gradient(180deg,${B.cyan},${B.cyanDark})`,borderRadius:4,height:Math.max(6,w.hrs/maxHrs*55)+"px",transition:"height .4s ease-out",boxShadow:"0 2px 8px "+B.cyan+"30"}}/><span style={{fontSize:8,color:B.textDim,fontWeight:500}}>{w.label}</span></div>)}</div></div>
+      <div><div style={{fontSize:9,color:B.textDim,fontWeight:700,marginBottom:10,letterSpacing:0.8,textTransform:"uppercase"}}>WOs Completed</div><div style={{display:"flex",alignItems:"flex-end",gap:8,height:70}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><span style={{fontSize:10,fontFamily:M,color:B.green,fontWeight:700}}>{w.completed}</span><div style={{width:"100%",background:`linear-gradient(180deg,${B.green},#1A9A73)`,borderRadius:4,height:Math.max(6,w.completed/maxCompleted*55)+"px",transition:"height .4s ease-out",boxShadow:"0 2px 8px "+B.green+"30"}}/><span style={{fontSize:8,color:B.textDim,fontWeight:500}}>{w.label}</span></div>)}</div></div>
     </div>
-    <div style={{display:"flex",justifyContent:"space-around",marginTop:14,padding:"10px 0",borderTop:"1px solid "+B.border}}>
-      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.cyan}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:9,color:B.textDim}}>Total Hours</div></div>
-      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.green}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:9,color:B.textDim}}>Completed</div></div>
-      <div style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,fontFamily:M,color:B.purple}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>PO Spend</div></div>
+    <div style={{display:"flex",justifyContent:"space-around",marginTop:18,padding:"14px 0",borderTop:"1px solid "+B.border,borderRadius:"0 0 10px 10px"}}>
+      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,fontFamily:M,color:B.cyan,letterSpacing:-0.5}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:9,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Total Hours</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,fontFamily:M,color:B.green,letterSpacing:-0.5}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:9,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Completed</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,fontFamily:M,color:B.purple,letterSpacing:-0.5}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:9,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>PO Spend</div></div>
     </div>
   </Card>);
 }
@@ -1302,34 +1322,30 @@ function TechDash({user,onLogout,D,A,syncing}){
         <span style={{fontSize:18}}>⏰</span>
         <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:B.orange}}>Time reminder</div><div style={{fontSize:11,color:B.textMuted}}>Still working on <strong>{wo.wo_id}</strong>? Don't forget to log your hours.</div></div>
       </div>)}
-      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
         <StatCard label="Active Jobs" value={myActive.length} icon="🔧" color={B.cyan}/>
         <StatCard label="Today's Hours" value={todayHours.toFixed(1)+"h"} icon="⏱" color={B.green}/>
         <StatCard label="Completed" value={myCompleted.length} icon="✓" color={B.green}/>
       </div>
-      {recentWOs.length>0&&<div style={{marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Recent</div>
-        <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>{recentWOs.map(wo=><div key={wo.id} onClick={()=>{setTab("orders");}} style={{minWidth:140,padding:"10px 12px",background:B.surface,border:"1px solid "+(wo.status==="completed"?B.green:wo.status==="in_progress"?B.cyan:B.border),borderRadius:8,cursor:"pointer",flexShrink:0}}>
-          <div style={{fontSize:10,fontFamily:M,color:B.textDim}}>{wo.wo_id}</div>
-          <div style={{fontSize:12,fontWeight:700,color:B.text,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
-          <div style={{fontSize:10,color:wo.status==="completed"?B.green:B.cyan,marginTop:2}}>{wo.status==="completed"?"✓ Done":wo.status==="in_progress"?"● Active":"○ Pending"}</div>
-        </div>)}</div>
+      {recentWOs.length>0&&<div style={{marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,marginBottom:10,textTransform:"uppercase",letterSpacing:0.8}}>Recent</div>
+        <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6}}>{recentWOs.map(wo=>{const sc=wo.status==="completed"?B.green:wo.status==="in_progress"?B.cyan:B.orange;return <div key={wo.id} onClick={()=>{setTab("orders");haptic(15);}} style={{minWidth:148,padding:"12px 14px",background:B.surface,border:"1px solid "+B.border,borderLeft:"3px solid "+sc,borderRadius:10,cursor:"pointer",flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",transition:"transform .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)";}}>
+          <div style={{fontSize:10,fontFamily:M,color:B.textDim,fontWeight:600}}>{wo.wo_id}</div>
+          <div style={{fontSize:12,fontWeight:700,color:B.text,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
+          <div style={{fontSize:10,color:sc,marginTop:4,fontWeight:600}}>{wo.status==="completed"?"✓ Done":wo.status==="in_progress"?"● Active":"○ Pending"}</div>
+        </div>})}</div>
       </div>}
-      {myActive.length>0&&<div style={{marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:800,color:B.text,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Active Jobs</div>
+      {myActive.length>0&&<div style={{marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,marginBottom:10,textTransform:"uppercase",letterSpacing:0.8}}>Active Jobs</div>
         <WOList orders={myActive} {...wlp}/>
       </div>}
-      {myActive.length===0&&<Card style={{textAlign:"center",padding:30,marginBottom:16}}>
-        <div style={{fontSize:28,marginBottom:8}}>✅</div>
-        <div style={{fontSize:16,fontWeight:700,color:B.green}}>All caught up!</div>
-        <div style={{fontSize:12,color:B.textDim,marginTop:4}}>No active work orders right now.</div>
-      </Card>}
+      {myActive.length===0&&<EmptyState icon="✅" title="All caught up!" subtitle="No active work orders right now. Enjoy the downtime."/>}
       {myCompleted.length>0&&<div>
-        <div style={{fontSize:13,fontWeight:800,color:B.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Recently Completed</div>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,marginBottom:10,textTransform:"uppercase",letterSpacing:0.8}}>Recently Completed</div>
         <WOList orders={myCompleted.slice(0,3)} {...wlp}/>
       </div>}
       {/* Floating Quick Log Button */}
-      <button onClick={()=>setQuickLog(true)} style={{position:"fixed",bottom:24,right:24,width:56,height:56,borderRadius:"50%",background:B.cyan,border:"none",color:B.bg,fontSize:22,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,212,245,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50}}>⏱</button>
+      <button onClick={()=>{setQuickLog(true);haptic(30);}} style={{position:"fixed",bottom:28,right:20,width:58,height:58,borderRadius:"50%",background:`linear-gradient(135deg,${B.cyan},${B.cyanDark})`,border:"none",color:B.bg,fontSize:22,cursor:"pointer",boxShadow:"0 4px 20px rgba(0,212,245,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,animation:"pulseGlow 3s ease-in-out infinite",transition:"transform .15s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.08)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>⏱</button>
       {quickLog&&<Modal title="Quick Log Time" onClose={()=>setQuickLog(false)}>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div><label style={LS}>Work Order</label><select value={qlWO} onChange={e=>setQlWO(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">— Select WO —</option>{myActive.map(wo=><option key={wo.id} value={wo.id}>{wo.wo_id} — {wo.title}</option>)}</select></div>
@@ -1534,7 +1550,7 @@ export default function App(){
     }),
   };
 
-  if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F}}><Logo size="large"/><div style={{marginTop:20}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:10}}>Connecting...</div></div>);
+  if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,animation:"fadeIn .4s ease-out"}}><GlobalStyles/><Logo size="large"/><div style={{marginTop:24}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:12,fontWeight:500,letterSpacing:0.3}}>Connecting...</div></div>);
   if(authUser&&data?.users?.length===0)return <FirstSetup authUser={authUser} onDone={loadData}/>;
   if(!appUser)return <LoginScreen authUser={authUser} loading={false}/>;
   const p={user:appUser,onLogout:async()=>{await sb().auth.signOut();setAppUser(null);setAuthUser(null);},D:data,A:actions,syncing};
