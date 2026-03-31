@@ -1177,6 +1177,111 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
 }
 
 // ═══════════════════════════════════════════
+// SERVICE REQUESTS (Email → WO Drafts)
+// ═══════════════════════════════════════════
+function ServiceRequests({drafts,customers,users,onApprove,onReject}){
+  const[sel,setSel]=useState(null);
+  const[edits,setEdits]=useState({});
+  const pending=(drafts||[]).filter(d=>d.status==="pending_review");
+  const reviewed=(drafts||[]).filter(d=>d.status!=="pending_review");
+  const[showReviewed,setShowReviewed]=useState(false);
+  const[rejectId,setRejectId]=useState(null);
+  const[rejectReason,setRejectReason]=useState("");
+
+  const openDraft=(d)=>{setSel(d);setEdits({title:d.title||"",customer_name:d.customer_name||"",customer_wo:d.customer_wo||"",location:d.location||"",building:d.building||"",description:d.description||"",priority:d.priority||"medium",assignee:"Unassigned",due_date:""});};
+  const closeDraft=()=>{setSel(null);setEdits({});};
+
+  const confDot=(c)=>c>=0.8?B.green:c>=0.5?B.orange:B.red;
+
+  if(pending.length===0&&!showReviewed)return(<div style={{textAlign:"center",padding:40,color:B.textDim}}>
+    <div style={{fontSize:32,marginBottom:8}}>📬</div>
+    <div style={{fontSize:14,fontWeight:600}}>No pending service requests</div>
+    <div style={{fontSize:12,marginTop:4}}>New emails to service@3crefrigeration.com will appear here</div>
+    {reviewed.length>0&&<button onClick={()=>setShowReviewed(true)} style={{...BS,marginTop:16,fontSize:11}}>View {reviewed.length} reviewed</button>}
+  </div>);
+
+  return(<div style={{display:"flex",flexDirection:"column",gap:10}}>
+    {/* Pending drafts */}
+    {pending.map(d=><Card key={d.id} onClick={()=>openDraft(d)} style={{padding:"14px 18px",borderLeft:"3px solid "+B.orange}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            <Badge color={PC[d.priority]||B.orange}>{d.priority}</Badge>
+            {d.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.textDim}}>WO# {d.customer_wo}</span>}
+            <span style={{width:6,height:6,borderRadius:"50%",background:confDot(d.ai_confidence),display:"inline-block"}} title={"AI confidence: "+(d.ai_confidence*100).toFixed(0)+"%"}/>
+          </div>
+          <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title||d.email_subject}</div>
+          <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>{d.customer_name&&<span>{d.customer_name} · </span>}{d.building&&<span>{d.building} </span>}{d.location&&<span>— {d.location}</span>}</div>
+        </div>
+        <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
+          <div style={{fontSize:10,color:B.textDim}}>{d.email_from_name||d.email_from}</div>
+          <div style={{fontSize:9,color:B.textDim,marginTop:2}}>{d.email_date?new Date(d.email_date).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
+        </div>
+      </div>
+    </Card>)}
+
+    {/* Reviewed toggle */}
+    {reviewed.length>0&&<button onClick={()=>setShowReviewed(!showReviewed)} style={{...BS,fontSize:11,alignSelf:"center",marginTop:6}}>{showReviewed?"Hide":"Show"} {reviewed.length} reviewed</button>}
+    {showReviewed&&reviewed.map(d=><Card key={d.id} style={{padding:"12px 16px",opacity:0.6}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <Badge color={d.status==="approved"?B.green:B.red}>{d.status}</Badge>
+            {d.created_wo_id&&<span style={{fontFamily:M,fontSize:10,color:B.green}}>{d.created_wo_id}</span>}
+          </div>
+          <div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{d.title||d.email_subject}</div>
+        </div>
+        <div style={{fontSize:10,color:B.textDim}}>{d.reviewed_at?new Date(d.reviewed_at).toLocaleDateString():""}</div>
+      </div>
+    </Card>)}
+
+    {/* Review Modal */}
+    {sel&&<Modal title="Review Service Request" onClose={closeDraft} wide>
+      {/* Original email reference */}
+      <div style={{background:B.bg,borderRadius:6,padding:12,marginBottom:16,border:"1px solid "+B.border}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.5}}>Original Email</div>
+          <span style={{width:8,height:8,borderRadius:"50%",background:confDot(sel.ai_confidence)}} title={"AI confidence: "+(sel.ai_confidence*100).toFixed(0)+"%"}/>
+        </div>
+        <div style={{fontSize:12,color:B.text}}><strong>From:</strong> {sel.email_from_name} &lt;{sel.email_from}&gt;</div>
+        <div style={{fontSize:12,color:B.text}}><strong>Subject:</strong> {sel.email_subject}</div>
+        <div style={{fontSize:11,color:B.textMuted,marginTop:6,maxHeight:120,overflowY:"auto",whiteSpace:"pre-wrap",lineHeight:1.4}}>{sel.email_body}</div>
+        {sel.attachments&&sel.attachments.length>0&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>{sel.attachments.map((a,i)=><a key={i} href={a.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:B.cyan,textDecoration:"none"}}>📎 {a.name}</a>)}</div>}
+      </div>
+
+      {/* Editable fields */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div><label style={LS}>Title</label><input style={IS} value={edits.title} onChange={e=>setEdits({...edits,title:e.target.value})}/></div>
+        <div><label style={LS}>Customer</label><select style={IS} value={edits.customer_name} onChange={e=>setEdits({...edits,customer_name:e.target.value})}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+        <div><label style={LS}>Customer WO#</label><input style={IS} value={edits.customer_wo} onChange={e=>setEdits({...edits,customer_wo:e.target.value})}/></div>
+        <div><label style={LS}>Building</label><input style={IS} value={edits.building} onChange={e=>setEdits({...edits,building:e.target.value})}/></div>
+        <div><label style={LS}>Location / Room</label><input style={IS} value={edits.location} onChange={e=>setEdits({...edits,location:e.target.value})}/></div>
+        <div><label style={LS}>Priority</label><select style={IS} value={edits.priority} onChange={e=>setEdits({...edits,priority:e.target.value})}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
+        <div><label style={LS}>Assign To</label><select style={IS} value={edits.assignee} onChange={e=>setEdits({...edits,assignee:e.target.value})}><option value="Unassigned">Unassigned</option>{(users||[]).filter(u=>u.role==="technician"&&u.active!==false).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
+        <div><label style={LS}>Due Date</label><input type="date" style={IS} value={edits.due_date} onChange={e=>setEdits({...edits,due_date:e.target.value})}/></div>
+      </div>
+      <div style={{marginTop:12}}><label style={LS}>Description</label><textarea style={{...IS,minHeight:80,resize:"vertical"}} value={edits.description} onChange={e=>setEdits({...edits,description:e.target.value})}/></div>
+
+      {/* Actions */}
+      <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",flexWrap:"wrap"}}>
+        <button onClick={()=>{setRejectId(sel.id);}} style={{...BS,color:B.red,borderColor:B.red+"40"}}>Reject</button>
+        <button onClick={()=>{onApprove(sel,edits);closeDraft();haptic(50);}} style={{...BP,background:B.green}}>Approve & Create WO</button>
+      </div>
+    </Modal>}
+
+    {/* Reject reason modal */}
+    {rejectId&&<Modal title="Reject Service Request" onClose={()=>{setRejectId(null);setRejectReason("");}}>
+      <label style={LS}>Reason (optional)</label>
+      <textarea style={{...IS,minHeight:60}} value={rejectReason} onChange={e=>setRejectReason(e.target.value)} placeholder="Why is this being rejected?"/>
+      <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"flex-end"}}>
+        <button onClick={()=>{setRejectId(null);setRejectReason("");}} style={BS}>Cancel</button>
+        <button onClick={()=>{onReject(rejectId,rejectReason);setRejectId(null);setRejectReason("");closeDraft();haptic(50);}} style={{...BP,background:B.red}}>Reject</button>
+      </div>
+    </Modal>}
+  </div>);
+}
+
+// ═══════════════════════════════════════════
 // DASHBOARDS — with new tabs
 // ═══════════════════════════════════════════
 function TechDash({user,onLogout,D,A,syncing}){
@@ -1246,9 +1351,11 @@ function TechDash({user,onLogout,D,A,syncing}){
 
 function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
+  const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
+    {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
@@ -1263,9 +1370,11 @@ function MgrDash({user,onLogout,D,A,syncing}){
 
 function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
+  const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
+    {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
@@ -1322,7 +1431,7 @@ export default function App(){
   },[]);
 
   const loadData=useCallback(async()=>{const client=sb();if(!client)return;
-    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects]=await Promise.all([
+    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
@@ -1334,20 +1443,21 @@ export default function App(){
       client.from("customers").select("*").order("name"),
       client.from("email_templates").select("*").order("name"),
       client.from("projects").select("*").order("created_at",{ascending:false}),
+      client.from("wo_drafts").select("*").order("created_at",{ascending:false}),
     ]);
-    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[]});
+    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[]});
     setLoading(false);
   },[]);
-  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false}};
+  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false}};
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
-  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[],emailTemplates:[],projects:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
+  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[],emailTemplates:[],projects:[],woDrafts:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
 
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
   useEffect(()=>{if(!authUser)return;const client=sb();
-    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>reloadTable("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>reloadTable("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>reloadTable("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>reloadTable("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>reloadTable("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>reloadTable("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>reloadTable("customers")).subscribe();
+    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>reloadTable("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>reloadTable("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>reloadTable("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>reloadTable("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>reloadTable("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>reloadTable("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>reloadTable("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>reloadTable("wo_drafts")).subscribe();
     const poll=setInterval(()=>loadData(),30000);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
     const checkRecurringPMs=async()=>{
@@ -1412,6 +1522,16 @@ export default function App(){
     markRead:withTableSync("notifications",async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
     quickApprovePO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"approved"}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_approved",title:"PO Approved",message:poId+" has been approved",for_role:null});await loadData();}},
     quickRejectPO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"rejected"}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_rejected",title:"PO Rejected",message:poId+" has been rejected",for_role:null});await loadData();}},
+    approveDraft:withSync(async(draft,edits)=>{
+      const wo={title:edits?.title||draft.title||"Service Request",priority:edits?.priority||draft.priority||"medium",assignee:edits?.assignee||"Unassigned",due_date:edits?.due_date||"TBD",notes:edits?.description||draft.description||"From email: "+draft.email_subject,location:edits?.location||draft.location||"",building:edits?.building||draft.building||"",wo_type:"CM",customer:edits?.customer_name||draft.customer_name||"",customer_wo:edits?.customer_wo||draft.customer_wo||null,crew:[]};
+      const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);
+      await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0});
+      await sb().from("wo_drafts").update({status:"approved",reviewed_by:appUser.id,reviewed_at:new Date().toISOString(),created_wo_id:newId}).eq("id",draft.id);
+      await notify("wo_created","New Work Order (Email)",newId+": "+wo.title);
+    }),
+    rejectDraft:withSync(async(draftId,reason)=>{
+      await sb().from("wo_drafts").update({status:"rejected",reviewed_by:appUser.id,reviewed_at:new Date().toISOString(),reject_reason:reason||null}).eq("id",draftId);
+    }),
   };
 
   if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F}}><Logo size="large"/><div style={{marginTop:20}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:10}}>Connecting...</div></div>);
