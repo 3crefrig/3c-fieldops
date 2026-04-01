@@ -167,9 +167,22 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);setThemeState(t);};
   // Keyboard shortcuts
   useEffect(()=>{const handler=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT")return;if(e.key>="1"&&e.key<="9"){const idx=parseInt(e.key)-1;if(tabs[idx])setTab(tabs[idx].key);}if(e.key==="t"&&!e.ctrlKey)toggleTheme();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[tabs,theme]);
-  // Pull to refresh
+  // Pull to refresh — requires intentional slow pull past threshold
   const contentRef=useRef(null);
-  useEffect(()=>{const el=contentRef.current;if(!el)return;let startY=0,pulling=false;const ts=(e)=>{if(el.scrollTop===0)startY=e.touches[0].clientY;};const tm=(e)=>{if(!startY)return;const dy=e.touches[0].clientY-startY;if(dy>80&&el.scrollTop===0&&!pulling){pulling=true;haptic(50);window.location.reload();}};const te=()=>{startY=0;pulling=false;};el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);};},[]);
+  const pullIndicatorRef=useRef(null);
+  useEffect(()=>{const el=contentRef.current;if(!el)return;let startY=0,pulling=false,ready=false;const THRESHOLD=140;
+    // Create pull indicator element
+    const indicator=document.createElement("div");
+    indicator.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;padding:6px 18px;border-radius:0 0 12px 12px;font-size:12px;font-weight:600;font-family:Barlow,sans-serif;opacity:0;transition:opacity .15s;pointer-events:none;text-align:center;";
+    document.body.appendChild(indicator);
+    pullIndicatorRef.current=indicator;
+    const ts=(e)=>{if(el.scrollTop===0){startY=e.touches[0].clientY;ready=false;}};
+    const tm=(e)=>{if(!startY||el.scrollTop>0)return;const dy=e.touches[0].clientY-startY;if(dy<0){startY=0;indicator.style.opacity="0";return;}
+      if(dy>40&&dy<=THRESHOLD){indicator.textContent="↓ Pull to refresh";indicator.style.background=B.surface;indicator.style.color=B.textDim;indicator.style.border="1px solid "+B.border;indicator.style.opacity="0.9";ready=false;}
+      else if(dy>THRESHOLD){indicator.textContent="↻ Release to refresh";indicator.style.background=B.cyan;indicator.style.color="#fff";indicator.style.border="none";indicator.style.opacity="1";ready=true;}
+      else{indicator.style.opacity="0";ready=false;}};
+    const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>window.location.reload(),200);}else{indicator.style.opacity="0";}startY=0;ready=false;pulling=false;};
+    el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[]);
   return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column"}}>
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
