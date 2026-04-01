@@ -27,14 +27,94 @@ const cleanText=(text,fieldName)=>{if(hasProfanity(text)){alert("Inappropriate l
 const PC={high:B.red,medium:B.orange,low:B.green};
 const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
 const SL={pending:"Pending",in_progress:"In Progress",completed:"Completed"};
-const PSC={pending:B.orange,approved:B.green,rejected:B.red,revised:B.purple};
-const PSL={pending:"Pending",approved:"Approved",rejected:"Rejected",revised:"Revised"};
+const PSC={pending:B.orange,approved:B.green,rejected:B.red,revised:B.purple,received:B.cyan,paid:"#6366F1"};
+const PSL={pending:"Pending",approved:"Approved",rejected:"Rejected",revised:"Revised",received:"Received",paid:"Paid"};
+const PO_APPROVED_STATUSES=["approved","received","paid"];
 const IS={width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"};
 const LS={fontSize:9,color:B.textDim,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",marginBottom:5,display:"block"};
 const BP={padding:"11px 20px",borderRadius:8,border:"none",background:B.cyan,color:B.bg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",boxShadow:"0 2px 8px "+B.cyan+"30"};
 const BS={padding:"11px 20px",borderRadius:8,border:"1px solid "+B.border,background:"transparent",color:B.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s"};
 
 function genPO(list){const n=new Date(),pfx=String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0");const mx=list.filter(p=>p.po_id&&p.po_id.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.po_id.slice(4));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+
+// ── Logo Base64 cache for PDF generation ─────────
+let _logoB64=null;
+async function getLogoBase64(){if(_logoB64)return _logoB64;try{const img=new Image();img.crossOrigin="anonymous";img.src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;});const c=document.createElement("canvas");c.width=img.width;c.height=img.height;c.getContext("2d").drawImage(img,0,0);_logoB64=c.toDataURL("image/png");return _logoB64;}catch(e){return null;}}
+
+// ── PO PDF Generation ────────────────────────────
+async function generatePOPdf(po,wo){
+  const{jsPDF}=await import("jspdf");
+  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const W=215.9,M_L=18,M_R=18,CW=W-M_L-M_R;
+  const cyan=[0,212,245],dark=[26,29,33],gray=[142,146,154],white=[255,255,255];
+  let y=18;
+  // Logo
+  const logo=await getLogoBase64();
+  if(logo){try{doc.addImage(logo,"PNG",M_L,y,28,28);}catch(e){}}
+  // Company info
+  doc.setFontSize(18);doc.setFont("helvetica","bold");doc.setTextColor(...dark);
+  doc.text("3C Refrigeration, LLC",logo?M_L+32:M_L,y+8);
+  doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(...gray);
+  doc.text("3065 Gwyn Rd, Elon NC 27244",logo?M_L+32:M_L,y+14);
+  doc.text("Phone: 336-264-0935  |  Email: service@3crefrigeration.com",logo?M_L+32:M_L,y+19);
+  y+=32;
+  // Cyan accent bar
+  doc.setFillColor(...cyan);doc.rect(M_L,y,CW,10,  "F");
+  doc.setFontSize(14);doc.setFont("helvetica","bold");doc.setTextColor(...white);
+  doc.text("PURCHASE ORDER",M_L+4,y+7);
+  y+=16;
+  // PO details row
+  doc.setFontSize(10);doc.setFont("helvetica","bold");doc.setTextColor(...dark);
+  doc.text("PO #: "+po.po_id,M_L,y);
+  doc.text("Date: "+(po.approved_at?new Date(po.approved_at).toLocaleDateString():new Date().toLocaleDateString()),M_L+70,y);
+  if(po.urgency==="rush"){doc.setTextColor(220,38,38);doc.text("RUSH",M_L+140,y);doc.setTextColor(...dark);}
+  y+=8;
+  // Vendor section
+  doc.setFillColor(245,246,248);doc.rect(M_L,y,CW,po.vendor_contact?20:14,"F");
+  doc.setFontSize(8);doc.setFont("helvetica","bold");doc.setTextColor(...gray);
+  doc.text("VENDOR",M_L+3,y+5);
+  doc.setFontSize(11);doc.setFont("helvetica","normal");doc.setTextColor(...dark);
+  doc.text(po.vendor_name||"—",M_L+3,y+11);
+  if(po.vendor_contact){doc.setFontSize(9);doc.setTextColor(...gray);doc.text(po.vendor_contact,M_L+3,y+17);}
+  y+=(po.vendor_contact?24:18);
+  // WO reference
+  if(wo){doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(...gray);doc.text("Work Order: "+(wo.wo_id||"")+" — "+(wo.title||"")+(wo.customer?" ("+wo.customer+")":""),M_L,y);y+=7;}
+  // Line items table header
+  const cols=[{label:"Qty",x:M_L,w:16},{label:"Description",x:M_L+16,w:100},{label:"Unit Price",x:M_L+116,w:32},{label:"Total",x:M_L+148,w:32}];
+  doc.setFillColor(...cyan);doc.rect(M_L,y,CW,8,"F");
+  doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(...white);
+  cols.forEach(c=>doc.text(c.label,c.x+2,y+5.5));
+  y+=10;
+  // Line item
+  const qty=po.quantity||1;const hasAmt=po.amount!=null&&po.amount>0;
+  const unitPrice=hasAmt?(parseFloat(po.amount)/qty):null;
+  doc.setFontSize(10);doc.setFont("helvetica","normal");doc.setTextColor(...dark);
+  doc.text(String(qty),M_L+2,y+5);
+  const descLines=doc.splitTextToSize(po.description||"—",96);
+  doc.text(descLines,M_L+18,y+5);
+  const lineH=Math.max(8,descLines.length*5+3);
+  if(hasAmt){doc.text("$"+unitPrice.toFixed(2),M_L+118,y+5);doc.text("$"+parseFloat(po.amount).toFixed(2),M_L+150,y+5);}
+  else{doc.setTextColor(...gray);doc.setFontSize(8);doc.text("Pending Quote",M_L+118,y+5);doc.text("Pending Quote",M_L+150,y+5);}
+  y+=lineH;
+  // Divider
+  doc.setDrawColor(209,213,219);doc.line(M_L,y,W-M_R,y);y+=4;
+  // Total
+  doc.setFontSize(11);doc.setFont("helvetica","bold");doc.setTextColor(...dark);
+  if(hasAmt){doc.text("Total: $"+parseFloat(po.amount).toFixed(2),W-M_R-2,y,{align:"right"});}
+  else{doc.setTextColor(...gray);doc.text("Total: To Be Determined",W-M_R-2,y,{align:"right"});}
+  y+=10;
+  // Special instructions
+  const instrText=(po.notes||"")+(po.special_instructions?"\n"+po.special_instructions:"");
+  if(instrText.trim()){doc.setFillColor(245,246,248);doc.rect(M_L,y,CW,6,"F");doc.setFontSize(8);doc.setFont("helvetica","bold");doc.setTextColor(...gray);doc.text("SPECIAL INSTRUCTIONS",M_L+3,y+4.5);y+=8;doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(...dark);const instrLines=doc.splitTextToSize(instrText.trim(),CW-6);doc.text(instrLines,M_L+3,y+2);y+=instrLines.length*4.5+4;}
+  // Authorization
+  if(po.approved_by){y+=4;doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(...gray);doc.text("Authorized by: "+po.approved_by+(po.approved_at?" on "+new Date(po.approved_at).toLocaleDateString():""),M_L,y);y+=6;}
+  // Footer
+  y=Math.max(y+10,240);doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(M_L,y,W-M_R,y);y+=5;
+  doc.setFontSize(8);doc.setFont("helvetica","normal");doc.setTextColor(...gray);
+  doc.text("Please reference PO# "+po.po_id+" on all invoices and correspondence related to this order.",M_L,y);y+=4;
+  doc.text("Send invoices to: service@3crefrigeration.com",M_L,y);
+  return doc;
+}
 
 // ── Global CSS Animations ────────────────────────
 const GlobalStyles=()=><style>{`
@@ -167,22 +247,34 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);setThemeState(t);};
   // Keyboard shortcuts
   useEffect(()=>{const handler=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT")return;if(e.key>="1"&&e.key<="9"){const idx=parseInt(e.key)-1;if(tabs[idx])setTab(tabs[idx].key);}if(e.key==="t"&&!e.ctrlKey)toggleTheme();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[tabs,theme]);
-  // Pull to refresh — requires intentional slow pull past threshold
+  // Pull to refresh — requires slow, vertical, deliberate pull while already at top
   const contentRef=useRef(null);
-  const pullIndicatorRef=useRef(null);
-  useEffect(()=>{const el=contentRef.current;if(!el)return;let startY=0,pulling=false,ready=false;const THRESHOLD=140;
-    // Create pull indicator element
+  useEffect(()=>{const el=contentRef.current;if(!el)return;
+    let startY=0,startX=0,startTime=0,pulling=false,ready=false,dismissed=false;
+    const THRESHOLD=150,MIN_DWELL=300,MAX_VELOCITY=0.8;
     const indicator=document.createElement("div");
     indicator.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;padding:6px 18px;border-radius:0 0 12px 12px;font-size:12px;font-weight:600;font-family:Barlow,sans-serif;opacity:0;transition:opacity .15s;pointer-events:none;text-align:center;";
     document.body.appendChild(indicator);
-    pullIndicatorRef.current=indicator;
-    const ts=(e)=>{if(el.scrollTop===0){startY=e.touches[0].clientY;ready=false;}};
-    const tm=(e)=>{if(!startY||el.scrollTop>0)return;const dy=e.touches[0].clientY-startY;if(dy<0){startY=0;indicator.style.opacity="0";return;}
-      if(dy>40&&dy<=THRESHOLD){indicator.textContent="↓ Pull to refresh";indicator.style.background=B.surface;indicator.style.color=B.textDim;indicator.style.border="1px solid "+B.border;indicator.style.opacity="0.9";ready=false;}
-      else if(dy>THRESHOLD){indicator.textContent="↻ Release to refresh";indicator.style.background=B.cyan;indicator.style.color="#fff";indicator.style.border="none";indicator.style.opacity="1";ready=true;}
-      else{indicator.style.opacity="0";ready=false;}};
-    const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>window.location.reload(),200);}else{indicator.style.opacity="0";}startY=0;ready=false;pulling=false;};
-    el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[]);
+    const hide=()=>{indicator.style.opacity="0";ready=false;};
+    const ts=(e)=>{if(el.scrollTop===0){startY=e.touches[0].clientY;startX=e.touches[0].clientX;startTime=Date.now();ready=false;dismissed=false;}else{startY=0;}};
+    const tm=(e)=>{if(!startY||dismissed)return;
+      // If page scrolled away from top during this gesture, cancel
+      if(el.scrollTop>0){startY=0;hide();return;}
+      const dy=e.touches[0].clientY-startY;const dx=Math.abs(e.touches[0].clientX-startX);
+      // Cancel if pulling up, or horizontal movement dominates (swipe/scroll)
+      if(dy<0||dx>dy*0.5){startY=0;hide();return;}
+      const elapsed=Date.now()-startTime;
+      // Ignore until finger has been down long enough (filters quick scroll-bounce)
+      if(elapsed<MIN_DWELL){return;}
+      // Check velocity — fast flings are normal scrolling, not pull-to-refresh
+      const velocity=dy/elapsed;
+      if(velocity>MAX_VELOCITY){dismissed=true;hide();return;}
+      if(dy>50&&dy<=THRESHOLD){indicator.textContent="\u2193 Pull to refresh";indicator.style.background=B.surface;indicator.style.color=B.textDim;indicator.style.border="1px solid "+B.border;indicator.style.opacity="0.9";ready=false;}
+      else if(dy>THRESHOLD){indicator.textContent="\u21BB Release to refresh";indicator.style.background=B.cyan;indicator.style.color="#fff";indicator.style.border="none";indicator.style.opacity="1";ready=true;}
+      else{hide();}};
+    const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>window.location.reload(),200);}else{hide();}startY=0;ready=false;pulling=false;dismissed=false;};
+    el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);
+    return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[]);
   return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column"}}>
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
@@ -207,58 +299,126 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
 function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole}){
   const isMgr=userRole==="admin"||userRole==="manager";
   const[desc,setDesc]=useState(""),[amt,setAmt]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false);
+  const[vendor,setVendor]=useState(""),[qty,setQty]=useState("1"),[urgency,setUrgency]=useState("normal");
   const existing=pos.filter(p=>p.wo_id===wo.id);
-  const go=async()=>{if(!desc.trim()||saving)return;if(cleanText(desc,"PO Description")===null||cleanText(notes,"PO Notes")===null)return;setSaving(true);await onCreatePO({wo_id:wo.id,description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim()});setSaving(false);onClose();};
-  return(<Modal title="Purchase Order" onClose={onClose} wide>
-    {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
+  const go=async()=>{if(!desc.trim()||saving)return;if(cleanText(desc,"PO Description")===null||cleanText(notes,"PO Notes")===null)return;if(vendor.trim()&&cleanText(vendor,"Vendor Name")===null)return;setSaving(true);await onCreatePO({wo_id:wo.id,description:desc.trim(),amount:amt.trim()?parseFloat(amt):null,notes:notes.trim(),vendor_name:vendor.trim()||null,quantity:parseInt(qty)||1,urgency});setSaving(false);onClose();};
+  return(<Modal title="Purchase Order Request" onClose={onClose} wide>
+    {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;const amtStr=canSee?(po.amount!=null&&po.amount>0?" · $"+parseFloat(po.amount).toFixed(2):" · TBD"):"";return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{amtStr}</span></div><div style={{display:"flex",gap:4,alignItems:"center"}}>{po.urgency==="rush"&&<Badge color={B.red}>RUSH</Badge>}<Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div><label style={LS}>Parts/Materials</label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Amount ($)</label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div></div>
-      <div><label style={LS}>Notes</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Vendor, shipping, etc." style={IS}/></div>
-      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Request New PO"}</button></div>
+      <div><label style={LS}>Vendor Name</label><input value={vendor} onChange={e=>setVendor(e.target.value)} placeholder="e.g. Johnstone Supply, Carrier Enterprise" style={IS}/></div>
+      <div><label style={LS}>Parts / Materials Description</label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+        <div><label style={LS}>Quantity</label><input value={qty} onChange={e=>setQty(e.target.value)} type="number" min="1" placeholder="1" style={{...IS,fontFamily:M}}/></div>
+        <div><label style={LS}>Amount ($) <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="Leave blank if unknown" style={{...IS,fontFamily:M}}/></div>
+        <div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div>
+      </div>
+      <div><label style={LS}>Urgency</label><div style={{display:"flex",gap:6}}><button onClick={()=>setUrgency("normal")} style={{...BS,flex:1,padding:"8px 12px",fontSize:12,background:urgency==="normal"?B.greenGlow:"transparent",borderColor:urgency==="normal"?B.green:B.border,color:urgency==="normal"?B.green:B.textDim,fontWeight:urgency==="normal"?700:500}}>Normal</button><button onClick={()=>setUrgency("rush")} style={{...BS,flex:1,padding:"8px 12px",fontSize:12,background:urgency==="rush"?"rgba(255,71,87,0.12)":"transparent",borderColor:urgency==="rush"?B.red:B.border,color:urgency==="rush"?B.red:B.textDim,fontWeight:urgency==="rush"?700:500}}>Rush</button></div></div>
+      <div><label style={LS}>Notes / Special Instructions</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Shipping details, vendor contact, etc." style={IS}/></div>
+      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Request PO"}</button></div>
     </div></Modal>);
 }
 
 function POEditForm({po,onSave,onClose}){
-  const[desc,setDesc]=useState(po.description),[amt,setAmt]=useState(String(po.amount)),[notes,setNotes]=useState(po.notes||""),[status,setStatus]=useState(po.status),[saving,setSaving]=useState(false);
-  const go=async()=>{if(saving)return;setSaving(true);await onSave({...po,description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim(),status});setSaving(false);};
+  const[desc,setDesc]=useState(po.description),[amt,setAmt]=useState(po.amount!=null?String(po.amount):""),[notes,setNotes]=useState(po.notes||""),[status,setStatus]=useState(po.status),[saving,setSaving]=useState(false);
+  const[vendor,setVendor]=useState(po.vendor_name||""),[qty,setQty]=useState(String(po.quantity||1)),[urgency,setUrgency]=useState(po.urgency||"normal"),[vendorContact,setVendorContact]=useState(po.vendor_contact||"");
+  const go=async()=>{if(saving)return;setSaving(true);await onSave({...po,description:desc.trim(),amount:amt.trim()?parseFloat(amt):null,notes:notes.trim(),status,vendor_name:vendor.trim()||null,quantity:parseInt(qty)||1,urgency,vendor_contact:vendorContact.trim()||null});setSaving(false);};
   return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+    <div><label style={LS}>Vendor</label><input value={vendor} onChange={e=>setVendor(e.target.value)} style={IS}/></div>
+    <div><label style={LS}>Vendor Contact (email/phone)</label><input value={vendorContact} onChange={e=>setVendorContact(e.target.value)} placeholder="vendor@email.com or phone" style={IS}/></div>
     <div><label style={LS}>Description</label><input value={desc} onChange={e=>setDesc(e.target.value)} style={IS}/></div>
-    <div><label style={LS}>Amount ($)</label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" style={{...IS,fontFamily:M}}/></div>
-    <div><label style={LS}>Status</label><select value={status} onChange={e=>setStatus(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="revised">Revised</option></select></div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+      <div><label style={LS}>Quantity</label><input value={qty} onChange={e=>setQty(e.target.value)} type="number" min="1" style={{...IS,fontFamily:M}}/></div>
+      <div><label style={LS}>Amount ($)</label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="Leave blank if TBD" style={{...IS,fontFamily:M}}/></div>
+      <div><label style={LS}>Urgency</label><select value={urgency} onChange={e=>setUrgency(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="normal">Normal</option><option value="rush">Rush</option></select></div>
+    </div>
+    <div><label style={LS}>Status</label><select value={status} onChange={e=>setStatus(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="revised">Revised</option><option value="received">Received</option><option value="paid">Paid</option></select></div>
     <div><label style={LS}>Notes</label><input value={notes} onChange={e=>setNotes(e.target.value)} style={IS}/></div>
     <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
   </div>);
 }
 
-function POMgmt({pos,onUpdatePO,wos}){
+function POApproveModal({po,wo,onApprove,onClose,userName}){
+  const[amt,setAmt]=useState(po.amount!=null&&po.amount>0?String(po.amount):"");
+  const[saving,setSaving]=useState(false);
+  const go=async()=>{if(saving)return;setSaving(true);await onApprove({...po,status:"approved",amount:amt.trim()?parseFloat(amt):null,approved_by:userName,approved_at:new Date().toISOString()});setSaving(false);};
+  return(<Modal title={"Approve PO "+po.po_id} onClose={onClose}>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{background:B.bg,borderRadius:8,padding:"12px 14px",border:"1px solid "+B.border}}>
+        {po.vendor_name&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:B.textDim}}>Vendor:</span> <span style={{fontWeight:600,color:B.text}}>{po.vendor_name}</span></div>}
+        <div style={{fontSize:12,marginBottom:4}}><span style={{color:B.textDim}}>Description:</span> <span style={{fontWeight:600,color:B.text}}>{po.description}</span></div>
+        <div style={{fontSize:12,marginBottom:4}}><span style={{color:B.textDim}}>Quantity:</span> <span style={{fontWeight:600,color:B.text}}>{po.quantity||1}</span></div>
+        <div style={{fontSize:12,marginBottom:4}}><span style={{color:B.textDim}}>Requested by:</span> <span style={{fontWeight:600,color:B.text}}>{po.requested_by}</span></div>
+        {po.urgency==="rush"&&<Badge color={B.red}>RUSH</Badge>}
+        {wo&&<div style={{fontSize:11,color:B.textDim,marginTop:4}}>WO: {wo.wo_id} — {wo.title}</div>}
+        {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
+      </div>
+      <div><label style={LS}>Amount ($)</label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="Leave blank if awaiting vendor quote" style={{...IS,fontFamily:M}}/><div style={{fontSize:10,color:B.textDim,marginTop:4}}>You can add the amount later once you have a vendor quote.</div></div>
+      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,background:B.green,opacity:saving?.6:1,boxShadow:"0 2px 8px "+B.green+"30"}}>{saving?"Approving...":"Approve PO"}</button></div>
+    </div>
+  </Modal>);
+}
+
+function POSendModal({po,wo,onClose,onUpdatePO}){
+  const[vendorEmail,setVendorEmail]=useState(po.vendor_contact&&po.vendor_contact.includes("@")?po.vendor_contact:"");
+  const[ccEmail,setCcEmail]=useState("");
+  const[emailBody,setEmailBody]=useState("Please find attached Purchase Order "+po.po_id+" from 3C Refrigeration.\n\nPlease confirm receipt and provide an estimated delivery date.\n\nThank you.");
+  const[sending,setSending]=useState(false),[toast,setToast]=useState("");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const downloadPdf=async()=>{setSending(true);try{const doc=await generatePOPdf(po,wo);doc.save("PO_"+po.po_id+".pdf");msg("PDF downloaded");}catch(e){msg("Error: "+e.message);}setSending(false);};
+  const sendEmail=async()=>{if(!vendorEmail.trim()){msg("Enter vendor email");return;}setSending(true);try{const doc=await generatePOPdf(po,wo);const pdfB64=btoa(doc.output());const resp=await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:vendorEmail.trim(),cc:ccEmail.trim()||undefined,subject:"Purchase Order "+po.po_id+" — 3C Refrigeration",body:"<div style='font-family:Calibri,sans-serif;'>"+emailBody.replace(/\n/g,"<br>")+"</div>",attachment:{name:"PO_"+po.po_id+".pdf",content:pdfB64,type:"application/pdf"}})});if(!resp.ok)throw new Error("Send failed");await onUpdatePO({...po,sent_to_vendor:true,sent_to_vendor_at:new Date().toISOString(),vendor_contact:vendorEmail.trim()});msg("PO emailed to vendor!");setTimeout(onClose,1500);}catch(e){msg("Error: "+e.message);}setSending(false);};
+  return(<Modal title={"Send PO "+po.po_id+" to Vendor"} onClose={onClose} wide>
+    <Toast msg={toast}/>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{background:B.bg,borderRadius:8,padding:"10px 14px",border:"1px solid "+B.border,fontSize:12}}>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}><span><strong>PO#:</strong> {po.po_id}</span>{po.vendor_name&&<span><strong>Vendor:</strong> {po.vendor_name}</span>}<span><strong>Amount:</strong> {po.amount!=null&&po.amount>0?"$"+parseFloat(po.amount).toFixed(2):"Pending Quote"}</span></div>
+      </div>
+      <div><label style={LS}>Vendor Email</label><input value={vendorEmail} onChange={e=>setVendorEmail(e.target.value)} placeholder="vendor@example.com" type="email" style={IS}/></div>
+      <div><label style={LS}>CC (optional)</label><input value={ccEmail} onChange={e=>setCcEmail(e.target.value)} placeholder="cc@example.com" type="email" style={IS}/></div>
+      <div><label style={LS}>Email Message</label><textarea value={emailBody} onChange={e=>setEmailBody(e.target.value)} rows={4} style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
+      <div style={{display:"flex",gap:8}}><button onClick={downloadPdf} disabled={sending} style={{...BS,flex:1,opacity:sending?.6:1}}>Download PDF</button><button onClick={sendEmail} disabled={sending} style={{...BP,flex:1,opacity:sending?.6:1}}>{sending?"Sending...":"Email to Vendor"}</button></div>
+    </div>
+  </Modal>);
+}
+
+function POMgmt({pos,onUpdatePO,wos,userName,userRole}){
   const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState("");
-  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
-  const approve=async(po)=>{await onUpdatePO({...po,status:"approved"});msg("PO "+po.po_id+" approved");};
+  const[approving,setApproving]=useState(null),[sendingPO,setSendingPO]=useState(null);
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||(p.vendor_name||"").toLowerCase().includes(s)||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});
+  const pc=pos.filter(p=>p.status==="pending").length;
   const reject=async(po)=>{await onUpdatePO({...po,status:"rejected"});msg("PO "+po.po_id+" rejected");};
-  const approved=pos.filter(p=>p.status==="approved");const approvedAmt=approved.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+  const markReceived=async(po)=>{await onUpdatePO({...po,status:"received",received_at:new Date().toISOString()});msg("PO "+po.po_id+" marked received");};
+  const markPaid=async(po)=>{await onUpdatePO({...po,status:"paid",paid_at:new Date().toISOString()});msg("PO "+po.po_id+" marked paid");};
+  const allApproved=pos.filter(p=>PO_APPROVED_STATUSES.includes(p.status));const approvedAmt=allApproved.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+  const receivedCount=pos.filter(p=>p.status==="received").length;
+  const awaitingQuote=pos.filter(p=>PO_APPROVED_STATUSES.includes(p.status)&&(!p.amount||p.amount===0)).length;
   return(<div><Toast msg={toast}/>
-    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total POs" value={pos.length} icon="📄" color={B.cyan}/><StatCard label="Pending" value={pc} icon="⏳" color={B.orange}/><StatCard label="Approved" value={approved.length} icon="✓" color={B.green}/><StatCard label="Approved $" value={"$"+approvedAmt.toLocaleString()} icon="💰" color={B.purple}/></div>
-    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["approved","Approved"],["rejected","Rejected"],["revised","Revised"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="pending"&&pc>0?" ("+pc+")":""}</button>)}</div>
-    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search POs by #, description, tech, customer..." style={{...IS,marginBottom:14,padding:"8px 12px",fontSize:12}}/>
+    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total POs" value={pos.length} icon="📄" color={B.cyan}/><StatCard label="Pending" value={pc} icon="⏳" color={B.orange}/><StatCard label="Approved" value={allApproved.length} icon="✓" color={B.green}/><StatCard label="Received" value={receivedCount} icon="📦" color={B.cyan}/><StatCard label="Approved $" value={"$"+approvedAmt.toLocaleString()} icon="💰" color={B.purple}/>{awaitingQuote>0&&<StatCard label="Awaiting Quote" value={awaitingQuote} icon="❓" color={B.orange}/>}</div>
+    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["approved","Approved"],["received","Received"],["paid","Paid"],["rejected","Rejected"],["revised","Revised"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="pending"&&pc>0?" ("+pc+")":""}</button>)}</div>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search POs by #, description, tech, vendor, customer..." style={{...IS,marginBottom:14,padding:"8px 12px",fontSize:12}}/>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {flt.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No POs found</div>}
-      {flt.map(po=>{const wo=wos.find(o=>o.id===po.wo_id);return(
+      {flt.map(po=>{const wo=wos.find(o=>o.id===po.wo_id);const hasAmt=po.amount!=null&&po.amount>0;const isApprovedNoAmt=PO_APPROVED_STATUSES.includes(po.status)&&!hasAmt;return(
         <Card key={po.id} style={{padding:"14px 16px",borderLeft:"3px solid "+(PSC[po.status]||B.border)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:800,fontSize:15,color:B.text}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{wo&&<span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span>}</div>
-              <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}</div>
-              <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · <span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount||0).toFixed(2)}</span>{wo&&<span> · {wo.title}</span>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:800,fontSize:15,color:B.text}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{po.urgency==="rush"&&<Badge color={B.red}>RUSH</Badge>}{isApprovedNoAmt&&<Badge color={B.orange}>Awaiting Quote</Badge>}{po.sent_to_vendor&&<span style={{fontSize:10,color:B.green,fontWeight:600}}>Sent</span>}{wo&&<span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span>}</div>
+              <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}{po.quantity>1&&<span style={{fontSize:11,color:B.textDim}}> (x{po.quantity})</span>}</div>
+              <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by}{po.vendor_name&&<span> · <span style={{color:B.text}}>{po.vendor_name}</span></span>} · {po.created_at?.slice(0,10)} · <span style={{fontFamily:M,fontWeight:700,color:B.text}}>{hasAmt?"$"+parseFloat(po.amount).toFixed(2):"TBD"}</span>{wo&&<span> · {wo.title}</span>}</div>
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
+              {po.approved_by&&<div style={{fontSize:10,color:B.textDim,marginTop:2}}>Approved by {po.approved_by}{po.approved_at?" on "+po.approved_at.slice(0,10):""}</div>}
             </div>
-            <div style={{display:"flex",gap:4,flexShrink:0}}>
+            <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
               <button onClick={()=>setEditing(po)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>
-              {po.status==="pending"&&<><button onClick={()=>approve(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.red}}>Reject</button></>}
-              {po.status==="rejected"&&<button onClick={()=>approve(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Re-approve</button>}
+              {po.status==="pending"&&<><button onClick={()=>setApproving(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.red}}>Reject</button></>}
+              {po.status==="approved"&&<><button onClick={()=>setSendingPO(po)} style={{...BP,padding:"5px 10px",fontSize:11}}>Send to Vendor</button><button onClick={()=>markReceived(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.cyan}}>Received</button></>}
+              {po.status==="received"&&<button onClick={()=>markPaid(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:"#6366F1"}}>Mark Paid</button>}
+              {po.status==="rejected"&&<button onClick={()=>setApproving(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Re-approve</button>}
             </div></div></Card>);})}
     </div>
     {editing&&<Modal title={"Edit PO "+editing.po_id} onClose={()=>setEditing(null)}><POEditForm po={editing} onSave={async u=>{await onUpdatePO(u);setEditing(null);msg("PO "+u.po_id+" updated");}} onClose={()=>setEditing(null)}/></Modal>}
+    {approving&&<POApproveModal po={approving} wo={wos.find(o=>o.id===approving.wo_id)} onApprove={async u=>{await onUpdatePO(u);setApproving(null);msg("PO "+u.po_id+" approved");}} onClose={()=>setApproving(null)} userName={userName}/>}
+    {sendingPO&&<POSendModal po={sendingPO} wo={wos.find(o=>o.id===sendingPO.wo_id)} onClose={()=>setSendingPO(null)} onUpdatePO={onUpdatePO}/>}
   </div>);
 }
 
@@ -321,16 +481,16 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
     {/* HEADER — WO ID, title, customer, status */}
     <Card style={{maxWidth:640,marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:12}}>
-        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wo.wo_id}</span><select value={wo.priority} onChange={async e=>{await onUpdateWO({...wo,priority:e.target.value});}} style={{padding:"2px 6px",borderRadius:4,border:"1px solid "+(PC[wo.priority]||B.border)+"44",background:(PC[wo.priority]||B.textDim)+"22",color:PC[wo.priority]||B.textDim,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><select value={wo.wo_type||"CM"} onChange={async e=>{await onUpdateWO({...wo,wo_type:e.target.value});}} style={{padding:"2px 6px",borderRadius:4,border:"1px solid "+((wo.wo_type==="PM"?B.cyan:B.orange))+"44",background:(wo.wo_type==="PM"?B.cyan:B.orange)+"22",color:wo.wo_type==="PM"?B.cyan:B.orange,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="PM">PM</option><option value="CM">CM</option></select></div><h2 style={{margin:"4px 0 0",fontSize:20,fontWeight:800,color:B.text}}>{wo.title}</h2>{wo.customer&&<div style={{fontSize:12,color:B.purple,marginTop:4}}>👤 {wo.customer}{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,marginLeft:6,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>}</div>
+        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wo.wo_id}</span><select value={wo.priority} onChange={async e=>{await onUpdateWO({...wo,priority:e.target.value});}} style={{padding:"2px 6px",borderRadius:4,border:"1px solid "+(PC[wo.priority]||B.border)+"44",background:(PC[wo.priority]||B.textDim)+"22",color:PC[wo.priority]||B.textDim,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><select value={wo.wo_type||"CM"} onChange={async e=>{await onUpdateWO({...wo,wo_type:e.target.value});}} style={{padding:"2px 6px",borderRadius:4,border:"1px solid "+((wo.wo_type==="PM"?B.cyan:B.orange))+"44",background:(wo.wo_type==="PM"?B.cyan:B.orange)+"22",color:wo.wo_type==="PM"?B.cyan:B.orange,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="PM">PM</option><option value="CM">CM</option></select></div><h2 style={{margin:"4px 0 0",fontSize:20,fontWeight:800,color:B.text}}>{wo.title}</h2>{canEdit?<div style={{fontSize:12,color:B.purple,marginTop:4,display:"flex",alignItems:"center",gap:4}}>👤 <input value={wo.customer||""} onChange={async e=>{await onUpdateWO({...wo,customer:e.target.value});}} placeholder="Customer name" style={{background:"transparent",border:"none",color:B.purple,fontWeight:600,fontSize:12,fontFamily:F,padding:0,outline:"none",width:160}}/>{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>:wo.customer&&<div style={{fontSize:12,color:B.purple,marginTop:4}}>👤 {wo.customer}{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,marginLeft:6,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>}</div>
         <DSBadge ok={woPhotos.length>0}/>
       </div>
       {/* Status bar — big, tappable */}
       <div style={{display:"flex",gap:6,marginBottom:12}}>{[["pending","Pending"],["in_progress","In Progress"],["completed","Completed"]].map(([k,l])=><button key={k} onClick={()=>changeStatus(k)} style={{flex:1,padding:"10px 6px",borderRadius:6,border:wo.status===k?"2px solid "+SC[k]:"1px solid "+B.border,background:wo.status===k?SC[k]+"22":"transparent",color:wo.status===k?SC[k]:B.textDim,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12}}>
-        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>DUE</span><br/><span style={{fontWeight:700,color:B.text}}>{wo.due_date}</span></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>DUE</span><br/>{canEdit?<input type="date" value={wo.due_date||""} onChange={async e=>{await onUpdateWO({...wo,due_date:e.target.value});}} style={{background:"transparent",border:"none",color:B.text,fontWeight:700,fontSize:12,fontFamily:F,padding:0,width:"100%",outline:"none"}}/>:<span style={{fontWeight:700,color:B.text}}>{wo.due_date}</span>}</div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>HOURS</span><br/><span style={{fontWeight:700,color:B.cyan,fontFamily:M}}>{wo.hours_total||0}h</span></div>
-        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>LOCATION</span><br/><span style={{fontWeight:600,color:B.text}}>{wo.location||"—"}{wo.building&&" · Bldg "+wo.building}</span></div>
-        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>ASSIGNED</span><br/><span style={{fontWeight:600,color:B.text}}>{[wo.assignee,...(wo.crew||[])].filter(Boolean).filter(n=>n!=="Unassigned").join(", ")||"Unassigned"}</span></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>LOCATION</span><br/>{canEdit?<input value={wo.location||""} onChange={async e=>{await onUpdateWO({...wo,location:e.target.value});}} placeholder="Enter location" style={{background:"transparent",border:"none",color:B.text,fontWeight:600,fontSize:12,fontFamily:F,padding:0,width:"100%",outline:"none"}}/>:<span style={{fontWeight:600,color:B.text}}>{wo.location||"—"}</span>}{canEdit?<span style={{fontSize:10,color:B.textDim}}>{wo.building?" · ":""}</span>:wo.building&&<span style={{fontWeight:600,color:B.text}}>{" · Bldg "+wo.building}</span>}{canEdit&&<input value={wo.building||""} onChange={async e=>{await onUpdateWO({...wo,building:e.target.value});}} placeholder="Bldg #" style={{background:"transparent",border:"none",color:B.textDim,fontWeight:600,fontSize:11,fontFamily:F,padding:0,width:60,outline:"none"}}/>}</div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>ASSIGNED</span><br/>{isManager?<select value={wo.assignee||"Unassigned"} onChange={async e=>{await onUpdateWO({...wo,assignee:e.target.value});}} style={{background:"transparent",border:"none",color:B.text,fontWeight:600,fontSize:12,fontFamily:F,padding:0,cursor:"pointer",outline:"none"}}>{(users||[]).filter(u=>u.active!==false).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}<option value="Unassigned">Unassigned</option></select>:<span style={{fontWeight:600,color:B.text}}>{[wo.assignee,...(wo.crew||[])].filter(Boolean).filter(n=>n!=="Unassigned").join(", ")||"Unassigned"}</span>}</div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6,gridColumn:"1 / -1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>CUSTOMER WO#</span><button onClick={async()=>{await sb().from("work_orders").update({tms_entered:!wo.tms_entered}).eq("id",wo.id);await loadData();}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",cursor:"pointer",padding:0}}><div style={{width:16,height:16,borderRadius:3,border:"2px solid "+(wo.tms_entered?B.green:B.border),background:wo.tms_entered?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{wo.tms_entered&&<span style={{color:"#fff",fontSize:10}}>✓</span>}</div><span style={{fontSize:10,color:wo.tms_entered?B.green:B.textDim}}>Entered in TMS</span></button></div><input value={localCustWO} onChange={e=>setLocalCustWO(e.target.value)} onBlur={async()=>{if(localCustWO!==(wo.customer_wo||"")){await sb().from("work_orders").update({customer_wo:localCustWO}).eq("id",wo.id);await loadData();}}} placeholder="Enter customer WO# from their TMS" style={{background:"transparent",border:"none",color:B.text,fontWeight:600,fontSize:12,fontFamily:M,padding:"4px 0 0",width:"100%",outline:"none"}}/></div>
       </div>
       {wo.date_completed&&<div style={{marginTop:8,padding:"8px 10px",background:B.greenGlow,borderRadius:6,fontSize:12}}><span style={{color:B.green,fontWeight:700}}>✓ Completed {wo.date_completed}</span></div>}
@@ -376,7 +536,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
 
       <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
       {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span></div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge></div></div>})}
+        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const hasAmt=po.amount!=null&&po.amount>0;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border}}><div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12}}>{po.description}</span>{po.vendor_name&&<span style={{fontSize:10,color:B.textDim}}>({po.vendor_name})</span>}{po.urgency==="rush"&&<Badge color={B.red}>RUSH</Badge>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&(hasAmt?<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount).toFixed(2)}</span>:PO_APPROVED_STATUSES.includes(po.status)?<span style={{fontSize:10,color:B.orange,fontWeight:600}}>Awaiting Quote</span>:<span style={{fontSize:10,color:B.textDim}}>TBD</span>)}<Badge color={PSC[po.status]}>{PSL[po.status]||po.status}</Badge></div></div>})}
         {canEdit&&<button onClick={()=>setShowPO(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Request PO</button>}
       </Card>}
 
@@ -393,8 +553,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <ActivityLog woId={wo.id}/>
       {/* Delete — small, at the bottom, not prominent */}
       <div style={{display:"flex",gap:8,marginBottom:20}}>
-        <button onClick={async()=>{if(!window.confirm("Duplicate "+wo.wo_id+"? This creates a new WO with the same details."))return;setSaving(true);await onCreateWO({title:wo.title,priority:wo.priority,assignee:wo.assignee||"Unassigned",due_date:"TBD",notes:wo.notes||"",location:wo.location||"",wo_type:wo.wo_type||"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);msg("Duplicated! Check your work orders.");}} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.cyan+"33",background:"transparent",color:B.cyan+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>📋 Duplicate WO</button>
-        <button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete WO</button>
+        {canEdit&&<button onClick={async()=>{if(!window.confirm("Duplicate "+wo.wo_id+"? This creates a new WO with the same details."))return;setSaving(true);await onCreateWO({title:wo.title,priority:wo.priority,assignee:wo.assignee||"Unassigned",due_date:"TBD",notes:wo.notes||"",location:wo.location||"",wo_type:wo.wo_type||"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);msg("Duplicated! Check your work orders.");}} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.cyan+"33",background:"transparent",color:B.cyan+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>📋 Duplicate WO</button>}
+        {isManager&&<button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete WO</button>}
       </div>
     </div>
 
@@ -642,7 +802,7 @@ function Reports({wos,pos,timeEntries,users}){
   const completed=wos.filter(o=>o.status==="completed");
   const techs=users.filter(u=>u.role==="technician");
   const totalHours=timeEntries.reduce((s,e)=>s+parseFloat(e.hours||0),0);
-  const totalPOSpend=pos.filter(p=>p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalPOSpend=pos.filter(p=>PO_APPROVED_STATUSES.includes(p.status)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const pmCount=wos.filter(o=>o.wo_type==="PM").length;const cmCount=wos.filter(o=>o.wo_type==="CM").length;
   return(<div>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Reports</h3>
@@ -667,7 +827,7 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
   const[showCustomCols,setShowCustomCols]=useState(false);
   const activePreset=Object.entries(presets).find(([k,v])=>v.length===cols.length&&v.every(c=>cols.includes(c)))?.[0]||"custom";
   const completed=wos.filter(o=>{if(o.status!=="completed")return false;if(custFilter&&o.customer!==custFilter)return false;if(!dateFrom&&!dateTo)return true;const woTime=timeEntries.filter(t=>t.wo_id===o.id);if(woTime.length===0)return(!dateFrom||o.date_completed>=dateFrom)&&(!dateTo||o.date_completed<=dateTo);return woTime.some(t=>{const d=t.logged_date||o.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});});
-  const getData=wo=>{const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const filteredTime=woTime.filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});const h=filteredTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);const cleanNotes=(wo.notes||"").replace(/\n/g," ").trim();const cleanField=(wo.field_notes||"").replace(/\n/g," ").trim();return{wo_id:wo.wo_id,customer_wo:wo.customer_wo||"",date_completed:wo.date_completed||"",customer:wo.customer||"",title:wo.title,location:wo.location||"",building:wo.building||"",wo_type:wo.wo_type||"CM",hours:h,hours_display:h+"h",po_total:"$"+p.toFixed(2),notes:cleanNotes,field_notes:cleanField};};
+  const getData=wo=>{const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const filteredTime=woTime.filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});const h=filteredTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const p=pos.filter(p=>p.wo_id===wo.id&&PO_APPROVED_STATUSES.includes(p.status)).reduce((s,p)=>s+parseFloat(p.amount||0),0);const cleanNotes=(wo.notes||"").replace(/\n/g," ").trim();const cleanField=(wo.field_notes||"").replace(/\n/g," ").trim();return{wo_id:wo.wo_id,customer_wo:wo.customer_wo||"",date_completed:wo.date_completed||"",customer:wo.customer||"",title:wo.title,location:wo.location||"",building:wo.building||"",wo_type:wo.wo_type||"CM",hours:h,hours_display:h+"h",po_total:"$"+p.toFixed(2),notes:cleanNotes,field_notes:cleanField};};
   // Load saved contacts
   useEffect(()=>{sb().from("email_contacts").select("*").order("last_used",{ascending:false}).then(({data})=>{if(data)setContacts(data);});},[]);
   const saveContact=async(email)=>{if(!email)return;const existing=contacts.find(c=>c.email.toLowerCase()===email.toLowerCase());if(existing){await sb().from("email_contacts").update({last_used:new Date().toISOString()}).eq("id",existing.id);}else{await sb().from("email_contacts").insert({email:email.toLowerCase()});}};
@@ -697,7 +857,7 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
       {showCustomCols&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>{Object.entries(allCols).map(([k,v])=><button key={k} onClick={()=>setCols(prev=>prev.includes(k)?prev.filter(c=>c!==k):[...prev,k])} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(cols.includes(k)?B.cyan:B.border),background:cols.includes(k)?B.cyanGlow:"transparent",color:cols.includes(k)?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{v}</button>)}</div>}
     </div>
     {/* Billing Stats */}
-    {(()=>{const totalHrs=completed.reduce((s,wo)=>{const ft=timeEntries.filter(t=>t.wo_id===wo.id).filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});return s+ft.reduce((ss,t)=>ss+parseFloat(t.hours||0),0);},0);const totalPOs=completed.reduce((s,wo)=>s+pos.filter(p=>p.wo_id===wo.id&&p.status==="approved").reduce((ss,p)=>ss+parseFloat(p.amount||0),0),0);const pendingPOs=completed.reduce((s,wo)=>s+pos.filter(p=>p.wo_id===wo.id&&p.status==="pending").length,0);const avgHrs=completed.length>0?(totalHrs/completed.length).toFixed(1):0;return(<div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Work Orders" value={completed.length} icon="📋" color={B.cyan}/><StatCard label="Total Hours" value={totalHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/><StatCard label="Avg Hrs/WO" value={avgHrs+"h"} icon="📊" color={B.green}/><StatCard label="PO Total" value={"$"+totalPOs.toFixed(2)} icon="💰" color={B.purple}/>{pendingPOs>0&&<StatCard label="Pending POs" value={pendingPOs} icon="⏳" color={B.red}/>}</div>);})()}
+    {(()=>{const totalHrs=completed.reduce((s,wo)=>{const ft=timeEntries.filter(t=>t.wo_id===wo.id).filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});return s+ft.reduce((ss,t)=>ss+parseFloat(t.hours||0),0);},0);const totalPOs=completed.reduce((s,wo)=>s+pos.filter(p=>p.wo_id===wo.id&&PO_APPROVED_STATUSES.includes(p.status)).reduce((ss,p)=>ss+parseFloat(p.amount||0),0),0);const pendingPOs=completed.reduce((s,wo)=>s+pos.filter(p=>p.wo_id===wo.id&&p.status==="pending").length,0);const avgHrs=completed.length>0?(totalHrs/completed.length).toFixed(1):0;return(<div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Work Orders" value={completed.length} icon="📋" color={B.cyan}/><StatCard label="Total Hours" value={totalHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/><StatCard label="Avg Hrs/WO" value={avgHrs+"h"} icon="📊" color={B.green}/><StatCard label="PO Total" value={"$"+totalPOs.toFixed(2)} icon="💰" color={B.purple}/>{pendingPOs>0&&<StatCard label="Pending POs" value={pendingPOs} icon="⏳" color={B.red}/>}</div>);})()}
     <Card style={{overflowX:"auto",marginBottom:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"2px solid "+B.border}}>{cols.map(c=><th key={c} style={{textAlign:"left",padding:"6px 8px",color:B.textDim,fontWeight:700,fontSize:10,textTransform:"uppercase"}}>{allCols[c]}</th>)}</tr></thead><tbody>{completed.map(wo=>{const d=getData(wo);return(<tr key={wo.id} style={{borderBottom:"1px solid "+B.border}}>{cols.map(c=><td key={c} style={{padding:"6px 8px",fontFamily:c==="wo_id"||c==="hours"||c==="po_total"?M:F,color:c==="wo_id"?B.cyan:c==="hours"?B.cyan:B.text}}>{c==="hours"?d.hours_display:d[c]}</td>)}</tr>);})}</tbody></table></Card>
     <div style={{display:"flex",gap:8}}>
       <button onClick={copyToClip} style={{...BP,flex:1}}>📋 Copy</button>
@@ -726,7 +886,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setShowForm(true);};
   const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
   const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
-  const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
+  const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&PO_APPROVED_STATUSES.includes(p.status));const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Customers</h3>
     <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ Add Customer</button>
@@ -807,7 +967,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
   const pDone=parts.filter(p=>p.received).length,pTot=parts.length;
   const pWOs=(allWOs||[]).filter(w=>w.project_id===project.id);
   const pHrs=pWOs.reduce((s,w)=>s+parseFloat(w.hours_total||0),0);
-  const materialSpend=(allPOs||[]).filter(p=>pWOs.some(w=>w.id===p.wo_id)&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const materialSpend=(allPOs||[]).filter(p=>pWOs.some(w=>w.id===p.wo_id)&&PO_APPROVED_STATUSES.includes(p.status)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   // Calculate labor costs from time entries
   const getRate=(techName,type)=>{const u=(users||[]).find(x=>x.name===techName);const custOverride=(allWOs||[]).find(w=>w.project_id===project.id)?.customer;const cust=custOverride?(customers||[]).find(c=>c.name===custOverride):null;if(type==="billing"&&cust?.billing_rate_override)return cust.billing_rate_override;return u?u[type==="billing"?"billing_rate":"cost_rate"]||0:0;};
   const projectTimeEntries=pWOs.flatMap(w=>(allTime||[]).filter(t=>t.wo_id===w.id));
@@ -834,7 +994,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
           {isAdmin&&<div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>LABOR COST</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:B.cyan,marginTop:2}}>{"$"+laborCost.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>{pHrs.toFixed(1)}h × cost rates</div></div>}
           {isAdmin&&<div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>PROFIT</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:profit>=0?B.green:B.red,marginTop:2}}>{"$"+profit.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>{totalBilling>0?Math.round(profit/totalBilling*100):0}% margin</div></div>}
         </div>
-        {isAdmin&&chambers.length>0&&<div style={{marginTop:12}}><div style={{fontSize:10,fontWeight:600,color:B.textDim,marginBottom:6}}>Cost by Chamber</div>{chambers.map(ch=>{const chWOs=pWOs.filter(w=>w.chamber_id===ch.id);const chMat=(allPOs||[]).filter(p=>chWOs.some(w=>w.id===p.wo_id)&&p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);const chTime=chWOs.flatMap(w=>(allTime||[]).filter(t=>t.wo_id===w.id));const chLabor=chTime.reduce((s,t)=>s+parseFloat(t.hours||0)*getRate(t.technician,"cost"),0);const chTotal=chMat+chLabor;const chBudget=ch.budget||project.budget||0;const chPct=chBudget>0?chTotal/chBudget*100:0;return<div key={ch.id} style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:B.textMuted}}><span>{ch.name}{ch.budget>0&&<span style={{fontFamily:M,color:B.textDim}}>{" (budget: $"+ch.budget.toLocaleString()+")"}</span>}</span><span style={{fontFamily:M,color:chBudget>0&&chTotal>chBudget?B.red:B.textMuted}}>{"$"+chTotal.toLocaleString()+(chBudget>0?" ("+chPct.toFixed(0)+"%)":"")}</span></div><div style={{background:B.bg,borderRadius:3,height:6,marginTop:2,overflow:"hidden"}}><div style={{width:Math.min(100,chPct)+"%",height:"100%",background:chBudget>0&&chTotal>chBudget?B.red:B.cyan,borderRadius:3}}/></div></div>})}</div>}
+        {isAdmin&&chambers.length>0&&<div style={{marginTop:12}}><div style={{fontSize:10,fontWeight:600,color:B.textDim,marginBottom:6}}>Cost by Chamber</div>{chambers.map(ch=>{const chWOs=pWOs.filter(w=>w.chamber_id===ch.id);const chMat=(allPOs||[]).filter(p=>chWOs.some(w=>w.id===p.wo_id)&&PO_APPROVED_STATUSES.includes(p.status)).reduce((s,p)=>s+parseFloat(p.amount||0),0);const chTime=chWOs.flatMap(w=>(allTime||[]).filter(t=>t.wo_id===w.id));const chLabor=chTime.reduce((s,t)=>s+parseFloat(t.hours||0)*getRate(t.technician,"cost"),0);const chTotal=chMat+chLabor;const chBudget=ch.budget||project.budget||0;const chPct=chBudget>0?chTotal/chBudget*100:0;return<div key={ch.id} style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:B.textMuted}}><span>{ch.name}{ch.budget>0&&<span style={{fontFamily:M,color:B.textDim}}>{" (budget: $"+ch.budget.toLocaleString()+")"}</span>}</span><span style={{fontFamily:M,color:chBudget>0&&chTotal>chBudget?B.red:B.textMuted}}>{"$"+chTotal.toLocaleString()+(chBudget>0?" ("+chPct.toFixed(0)+"%)":"")}</span></div><div style={{background:B.bg,borderRadius:3,height:6,marginTop:2,overflow:"hidden"}}><div style={{width:Math.min(100,chPct)+"%",height:"100%",background:chBudget>0&&chTotal>chBudget?B.red:B.cyan,borderRadius:3}}/></div></div>})}</div>}
         {(project.budget||0)===0&&<div style={{marginTop:8,fontSize:12,color:B.textDim}}>No budget set. Click Edit Budget to add one.</div>}
       </Card>}
       {mTot>0&&<Card style={{padding:14,marginBottom:12}}><span style={LS}>Milestones ({mDone}/{mTot})</span><div style={{marginTop:8,background:B.bg,borderRadius:4,height:8,overflow:"hidden"}}><div style={{width:(mDone/mTot*100)+"%",height:"100%",background:B.cyan,borderRadius:4}}/></div>{chambers.length>0&&<div style={{marginTop:8}}>{chambers.map(c=>{const cm=milestones.filter(m=>m.chamber_id===c.id);const d=cm.filter(m=>m.completed).length;return cm.length>0?<div key={c.id} style={{marginBottom:4}}><div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:B.textMuted}}><span>{c.name}</span><span>{d}/{cm.length}</span></div><div style={{background:B.bg,borderRadius:3,height:4,marginTop:2,overflow:"hidden"}}><div style={{width:(d/cm.length*100)+"%",height:"100%",background:d===cm.length?B.green:B.cyan,borderRadius:3}}/></div></div>:null})}</div>}</Card>}
@@ -962,7 +1122,7 @@ function DashAnalytics({wos,time,pos}){
     const wkWos=wos.filter(o=>{const d=o.date_completed?new Date(o.date_completed):o.created_at?new Date(o.created_at):null;return d&&d>=ws&&d<=we;});
     const completed=wkWos.filter(o=>o.status==="completed").length;
     const hrs=time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
-    const poAmt=pos.filter(p=>{const d=new Date(p.created_at);return d>=ws&&d<=we&&p.status==="approved";}).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const poAmt=pos.filter(p=>{const d=new Date(p.created_at);return d>=ws&&d<=we&&PO_APPROVED_STATUSES.includes(p.status);}).reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const label=ws.toLocaleDateString("en-US",{month:"short",day:"numeric"});
     weeks.push({label,completed,hrs,poAmt});
   }
@@ -1095,7 +1255,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   // Group hours by technician
   const techHours={};filteredTime.forEach(t=>{if(!techHours[t.technician])techHours[t.technician]=0;techHours[t.technician]+=parseFloat(t.hours||0);});
   // POs for filtered WOs
-  const filteredPOs=pos.filter(p=>filteredWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");
+  const filteredPOs=pos.filter(p=>filteredWOs.some(w=>w.id===p.wo_id)&&PO_APPROVED_STATUSES.includes(p.status));
   const partsTotal=filteredPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   // PM/CM counts
   const pmCount=filteredWOs.filter(w=>w.wo_type==="PM").length;
@@ -1386,7 +1546,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos} userName={user.name} userRole={user.role}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
@@ -1405,7 +1565,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos} userName={user.name} userRole={user.role}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="invoices"&&<InvoiceGenerator wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
@@ -1528,7 +1688,7 @@ export default function App(){
     createWO:withSync(async(wo)=>{const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);const{data:inserted}=await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0}).select("id").single();await notify("wo_created","New Work Order",newId+": "+wo.title);if(inserted)await sb().from("wo_activity").insert({wo_id:inserted.id,action:"created",details:"Work order created",actor:appUser?.name||"System"});}),
     updateWO:withTableSync("work_orders",async(wo)=>{const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.status==="completed"&&old?.status!=="completed")await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");}),
     deleteWO:withTableSync("work_orders",async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
-    createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
+    createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});const amtStr=po.amount!=null?"$"+po.amount:"TBD";const urgStr=po.urgency==="rush"?" RUSH":"";await notify("po_requested","PO Requested",id+" — "+amtStr+urgStr+" by "+appUser.name,"manager");}),
     updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
     addTime:withTableSync("time_entries",async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
     updateTime:withTableSync("time_entries",async(te)=>{const{id,...rest}=te;await sb().from("time_entries").update(rest).eq("id",id);}),
@@ -1549,7 +1709,7 @@ export default function App(){
     updateProject:withTableSync("projects",async(p)=>{const{id,...rest}=p;await sb().from("projects").update(rest).eq("id",id);}),
     deleteProject:withTableSync("projects",async(id)=>{await sb().from("projects").delete().eq("id",id);}),
     markRead:withTableSync("notifications",async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
-    quickApprovePO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"approved"}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_approved",title:"PO Approved",message:poId+" has been approved",for_role:null});await loadData();}},
+    quickApprovePO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"approved",approved_by:appUser.name,approved_at:new Date().toISOString()}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_approved",title:"PO Approved",message:poId+" has been approved",for_role:null});await loadData();}},
     quickRejectPO:async(notif)=>{const poId=notif.message?.match(/^(\d{6})/)?.[1];if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"rejected"}).eq("id",po[0].id);await sb().from("notifications").update({read:true}).eq("id",notif.id);await sb().from("notifications").insert({type:"po_rejected",title:"PO Rejected",message:poId+" has been rejected",for_role:null});await loadData();}},
     approveDraft:withSync(async(draft,edits)=>{
       const wo={title:edits?.title||draft.title||"Service Request",priority:edits?.priority||draft.priority||"medium",assignee:edits?.assignee||"Unassigned",due_date:edits?.due_date||"TBD",notes:edits?.description||draft.description||"From email: "+draft.email_subject,location:edits?.location||draft.location||"",building:edits?.building||draft.building||"",wo_type:"CM",customer:edits?.customer_name||draft.customer_name||"",customer_wo:edits?.customer_wo||draft.customer_wo||null,crew:[]};
