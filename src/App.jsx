@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
-import ExcelJS from "exceljs";
+// ExcelJS lazy-loaded in buildInvoiceExcel() to reduce initial bundle
 
 /*
  * 3C Refrigeration FieldOps Pro — Full Feature Edition
@@ -9,8 +9,8 @@ import ExcelJS from "exceljs";
  * customer billing export, invoice PDF, offline-ready
  */
 
-const SUPABASE_URL = "https://gwwijjkahwieschfdfbq.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3d2lqamthaHdpZXNjaGZkZmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NjI1NzYsImV4cCI6MjA4ODIzODU3Nn0.c79jtEZv9CQ8P2CC6NXyrKqax510530tAMhLnNt75TI";
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 const _sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 function sb(){ return _sb; }
@@ -34,7 +34,9 @@ const autoCorrect=(text)=>{if(!text||typeof text!=="string")return text;let t=te
   t=t.replace(/\bi\b(?=[^.])/g,"I");
   t=t.replace(/\b([A-Za-z]+)\b/g,(m)=>{const lw=m.toLowerCase();const fix=_TYPOS[lw];if(!fix)return m;if(m[0]===m[0].toUpperCase())return fix[0].toUpperCase()+fix.slice(1);return fix;});
   return t.trim();};
-const cleanText=(text,fieldName)=>{const corrected=autoCorrect(text);if(hasProfanity(corrected)){alert("Inappropriate language detected in "+fieldName+". Please use professional language.");return null;}return corrected;};
+let _profanityToast=null;
+const setProfanityHandler=(fn)=>{_profanityToast=fn;};
+const cleanText=(text,fieldName)=>{const corrected=autoCorrect(text);if(hasProfanity(corrected)){if(_profanityToast)_profanityToast("Inappropriate language in "+fieldName);else alert("Inappropriate language detected in "+fieldName+".");return null;}return corrected;};
 const sanitizeHTML=(html)=>{if(!html)return"";return html.replace(/<script[\s\S]*?<\/script>/gi,"").replace(/<iframe[\s\S]*?<\/iframe>/gi,"").replace(/\son\w+\s*=\s*["'][^"']*["']/gi,"").replace(/\son\w+\s*=\s*\S+/gi,"").replace(/javascript\s*:/gi,"");};
 const calcWOHours=(woId,timeEntries)=>timeEntries.filter(t=>t.wo_id===woId).reduce((s,t)=>s+parseFloat(t.hours||0),0);
 const PC={high:B.red,medium:B.orange,low:B.green};
@@ -84,7 +86,7 @@ function Modal({title,onClose,children,wide}){return <div style={{position:"fixe
 function Toast({msg}){useEffect(()=>{if(msg)haptic(30);},[msg]);if(!msg)return null;return <div style={{position:"fixed",top:16,right:16,zIndex:2000,background:B.cyan,color:B.bg,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:700,boxShadow:"0 4px 20px rgba(0,212,245,0.3)",animation:"toastIn .25s ease-out"}}>✓ {msg}</div>;}
 function CustomSelect({value,onChange,options,placeholder,style:sx}){
   const[open,setOpen]=useState(false);const ref=useRef(null);const[search,setSearch]=useState("");
-  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};const k=e=>{if(e.key==="Escape")setOpen(false);};document.addEventListener("mousedown",h);document.addEventListener("keydown",k);return()=>{document.removeEventListener("mousedown",h);document.removeEventListener("keydown",k);};},[]);
   const sel=options.find(o=>o.value===value);
   const filtered=search?options.filter(o=>(o.label||"").toLowerCase().includes(search.toLowerCase())):options;
   return(<div ref={ref} style={{position:"relative",...sx}}>
@@ -426,7 +428,8 @@ async function generatePOPdf(po,wo){
 // INVOICE GENERATION (Excel + PDF + Drive)
 // ═══════════════════════════════════════════
 async function buildInvoiceExcel(d){
-  const wb=new ExcelJS.Workbook();
+  const ExcelJS=await import("exceljs");
+  const wb=new ExcelJS.default.Workbook();
   wb.creator="3C FieldOps Pro";
   const ws=wb.addWorksheet(d.customerName+" Invoice",{properties:{defaultRowHeight:15}});
   ws.columns=[{width:10},{width:22},{width:14},{width:16},{width:14},{width:16}];
@@ -2437,9 +2440,15 @@ function App(){
   return <TechDash {...p}/>;
 }
 
+class ErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={hasError:false,error:null};}
+  static getDerivedStateFromError(error){return{hasError:true,error};}
+  componentDidCatch(error,info){console.error("App crash:",error,info);}
+  render(){if(this.state.hasError){return<div style={{minHeight:"100vh",background:"#101214",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow',sans-serif",color:"#E8EAED",padding:40,textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⚠️</div><h1 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Something went wrong</h1><p style={{fontSize:14,color:"#8B929A",marginBottom:20,maxWidth:400}}>The app encountered an unexpected error. Try refreshing the page.</p><button onClick={()=>{this.setState({hasError:false,error:null});window.location.reload();}} style={{padding:"12px 24px",borderRadius:8,border:"none",background:"#00D4F5",color:"#101214",fontSize:14,fontWeight:700,cursor:"pointer"}}>Refresh App</button><pre style={{marginTop:20,fontSize:10,color:"#5E656E",maxWidth:500,overflow:"auto",textAlign:"left"}}>{this.state.error?.message}</pre></div>;}return this.props.children;}
+}
 export default function AppRouter(){
   const hash=window.location.hash;
   const portalMatch=hash.match(/#\/portal\/(.+)/);
-  if(portalMatch)return <CustomerPortal customerSlug={portalMatch[1]}/>;
-  return <App/>;
+  if(portalMatch)return <ErrorBoundary><CustomerPortal customerSlug={portalMatch[1]}/></ErrorBoundary>;
+  return <ErrorBoundary><App/></ErrorBoundary>;
 }
