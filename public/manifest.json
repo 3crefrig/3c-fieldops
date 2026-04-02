@@ -1,0 +1,21 @@
+{
+  "short_name": "3C FieldOps",
+  "name": "3C Refrigeration FieldOps Pro",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1E2228",
+  "background_color": "#1E2228",
+  "icons": [
+    {
+      "src": "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

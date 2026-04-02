@@ -169,7 +169,9 @@ function FirstSetup({authUser,onDone}){
 function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh}){
   const[theme,setThemeState]=useState(_theme);
   const[isMobile,setIsMobile]=useState(window.innerWidth<768);
+  const[offline,setOffline]=useState(!navigator.onLine);
   useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  useEffect(()=>{const on=()=>setOffline(false);const off=()=>setOffline(true);window.addEventListener("online",on);window.addEventListener("offline",off);return()=>{window.removeEventListener("online",on);window.removeEventListener("offline",off);};},[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);setThemeState(t);};
   // Keyboard shortcuts — Alt+T for theme, number keys for tabs
   useEffect(()=>{const handler=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT"||e.target.isContentEditable)return;if(e.key>="1"&&e.key<="9"){const idx=parseInt(e.key)-1;if(tabs[idx])setTab(tabs[idx].key);}if(e.key==="t"&&e.altKey)toggleTheme();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[tabs,theme]);
@@ -195,7 +197,8 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
-        {syncing&&<span style={{fontSize:10,color:B.orange,fontWeight:600,animation:"pulseGlow 2s infinite"}}>syncing...</span>}
+        {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline</span>}
+        {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600,animation:"pulseGlow 2s infinite"}}>syncing...</span>}
         <NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/>
         <Badge color={ROLES[user.role]?ROLES[user.role].color:B.textDim}>{user.role}</Badge>
         <span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>
@@ -804,17 +807,91 @@ function UserForm({user,onSave,onClose,curRole}){
 // ═══════════════════════════════════════════
 // REPORTS DASHBOARD
 // ═══════════════════════════════════════════
-function Reports({wos,pos,timeEntries,users}){
-  const completed=wos.filter(o=>o.status==="completed");
-  const techs=users.filter(u=>u.role==="technician");
-  const totalHours=timeEntries.reduce((s,e)=>s+parseFloat(e.hours||0),0);
-  const totalPOSpend=pos.filter(p=>p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const pmCount=wos.filter(o=>o.wo_type==="PM").length;const cmCount=wos.filter(o=>o.wo_type==="CM").length;
+function Reports({wos,pos,timeEntries,users,customers}){
+  const[range,setRange]=useState("month");const[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
+  // Date range presets
+  const now=new Date();const todayStr=now.toISOString().slice(0,10);
+  const presets={week:new Date(now-7*86400000).toISOString().slice(0,10),month:new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10),quarter:new Date(now.getFullYear(),Math.floor(now.getMonth()/3)*3,1).toISOString().slice(0,10),year:now.getFullYear()+"-01-01",all:""};
+  const from=range==="custom"?dateFrom:presets[range];const to=range==="custom"?dateTo:todayStr;
+  // Filter data by range
+  const inRange=(d)=>{if(!d)return!from;if(from&&d<from)return false;if(to&&d>to)return false;return true;};
+  const fWOs=wos.filter(w=>inRange(w.date_completed||w.created_at?.slice(0,10)));
+  const fTime=timeEntries.filter(t=>inRange(t.logged_date));
+  const fPOs=pos.filter(p=>p.status==="approved"&&inRange(p.created_at?.slice(0,10)));
+  const completed=fWOs.filter(o=>o.status==="completed");
+  const techs=users.filter(u=>u.role==="technician"&&u.active!==false);
+  const totalHours=fTime.reduce((s,e)=>s+parseFloat(e.hours||0),0);
+  const totalPOSpend=fPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const pmCount=fWOs.filter(o=>o.wo_type==="PM").length;const cmCount=fWOs.filter(o=>o.wo_type==="CM").length;
+
+  // KPIs
+  const workdays=from?Math.max(1,Math.ceil((new Date(to)-new Date(from))/86400000*5/7)):1;
+  const avgJobDuration=completed.length>0?(completed.reduce((s,w)=>s+calcWOHours(w.id,fTime),0)/completed.length):0;
+  const avgResponseTime=completed.length>0?(completed.filter(w=>{const firstTime=fTime.filter(t=>t.wo_id===w.id).sort((a,b)=>(a.logged_date||"").localeCompare(b.logged_date||""))[0];return firstTime&&w.created_at;}).reduce((s,w)=>{const firstTime=fTime.filter(t=>t.wo_id===w.id).sort((a,b)=>(a.logged_date||"").localeCompare(b.logged_date||""))[0];return s+Math.max(0,(new Date(firstTime.logged_date)-new Date(w.created_at.slice(0,10)))/86400000);},0)/(completed.filter(w=>fTime.some(t=>t.wo_id===w.id)).length||1)):0;
+
   return(<div>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Reports</h3>
-    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Completed" value={completed.length} icon="✓" color={B.green}/><StatCard label="Total Hours" value={totalHours.toFixed(1)+"h"} icon="⏱" color={B.cyan}/><StatCard label="PO Spend" value={"$"+totalPOSpend.toLocaleString()} icon="💰" color={B.purple}/><StatCard label="PM / CM" value={pmCount+" / "+cmCount} icon="📊" color={B.orange}/></div>
-    <Card style={{marginBottom:14}}><span style={LS}>Hours by Technician</span><div style={{marginTop:8}}>{techs.map(t=>{const h=timeEntries.filter(e=>e.technician===t.name).reduce((s,e)=>s+parseFloat(e.hours||0),0);const maxH=Math.max(...techs.map(t2=>timeEntries.filter(e=>e.technician===t2.name).reduce((s,e)=>s+parseFloat(e.hours||0),0)),1);return(<div key={t.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><span style={{fontSize:12,color:B.text,minWidth:100,fontWeight:600}}>{t.name}</span><div style={{flex:1,height:20,background:B.bg,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:(h/maxH*100)+"%",background:ROLES.technician.grad,borderRadius:4,minWidth:h>0?20:0}}/></div><span style={{fontFamily:M,fontSize:12,color:B.cyan,minWidth:40,textAlign:"right"}}>{h.toFixed(1)}h</span></div>);})}</div></Card>
-    <Card style={{marginBottom:14}}><span style={LS}>Jobs by Customer</span><div style={{marginTop:8}}>{[...new Set(wos.map(w=>w.customer).filter(Boolean))].map(c=>{const count=wos.filter(w=>w.customer===c).length;return(<div key={c} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border}}><span style={{fontSize:12,color:B.text}}>{c}</span><span style={{fontFamily:M,fontSize:12,color:B.cyan}}>{count} jobs</span></div>);})}{wos.filter(w=>!w.customer).length>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}><span style={{fontSize:12,color:B.textDim}}>No customer</span><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wos.filter(w=>!w.customer).length}</span></div>}</div></Card>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Reports & KPIs</h3>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All"],["custom","Custom"]].map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(range===k?B.cyan:B.border),background:range===k?B.cyanGlow:"transparent",color:range===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
+    </div>
+    {range==="custom"&&<div style={{display:"flex",gap:8,marginBottom:14}}><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{...IS,flex:1,fontSize:11}}/><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{...IS,flex:1,fontSize:11}}/></div>}
+
+    {/* KPI Cards */}
+    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+      <StatCard label="Completed" value={completed.length} icon="✓" color={B.green}/>
+      <StatCard label="Total Hours" value={totalHours.toFixed(1)+"h"} icon="⏱" color={B.cyan}/>
+      <StatCard label="Avg Job Duration" value={avgJobDuration.toFixed(1)+"h"} icon="📐" color={B.orange}/>
+      <StatCard label="Avg Response" value={avgResponseTime.toFixed(1)+"d"} icon="⚡" color={B.purple}/>
+      <StatCard label="PO Spend" value={"$"+totalPOSpend.toLocaleString()} icon="💰" color={B.red}/>
+      <StatCard label="PM / CM" value={pmCount+" / "+cmCount} icon="📊" color={B.orange}/>
+    </div>
+
+    {/* Tech Performance Table */}
+    <Card style={{marginBottom:14,padding:16}}>
+      <span style={LS}>Technician Performance</span>
+      <div style={{marginTop:10,overflowX:"auto"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr repeat(4,auto)",gap:"8px 16px",fontSize:11,minWidth:400}}>
+          <div style={{fontWeight:700,color:B.textDim,fontSize:9,letterSpacing:.5}}>TECHNICIAN</div>
+          <div style={{fontWeight:700,color:B.textDim,fontSize:9,letterSpacing:.5,textAlign:"right"}}>HOURS</div>
+          <div style={{fontWeight:700,color:B.textDim,fontSize:9,letterSpacing:.5,textAlign:"right"}}>UTILIZATION</div>
+          <div style={{fontWeight:700,color:B.textDim,fontSize:9,letterSpacing:.5,textAlign:"right"}}>WOs DONE</div>
+          <div style={{fontWeight:700,color:B.textDim,fontSize:9,letterSpacing:.5,textAlign:"right"}}>AVG HRS/JOB</div>
+          {techs.map(t=>{
+            const h=fTime.filter(e=>e.technician===t.name).reduce((s,e)=>s+parseFloat(e.hours||0),0);
+            const util=Math.min(100,Math.round(h/(workdays*8)*100));
+            const done=completed.filter(w=>w.assignee===t.name).length;
+            const avg=done>0?h/done:0;
+            const maxH=Math.max(...techs.map(t2=>fTime.filter(e=>e.technician===t2.name).reduce((s,e)=>s+parseFloat(e.hours||0),0)),1);
+            return(<React.Fragment key={t.id}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:24,height:24,borderRadius:6,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div>
+                <span style={{fontWeight:600,color:B.text}}>{t.name}</span>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"flex-end"}}><div style={{width:60,height:6,background:B.bg,borderRadius:3,overflow:"hidden"}}><div style={{width:(h/maxH*100)+"%",height:"100%",background:B.cyan,borderRadius:3}}/></div><span style={{fontFamily:M,fontWeight:700,color:B.cyan}}>{h.toFixed(1)}h</span></div>
+              </div>
+              <div style={{textAlign:"right",fontFamily:M,fontWeight:700,color:util>=70?B.green:util>=40?B.orange:B.red}}>{util}%</div>
+              <div style={{textAlign:"right",fontFamily:M,color:B.text}}>{done}</div>
+              <div style={{textAlign:"right",fontFamily:M,color:B.textMuted}}>{avg.toFixed(1)}h</div>
+            </React.Fragment>);
+          })}
+        </div>
+      </div>
+    </Card>
+
+    {/* Jobs by Customer */}
+    <Card style={{marginBottom:14,padding:16}}>
+      <span style={LS}>Revenue by Customer</span>
+      <div style={{marginTop:8}}>{[...new Set(fWOs.map(w=>w.customer).filter(Boolean))].map(c=>{
+        const cWOs=fWOs.filter(w=>w.customer===c);const cTime=fTime.filter(t=>cWOs.some(w=>w.id===t.wo_id));const hrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
+        const cust=(customers||[]).find(x=>x.name===c);const rate=cust?.billing_rate_override||120;const rev=hrs*rate;
+        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+        return(<div key={c} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
+          <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{c}</div><div style={{fontSize:10,color:B.textDim}}>{cWOs.length} jobs · {hrs.toFixed(1)}h</div></div>
+          <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.green}}>${rev.toLocaleString()}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
+        </div>);
+      })}</div>
+    </Card>
   </div>);
 }
 
@@ -1665,7 +1742,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
-    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
+    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
@@ -1685,7 +1762,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
-    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
+    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
