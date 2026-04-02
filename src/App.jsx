@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
+import ExcelJS from "exceljs";
 
 /*
  * 3C Refrigeration FieldOps Pro — Full Feature Edition
@@ -383,6 +384,290 @@ async function generatePOPdf(po,wo){
   doc.text("Generated "+new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}),pw/2,fy+4,{align:"center"});
 
   doc.save("PO-"+po.po_id+".pdf");
+}
+
+// ═══════════════════════════════════════════
+// INVOICE GENERATION (Excel + PDF + Drive)
+// ═══════════════════════════════════════════
+async function buildInvoiceExcel(d){
+  const wb=new ExcelJS.Workbook();
+  wb.creator="3C FieldOps Pro";
+  const ws=wb.addWorksheet(d.customerName+" Invoice",{properties:{defaultRowHeight:15}});
+  ws.columns=[{width:10},{width:22},{width:14},{width:16},{width:14},{width:16}];
+  const thinBorder={style:"thin",color:{argb:"FF999999"}};
+  const acctFmt='_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
+  const numFmt='_(* #,##0.00_);_(* \\(#,##0.00\\);_(* "-"??_);_(@_)';
+  const shadeFill={type:"pattern",pattern:"solid",fgColor:{argb:"FFD9E2F3"}};
+
+  // Logo
+  let logoId=null;
+  try{const logo=await fetchLogoBase64();if(logo){const b64=logo.split(",")[1];logoId=wb.addImage({base64:b64,extension:"png"});ws.addImage(logoId,{tl:{col:0,row:0},ext:{width:200,height:60}});}}catch(e){}
+
+  // Row 1 — INVOICE title
+  ws.getRow(1).height=50;
+  const invCell=ws.getCell("E1");invCell.value="INVOICE";invCell.font={name:"Palatino Linotype",size:22,bold:true};invCell.alignment={horizontal:"right",vertical:"middle"};
+
+  // Rows 3-9 — Company info (left) + Date/Invoice#/CustID (right)
+  const companyInfo=["3065 Gwyn Rd.","Elon, N.C. 27244","Phone: 336-264-0935","Email: service@3crefrigeration.com","FAX: (877) 278-4608","N.C. License 4923","Vendor Number "+(d.vendorNumber||"126337")];
+  companyInfo.forEach((txt,i)=>{const c=ws.getCell("A"+(i+3));c.value=txt;c.font={name:"Palatino Linotype",size:10};});
+
+  // Right side labels
+  const rLabels=[["E3","Date:","F3",d.date],["E4","Invoice #:","F4",d.invoiceNum],["E5","Customer ID:","F5",d.customerId]];
+  rLabels.forEach(([lc,lv,vc,vv])=>{const l=ws.getCell(lc);l.value=lv;l.font={name:"Palatino Linotype",size:10,bold:true};l.alignment={horizontal:"right"};const v=ws.getCell(vc);v.value=vv;v.font={name:"Palatino Linotype",size:10};});
+
+  // Row 11-13 — Bill To
+  ws.getCell("A11").value="To:";ws.getCell("A11").font={name:"Palatino Linotype",size:10,bold:true};
+  ws.mergeCells("B11:C11");ws.getCell("B11").value=d.customerName;ws.getCell("B11").font={name:"Palatino Linotype",size:10};
+  if(d.customerAddress){ws.mergeCells("B12:C12");ws.getCell("B12").value=d.customerAddress;ws.getCell("B12").font={name:"Palatino Linotype",size:10};}
+  if(d.customerAddress2){ws.getCell("B13").value=d.customerAddress2;ws.getCell("B13").font={name:"Palatino Linotype",size:10};}
+
+  // Row 16 — separator
+  ws.mergeCells("A16:F16");ws.getRow(16).height=6;
+
+  // Row 17 — Table headers (PO, Job, Payment Terms, Due Date)
+  ws.mergeCells("A17:B17");ws.mergeCells("D17:E17");
+  const hdr17=[["A17","Purchase Order"],["C17","Job"],["D17","Payment Terms"],["F17","Due Date"]];
+  hdr17.forEach(([c,v])=>{const cell=ws.getCell(c);cell.value=v;cell.font={name:"Palatino Linotype",size:10,bold:true};cell.fill=shadeFill;cell.alignment={horizontal:"center"};cell.border={top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};});
+  ["B17","E17"].forEach(c=>{ws.getCell(c).fill=shadeFill;ws.getCell(c).border={top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};});
+
+  // Row 18 — Table values
+  ws.mergeCells("A18:B18");ws.mergeCells("D18:E18");
+  const val18=[["A18",d.poNumber||""],["C18",d.jobDesc||"Repairs"],["D18",d.paymentTerms||"Net 30"],["F18",d.dueDate||""]];
+  val18.forEach(([c,v])=>{const cell=ws.getCell(c);cell.value=v;cell.font={name:"Palatino Linotype",size:10};cell.fill=shadeFill;cell.alignment={horizontal:"center"};cell.border={top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};});
+  ["B18","E18"].forEach(c=>{ws.getCell(c).fill=shadeFill;ws.getCell(c).border={top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};});
+
+  // Row 20 — Line items header
+  const hdr20=[["A20","Qty"],["B20","Description"],["E20","Unit Price"],["F20","Line Total"]];
+  hdr20.forEach(([c,v])=>{const cell=ws.getCell(c);cell.value=v;cell.font={name:"Palatino Linotype",size:10,bold:true};cell.fill=shadeFill;cell.alignment={horizontal:"center"};cell.border={top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};});
+  ["C20","D20"].forEach(c=>{ws.getCell(c).fill=shadeFill;ws.getCell(c).border={top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};});
+
+  // Row 21 — "Labor" label
+  ws.getCell("B21").value="Labor ";ws.getCell("B21").font={name:"Palatino Linotype",size:10,bold:true,underline:true};
+
+  // Rows 22+ — Labor tiers (dynamic)
+  let r=22;const tierStartRow=r;
+  const tierRows=[];
+  d.tiers.forEach(t=>{
+    ws.getCell("A"+r).value=t.hours;ws.getCell("A"+r).numFmt="0.00";ws.getCell("A"+r).font={name:"Palatino Linotype",size:10};
+    ws.getCell("B"+r).value=t.name;ws.getCell("B"+r).font={name:"Palatino Linotype",size:10};
+    ws.getCell("E"+r).value=t.rate;ws.getCell("E"+r).numFmt=numFmt;ws.getCell("E"+r).font={name:"Palatino Linotype",size:10};
+    ws.getCell("F"+r).value={formula:"E"+r+"*A"+r};ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:10};
+    ws.getCell("F"+r).fill=shadeFill;
+    tierRows.push(r);
+    r++;
+  });
+  // Ensure at least 3 tier rows for layout consistency
+  while(tierRows.length<3){
+    ws.getCell("F"+r).value={formula:'IF(SUM(A'+r+')>0,SUM(A'+r+'*E'+r+'),"")'};ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+    tierRows.push(r);r++;
+  }
+
+  // Description section
+  const descStartRow=r;
+  ws.getCell("B"+r).value="Description:";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true,underline:true};
+  ws.getCell("F"+r).value={formula:'IF(SUM(A'+r+')>0,SUM(A'+r+'*E'+r+'),"")'};ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+  r++;
+  // Write description text across merged cells
+  if(d.description){
+    const descLines=d.description.split("\n").slice(0,4);
+    const descEndRow=r+Math.max(descLines.length-1,2);
+    ws.mergeCells("B"+r+":D"+descEndRow);
+    ws.getCell("B"+r).value=descLines.join("\n");ws.getCell("B"+r).font={name:"Palatino Linotype",size:9};ws.getCell("B"+r).alignment={wrapText:true,vertical:"top"};
+    for(let i=r;i<=descEndRow;i++){ws.getCell("F"+i).fill=shadeFill;ws.getCell("F"+i).numFmt=numFmt;}
+    r=descEndRow+1;
+  }else{r+=3;}
+
+  // Parts section
+  const partsRow=r;
+  ws.getCell("B"+r).value="Parts:";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true,underline:true};
+  ws.getCell("F"+r).value=d.partsTotal||0;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+  if(d.partsDetail&&d.partsDetail.length>0){
+    r++;
+    const pEnd=r+Math.max(d.partsDetail.length-1,1);
+    ws.mergeCells("B"+r+":D"+pEnd);
+    ws.getCell("B"+r).value=d.partsDetail.map(p=>p.desc+" — $"+p.amount.toFixed(2)).join("\n");
+    ws.getCell("B"+r).font={name:"Palatino Linotype",size:9};ws.getCell("B"+r).alignment={wrapText:true,vertical:"top"};
+    for(let i=r;i<=pEnd;i++){ws.getCell("F"+i).fill=shadeFill;ws.getCell("F"+i).numFmt=numFmt;}
+    r=pEnd+1;
+  }else{r+=2;}
+
+  // Totals section
+  r++;
+  const subtotalRow=r;
+  // Build subtotal formula: sum of all tier F cells + parts
+  const tierFCells=tierRows.filter((_,i)=>i<d.tiers.length).map(tr=>"F"+tr).join("+");
+  ws.getCell("E"+r).value="Subtotal";ws.getCell("E"+r).font={name:"Palatino Linotype",size:10,bold:true};ws.getCell("E"+r).fill=shadeFill;
+  ws.getCell("F"+r).value={formula:(tierFCells||"0")+"+F"+partsRow};ws.getCell("F"+r).numFmt=acctFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:10,bold:true};ws.getCell("F"+r).fill=shadeFill;
+  ["A","B","C","D"].forEach(c=>{ws.getCell(c+r).fill=shadeFill;});
+  ws.getCell("E"+r).border={top:thinBorder,bottom:thinBorder};ws.getCell("F"+r).border={top:thinBorder,bottom:thinBorder};
+  r++;
+  ws.getCell("E"+r).value="Sales Tax";ws.getCell("E"+r).font={name:"Palatino Linotype",size:10,bold:true};ws.getCell("E"+r).fill=shadeFill;
+  ws.getCell("F"+r).value=0;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+  ["A","B","C","D"].forEach(c=>{ws.getCell(c+r).fill=shadeFill;});
+  r++;
+  const totalRow=r;
+  ws.mergeCells("A"+r+":F"+r);
+  // Unmerge and redo — total needs E and F separate
+  ws.unMergeCells("A"+r+":F"+r);
+  ws.getCell("E"+r).value="Total";ws.getCell("E"+r).font={name:"Palatino Linotype",size:12,bold:true};ws.getCell("E"+r).fill=shadeFill;
+  ws.getCell("F"+r).value={formula:"F"+subtotalRow+"+F"+(subtotalRow+1)};ws.getCell("F"+r).numFmt=acctFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:12,bold:true};ws.getCell("F"+r).fill=shadeFill;
+  ["A","B","C","D"].forEach(c=>{ws.getCell(c+r).fill=shadeFill;});
+  ws.getCell("E"+r).border={top:{style:"medium",color:{argb:"FF000000"}},bottom:{style:"double",color:{argb:"FF000000"}}};
+  ws.getCell("F"+r).border={top:{style:"medium",color:{argb:"FF000000"}},bottom:{style:"double",color:{argb:"FF000000"}}};
+
+  // Footer
+  r+=2;
+  ws.mergeCells("A"+r+":F"+(r+1));
+  ws.getCell("A"+r).value="Make all checks payable to 3C Refrigeration, LLC\nThank you for your business!";
+  ws.getCell("A"+r).font={name:"Palatino Linotype",size:11,bold:true};ws.getCell("A"+r).alignment={horizontal:"center",wrapText:true};
+
+  const buf=await wb.xlsx.writeBuffer();
+  return buf;
+}
+
+async function buildInvoicePDF(d){
+  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const pw=215.9,lm=20,rm=20,cw=pw-lm-rm;
+  const cyan=[0,180,232],dark=[30,34,42],mid=[100,110,125],light=[240,243,248],shade=[217,226,243];
+  let y=20;
+  const drawLine=(y1,color)=>{doc.setDrawColor(...color);doc.setLineWidth(0.3);doc.line(lm,y1,pw-rm,y1);};
+  const drawRect=(x,y1,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,y1,w,h,"F");};
+
+  // Logo
+  const logo=await fetchLogoBase64();
+  if(logo)doc.addImage(logo,"PNG",lm,y,40,14);
+
+  // INVOICE title
+  doc.setFont("helvetica","bold");doc.setFontSize(22);doc.setTextColor(...dark);
+  doc.text("INVOICE",pw-rm,y+10,{align:"right"});
+  y+=20;
+
+  // Company info
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  const compInfo=["3065 Gwyn Rd.","Elon, N.C. 27244","Phone: 336-264-0935","Email: service@3crefrigeration.com","FAX: (877) 278-4608","N.C. License 4923","Vendor Number "+(d.vendorNumber||"126337")];
+  compInfo.forEach((t,i)=>{doc.text(t,lm,y+i*4);});
+
+  // Right side — date, invoice #, customer ID
+  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...dark);
+  doc.text("Date:",pw-rm-40,y);doc.setFont("helvetica","normal");doc.text(d.date,pw-rm,y,{align:"right"});
+  doc.setFont("helvetica","bold");doc.text("Invoice #:",pw-rm-40,y+5);doc.setFont("helvetica","normal");doc.text(d.invoiceNum,pw-rm,y+5,{align:"right"});
+  doc.setFont("helvetica","bold");doc.text("Customer ID:",pw-rm-40,y+10);doc.setFont("helvetica","normal");doc.text(d.customerId,pw-rm,y+10,{align:"right"});
+  y+=32;
+
+  // Bill To
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
+  doc.text("To:",lm,y);
+  doc.setFont("helvetica","normal");doc.text(d.customerName,lm+10,y);
+  if(d.customerAddress){y+=5;doc.text(d.customerAddress,lm+10,y);}
+  if(d.customerAddress2){y+=5;doc.text(d.customerAddress2,lm+10,y);}
+  y+=12;
+
+  // Separator
+  drawLine(y,shade);y+=4;
+
+  // Order info header
+  drawRect(lm,y,cw,8,shade);
+  doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...dark);
+  const colW=cw/4;
+  doc.text("Purchase Order",lm+2,y+5.5);doc.text("Job",lm+colW+2,y+5.5);doc.text("Payment Terms",lm+colW*2+2,y+5.5);doc.text("Due Date",lm+colW*3+2,y+5.5);
+  y+=8;
+  // Order info values
+  drawRect(lm,y,cw,8,shade);
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  doc.text(d.poNumber||"",lm+2,y+5.5);doc.text(d.jobDesc||"Repairs",lm+colW+2,y+5.5);doc.text(d.paymentTerms||"Net 30",lm+colW*2+2,y+5.5);doc.text(d.dueDate||"",lm+colW*3+2,y+5.5);
+  y+=12;
+
+  // Line items header
+  drawRect(lm,y,cw,8,shade);
+  doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...dark);
+  doc.text("Qty",lm+2,y+5.5);doc.text("Description",lm+22,y+5.5);doc.text("Unit Price",pw-rm-38,y+5.5);doc.text("Line Total",pw-rm-2,y+5.5,{align:"right"});
+  y+=10;
+
+  // Labor label
+  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...dark);
+  doc.text("Labor",lm+22,y+4);y+=7;
+
+  // Labor tiers
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  d.tiers.forEach(t=>{
+    const total=(t.hours||0)*(t.rate||0);
+    doc.text((t.hours||0).toFixed(2),lm+4,y+4);
+    doc.text(t.name,lm+22,y+4);
+    doc.text("$"+(t.rate||0).toFixed(2),pw-rm-38,y+4);
+    doc.setFont("helvetica","bold");
+    doc.text("$"+total.toFixed(2),pw-rm-2,y+4,{align:"right"});
+    doc.setFont("helvetica","normal");
+    drawRect(pw-rm-20,y,20,6,[245,247,250]);
+    doc.text("$"+total.toFixed(2),pw-rm-2,y+4,{align:"right"});
+    y+=7;
+  });
+  y+=3;
+
+  // Description
+  if(d.description){
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.text("Description:",lm+22,y+4);y+=7;
+    doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(...mid);
+    const descLines=doc.splitTextToSize(d.description,cw-30);
+    descLines.slice(0,12).forEach(line=>{doc.text(line,lm+22,y+4);y+=4;});
+    doc.setTextColor(...dark);y+=3;
+  }
+
+  // Parts
+  if(d.partsTotal>0){
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...dark);
+    doc.text("Parts:",lm+22,y+4);
+    doc.text("$"+(d.partsTotal||0).toFixed(2),pw-rm-2,y+4,{align:"right"});
+    y+=7;
+    if(d.partsDetail){
+      doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(...mid);
+      d.partsDetail.forEach(p=>{doc.text(p.desc+" — $"+p.amount.toFixed(2),lm+26,y+4);y+=4;});
+      doc.setTextColor(...dark);
+    }
+    y+=3;
+  }
+
+  // Totals
+  y+=4;drawLine(y,shade);y+=6;
+  const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
+  const subtotal=laborTotal+(d.partsTotal||0);
+  drawRect(pw-rm-60,y,60,8,shade);
+  doc.setFont("helvetica","bold");doc.setFontSize(9);
+  doc.text("Subtotal",pw-rm-58,y+5.5);doc.text("$"+subtotal.toFixed(2),pw-rm-2,y+5.5,{align:"right"});
+  y+=9;
+  drawRect(pw-rm-60,y,60,8,shade);
+  doc.text("Sales Tax",pw-rm-58,y+5.5);doc.text("$0.00",pw-rm-2,y+5.5,{align:"right"});
+  y+=9;
+  drawRect(pw-rm-60,y,60,10,dark);
+  doc.setFontSize(11);doc.setTextColor(255,255,255);
+  doc.text("Total",pw-rm-58,y+7);doc.text("$"+subtotal.toFixed(2),pw-rm-2,y+7,{align:"right"});
+  doc.setTextColor(...dark);
+  y+=20;
+
+  // Footer
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
+  doc.text("Make all checks payable to 3C Refrigeration, LLC",pw/2,y,{align:"center"});
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  doc.text("Thank you for your business!",pw/2,y+6,{align:"center"});
+
+  // Page footer
+  const fy=269;
+  drawLine(fy-4,[220,225,230]);
+  doc.setFontSize(7);doc.setTextColor(...mid);
+  doc.text("3C Refrigeration LLC  |  service@3crefrigeration.com",pw/2,fy,{align:"center"});
+  doc.text("Generated "+new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}),pw/2,fy+4,{align:"center"});
+
+  return doc;
+}
+
+async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
+  const now=new Date();
+  const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const folderPath="3C FieldOps/Invoices/"+now.getFullYear()+"/"+monthNames[now.getMonth()];
+  try{
+    const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64,fileName,mimeType,folderPath})});
+    const result=await resp.json();
+    return result.success?result:null;
+  }catch(e){console.warn("Drive upload failed:",e);return null;}
 }
 
 function POMgmt({pos,onUpdatePO,onDeletePO,wos}){
@@ -982,11 +1267,11 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
 }
 function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
-  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[autoInvoice,setAutoInvoice]=useState(false),[partsMarkup,setPartsMarkup]=useState("25"),[saving,setSaving]=useState(false);
+  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[autoInvoice,setAutoInvoice]=useState(false),[partsMarkup,setPartsMarkup]=useState("25"),[custIdCode,setCustIdCode]=useState(""),[vendorNum,setVendorNum]=useState(""),[saving,setSaving]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
-  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setAutoInvoice(c.auto_invoice||false);setPartsMarkup(c.parts_markup!=null?String(c.parts_markup):"25");setShowForm(true);};
-  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setPartsMarkup("25");setShowForm(true);};
-  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms,auto_invoice:autoInvoice,parts_markup:parseFloat(partsMarkup)||0};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
+  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setAutoInvoice(c.auto_invoice||false);setPartsMarkup(c.parts_markup!=null?String(c.parts_markup):"25");setCustIdCode(c.customer_id_code||"");setVendorNum(c.vendor_number||"");setShowForm(true);};
+  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setPartsMarkup("25");setCustIdCode("");setVendorNum("");setShowForm(true);};
+  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms,auto_invoice:autoInvoice,parts_markup:parseFloat(partsMarkup)||0,customer_id_code:custIdCode.trim()||null,vendor_number:vendorNum.trim()||null};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
   const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
   const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
   return(<div><Toast msg={toast}/>
@@ -1008,6 +1293,10 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
         <div><label style={LS}>Contact Name</label><input value={contact} onChange={e=>setContact(e.target.value)} placeholder="John Smith" style={IS}/></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Phone</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="555-123-4567" style={IS}/></div><div><label style={LS}>Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="john@abc.com" style={IS}/></div></div>
         <div><label style={LS}>Address</label><input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="123 Main St, City, NC" style={IS}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={LS}>Invoice Customer ID <span style={{color:B.textDim,fontWeight:400}}>(e.g. DUFMD)</span></label><input value={custIdCode} onChange={e=>setCustIdCode(e.target.value)} placeholder="Short code" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>Vendor Number <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={vendorNum} onChange={e=>setVendorNum(e.target.value)} placeholder="e.g. 126337" style={{...IS,fontFamily:M}}/></div>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:12}}>
           <div><label style={LS}>Billing Rate ($/hr)</label><input value={billingOverride} onChange={e=>setBillingOverride(e.target.value)} type="number" step="5" placeholder="default" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>Parts Markup (%)</label><input value={partsMarkup} onChange={e=>setPartsMarkup(e.target.value)} type="number" step="5" placeholder="25" style={{...IS,fontFamily:M}}/></div>
@@ -1454,7 +1743,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,wos,pos,time
 function InvoiceGenerator({wos,pos,time,users,customers}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
-  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState("");
+  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
@@ -1480,20 +1769,34 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){const now=new Date();setInvoiceNum(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+"01");}},[]);
 
-  const generateXLSX=async()=>{
+  const buildInvoiceData=()=>{
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
     const tiersData=tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
-    const body={invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.name?.substring(0,10)||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
+    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||customer?.name?.substring(0,10)||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
+  };
+  const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
+  const generateXLSX=async()=>{
+    if(generating)return;setGenerating(true);
     try{
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-invoice",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(body)});
-      if(!resp.ok){msg("Invoice generation failed");return;}
-      const blob=await resp.blob();
+      const d=buildInvoiceData();const buf=await buildInvoiceExcel(d);
+      const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
       const url=URL.createObjectURL(blob);const a=document.createElement("a");
-      a.href=url;a.download="3C_Invoice_"+(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_")+"_"+invoiceNum+".xls";
-      a.click();URL.revokeObjectURL(url);
+      a.href=url;a.download="INV_"+invoiceNum+"_"+safeName+".xlsx";a.click();URL.revokeObjectURL(url);
       msg("Invoice downloaded!");
-    }catch(e){msg("Error: "+e.message);}
+      if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
+    }catch(e){msg("Error: "+e.message);console.error(e);}
+    setGenerating(false);
+  };
+  const generatePDF=async()=>{
+    if(generating)return;setGenerating(true);
+    try{
+      const d=buildInvoiceData();const doc=await buildInvoicePDF(d);
+      doc.save("INV_"+invoiceNum+"_"+safeName+".pdf");
+      msg("PDF downloaded!");
+      if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
+    }catch(e){msg("Error: "+e.message);console.error(e);}
+    setGenerating(false);
   };
 
 
@@ -1566,9 +1869,14 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
           <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0)+(includeParts?partsTotal:0)).toFixed(2)}</span></div>
         </div>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setSaveToDrive(!saveToDrive)}>
+          <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(saveToDrive?B.green:B.border),background:saveToDrive?B.green:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{saveToDrive&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
+          <span style={{fontSize:12,color:B.text}}>Auto-save to Google Drive</span>
+        </label>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setStep(2)} style={{...BS,flex:1}}>Back</button>
-          <button onClick={generateXLSX} style={{...BP,flex:1}}>📄 Download Invoice</button>
+          <button onClick={generateXLSX} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"📊 Excel"}</button>
+          <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,background:B.purple,opacity:generating?.6:1}}>{generating?"Generating...":"📄 PDF"}</button>
         </div>
       </div>
     </Card>}
