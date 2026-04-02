@@ -168,6 +168,8 @@ function FirstSetup({authUser,onDone}){
 
 function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh}){
   const[theme,setThemeState]=useState(_theme);
+  const[isMobile,setIsMobile]=useState(window.innerWidth<768);
+  useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);setThemeState(t);};
   // Keyboard shortcuts — Alt+T for theme, number keys for tabs
   useEffect(()=>{const handler=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT"||e.target.isContentEditable)return;if(e.key>="1"&&e.key<="9"){const idx=parseInt(e.key)-1;if(tabs[idx])setTab(tabs[idx].key);}if(e.key==="t"&&e.altKey)toggleTheme();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[tabs,theme]);
@@ -200,8 +202,10 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
         <button onClick={onLogout} style={{...BS,padding:"5px 12px",fontSize:11,borderRadius:8,transition:"background .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=B.surfaceActive;}} onMouseLeave={e=>{e.currentTarget.style.background=B.bg;}}>Sign Out</button>
       </div>
     </div>
-    <div style={{background:B.surface,padding:"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}</div>
-    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:"20px 14px",overflowY:"auto",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
+    {!isMobile&&<div style={{background:B.surface,padding:"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}</div>}
+    {isMobile&&<div style={{background:B.surface,padding:"0 8px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"8px 10px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:9,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",letterSpacing:0.1}}>{t.icon} {t.label}</button>)}</div>}
+    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?74:20,overflowY:"auto",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
+    {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"6px 0",paddingBottom:"max(6px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,5).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:18,cursor:"pointer",padding:"4px 8px",transition:"color .15s"}}><span>{t.icon}</span><span style={{fontSize:8,fontWeight:tab===t.key?700:500,fontFamily:F,letterSpacing:0.2}}>{t.label}</span></button>)}</div>}
   </div>);
 }
 
@@ -622,6 +626,20 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos}){
     </div></Card></div>);
 }
 
+function SwipeCard({wo,onStatusChange,children}){
+  const ref=useRef(null);const[swipeX,setSwipeX]=useState(0);const startRef=useRef(null);
+  const nextStatus=wo.status==="pending"?"in_progress":wo.status==="in_progress"?"completed":null;
+  const nextLabel=wo.status==="pending"?"→ Active":wo.status==="in_progress"?"→ Done":null;
+  const nextColor=wo.status==="pending"?B.cyan:wo.status==="in_progress"?B.green:null;
+  const ts=(e)=>{if(!nextStatus)return;startRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,t:Date.now()};};
+  const tm=(e)=>{if(!startRef.current)return;const dx=e.touches[0].clientX-startRef.current.x;const dy=Math.abs(e.touches[0].clientY-startRef.current.y);if(dy>dx*0.7){startRef.current=null;setSwipeX(0);return;}if(dx>10)setSwipeX(Math.min(dx,150));};
+  const te=()=>{if(swipeX>80&&nextStatus){haptic(30);onStatusChange(nextStatus);}setSwipeX(0);startRef.current=null;};
+  return(<div ref={ref} onTouchStart={ts} onTouchMove={tm} onTouchEnd={te} style={{position:"relative",overflow:"hidden",borderRadius:10}}>
+    {nextStatus&&swipeX>10&&<div style={{position:"absolute",left:0,top:0,bottom:0,width:swipeX,background:nextColor+"30",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"10px 0 0 10px",transition:swipeX===0?"width .2s":"none"}}><span style={{fontSize:12,fontWeight:700,color:nextColor,whiteSpace:"nowrap"}}>{nextLabel}</span></div>}
+    <div style={{transform:"translateX("+swipeX+"px)",transition:swipeX===0?"transform .2s":"none"}}>{children}</div>
+  </div>);
+}
+
 function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,userName,userRole,loadData}){
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false);
   const toggleBulk=(id)=>setBulkSel(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
@@ -652,7 +670,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
       {flt.map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=calcWOHours(wo.id,timeEntries);const noTime=wo.status==="in_progress"&&woHrs===0;return(
-        <Card key={wo.id} style={{padding:"14px 16px",marginBottom:6}}>
+        <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{const upd={...wo,status:st};if(st==="completed")upd.date_completed=new Date().toISOString().slice(0,10);await onUpdateWO(upd);}}><Card style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:800}}>✓</span>}</button>}
             <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
@@ -675,7 +693,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
               <button onClick={async e=>{e.stopPropagation();await onUpdateWO({...wo,tms_entered:!wo.tms_entered});}} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:4,border:"1px solid "+(wo.tms_entered?B.green:B.orange),background:wo.tms_entered?B.green+"18":B.orange+"18",color:wo.tms_entered?B.green:B.orange,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:F}}><span style={{width:14,height:14,borderRadius:3,border:"2px solid "+(wo.tms_entered?B.green:B.orange),background:wo.tms_entered?B.green:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{wo.tms_entered&&<span style={{color:"#fff",fontSize:9,lineHeight:1}}>✓</span>}</span>TMS</button>
             </div>
           </div>
-        </Card>);})}
+        </Card></SwipeCard>);})}
     </div></div>);
 }
 
@@ -1112,6 +1130,34 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
 // ═══════════════════════════════════════════
 // DASHBOARD ANALYTICS
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// GLOBAL ACTIVITY FEED
+// ═══════════════════════════════════════════
+function GlobalActivityFeed(){
+  const[feed,setFeed]=useState([]),[show,setShow]=useState(false),[loading,setLoading]=useState(false);
+  const load=async()=>{setLoading(true);const{data}=await sb().from("wo_activity").select("*").order("created_at",{ascending:false}).limit(30);setFeed(data||[]);setLoading(false);};
+  useEffect(()=>{if(show&&feed.length===0)load();},[show]);
+  const timeAgo=(d)=>{const ms=Date.now()-new Date(d).getTime();const m=Math.floor(ms/60000);if(m<1)return"just now";if(m<60)return m+"m ago";const h=Math.floor(m/60);if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago";};
+  const actionIcon=(a)=>a==="created"?"🆕":a==="completed"?"✅":a==="updated"?"✏️":"📝";
+  return(<Card style={{marginBottom:16}}>
+    <button onClick={()=>{setShow(!show);if(!show&&feed.length===0)load();}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",background:"none",border:"none",cursor:"pointer",padding:0}}>
+      <span style={{fontSize:13,fontWeight:700,color:B.text}}>📡 Activity Feed</span>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>{show&&<button onClick={e=>{e.stopPropagation();load();}} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",fontWeight:600}}>Refresh</button>}<span style={{color:B.textDim,fontSize:12}}>{show?"▾":"▸"}</span></div>
+    </button>
+    {show&&<div style={{marginTop:12,maxHeight:300,overflowY:"auto"}}>
+      {loading&&<div style={{textAlign:"center",padding:12,color:B.textDim,fontSize:11}}>Loading...</div>}
+      {!loading&&feed.length===0&&<div style={{textAlign:"center",padding:12,color:B.textDim,fontSize:11}}>No activity yet</div>}
+      {feed.map(a=><div key={a.id} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:"1px solid "+B.border}}>
+        <span style={{fontSize:14,flexShrink:0,marginTop:2}}>{actionIcon(a.action)}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,color:B.text}}>{a.details||a.action}</div>
+          <div style={{fontSize:9,color:B.textDim,marginTop:2}}>{a.actor} · {timeAgo(a.created_at)}</div>
+        </div>
+      </div>)}
+    </div>}
+  </Card>);
+}
+
 function DashAnalytics({wos,time,pos}){
   const weeks=[];const now=new Date();
   for(let i=3;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
@@ -1557,11 +1603,16 @@ function TechDash({user,onLogout,D,A,syncing}){
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
   const submitQuickLog=async()=>{if(!qlWO||!qlH||qlSaving)return;if(cleanText(qlD,"Description")===null)return;setQlSaving(true);const h=parseFloat(qlH)||0;await A.addTime({wo_id:qlWO,hours:h,description:qlD.trim()||"Work performed",logged_date:qlDate});setQlSaving(false);setQuickLog(false);setQlWO("");setQlH("");setQlD("");};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="today"&&<>
-      {myActive.filter(o=>{if(o.status!=="in_progress")return false;const lastTime=D.time.filter(t=>t.wo_id===o.id).sort((a,b)=>(b.logged_date||"").localeCompare(a.logged_date||""))[0];if(!lastTime)return true;const last=new Date(lastTime.logged_date);const hrs=(Date.now()-last.getTime())/3600000;return hrs>8;}).map(wo=><div key={wo.id+"reminder"} style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:18}}>⏰</span>
-        <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:B.orange}}>Time reminder</div><div style={{fontSize:11,color:B.textMuted}}>Still working on <strong>{wo.wo_id}</strong>? Don't forget to log your hours.</div></div>
-      </div>)}
+    {tab==="today"&&<>{(()=>{const noTimeToday=myActive.filter(o=>o.status==="in_progress"&&!D.time.some(t=>t.wo_id===o.id&&t.logged_date===todayStr));const isAfternoon=new Date().getHours()>=15;return<>
+      {noTimeToday.length>0&&<div style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><span style={{fontSize:16}}>⏰</span><span style={{fontSize:13,fontWeight:700,color:B.orange}}>You have {noTimeToday.length} active WO{noTimeToday.length!==1?"s":""} with no time logged today</span></div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{noTimeToday.map(wo=><span key={wo.id} style={{fontFamily:M,fontSize:11,color:B.cyan,background:B.cyan+"18",padding:"3px 8px",borderRadius:4,cursor:"pointer"}} onClick={()=>{setQlWO(wo.id);setQuickLog(true);}}>{wo.wo_id}</span>)}</div>
+      </div>}
+      {isAfternoon&&todayHours<4&&myActive.length>0&&<div style={{background:B.red+"15",border:"1px solid "+B.red+"33",borderRadius:8,padding:"10px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:16}}>⚠️</span>
+        <div style={{fontSize:12,color:B.red,fontWeight:600}}>It's past 3pm and you have only {todayHours.toFixed(1)}h logged today. Don't forget to log your time before end of day.</div>
+      </div>}
+      </>;})()}
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
         <StatCard label="Active Jobs" value={myActive.length} icon="🔧" color={B.cyan}/>
         <StatCard label="Today's Hours" value={todayHours.toFixed(1)+"h"} icon="⏱" color={B.green}/>
@@ -1610,7 +1661,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
+    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
@@ -1630,7 +1681,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
+    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
