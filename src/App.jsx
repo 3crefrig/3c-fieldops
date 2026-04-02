@@ -1726,6 +1726,9 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as sent");};
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
   const del=async(inv)=>{if(!window.confirm("Delete invoice "+inv.invoice_num+"?"))return;await onDeleteInvoice(inv);msg("Deleted");};
+  const rebuildData=(inv)=>{const c=customers.find(x=>x.name===inv.customer);const terms=c?.payment_terms||"Net 30";const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;const issued=inv.date_issued?new Date(inv.date_issued):new Date();const due=new Date(issued);due.setDate(due.getDate()+netDays);const invPOs=pos.filter(p=>inv.wo_ids&&inv.wo_ids.some(wid=>{const wo=wos.find(w=>w.wo_id===wid||w.id===wid);return wo&&p.wo_id===wo.id;})&&p.status==="approved");const mkup=c?.parts_markup!=null?parseFloat(c.parts_markup):35;const partsDetail=invPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+mkup/100)*100)/100}));return{invoiceNum:inv.invoice_num,date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null};};
+  const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
+  const regenPDF=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const doc=await buildInvoicePDF(d);doc.save("INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf");msg("PDF downloaded!");}catch(e){msg("Error: "+e.message);}};
 
   const ISC={draft:B.purple,sent:B.cyan,paid:B.green,overdue:B.red};
   const ISL={draft:"Draft",sent:"Sent",paid:"Paid",overdue:"Overdue"};
@@ -1765,7 +1768,9 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 </div>
                 {inv.job_desc&&<div style={{fontSize:10,color:B.textDim,marginTop:2,fontStyle:"italic"}}>{inv.job_desc}</div>}
               </div>
-              <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
+                <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"5px 10px",fontSize:11}} title="Download Excel">📊</button>
+                <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"5px 10px",fontSize:11}} title="Download PDF">📄</button>
                 {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"5px 10px",fontSize:11}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Mark Paid</button>}
                 <button onClick={()=>del(inv)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
