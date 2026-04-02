@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText } from "../shared";
-import { Card, Badge, Modal, Toast, Spinner, CustomSelect } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Logo } from "./ui";
 import { jsPDF } from "jspdf";
 
 async function fetchLogoBase64(){
