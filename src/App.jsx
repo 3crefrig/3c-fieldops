@@ -590,12 +590,6 @@ async function buildInvoicePDF(d){
     doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
     txt(d.customerId,cidX,y+12);
   }
-  if(d.vendorNumber){
-    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);
-    txt("VENDOR #",cidX,y+19);
-    doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
-    txt(d.vendorNumber,cidX,y+25.5);
-  }
   y+=billH+6;
 
   // ── Order info row ──
