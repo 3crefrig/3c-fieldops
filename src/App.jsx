@@ -803,7 +803,7 @@ function ActivityLog({woId}){
   </div>);
 }
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData}){
-  const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1);
+  const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
   const[showFollowUp,setShowFollowUp]=useState(false),[fuNotes,setFuNotes]=useState("");
   const[showEdit,setShowEdit]=useState(false),[editWO,setEditWO]=useState({});
@@ -901,7 +901,10 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
       {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
         {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span></div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge></div></div>})}
-        {canEdit&&<button onClick={()=>setShowPO(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Request PO</button>}
+        {canEdit&&<div style={{display:"flex",gap:8,marginTop:10}}>
+          <button onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
+          <button onClick={()=>setShowReceipt(true)} style={{...BS,flex:1,padding:12}}>🧾 Scan Receipt</button>
+        </div>}
       </Card>}
 
       {wo.signature&&<Card style={{marginBottom:8}}><span style={LS}>Completion Signature</span><div style={{marginTop:4}}><img src={wo.signature} alt="Sig" style={{maxWidth:280,height:"auto",display:"block",borderRadius:6}}/></div></Card>}
@@ -925,6 +928,47 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
     {/* MODALS */}
     {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>setShowPO(false)} userName={userName} userRole={userRole}/>}
+    {showReceipt&&<Modal title="Scan Receipt / Invoice" onClose={()=>{setShowReceipt(false);setReceiptData(null);}} wide>
+      {!receiptData?<div style={{display:"flex",flexDirection:"column",gap:14,alignItems:"center"}}>
+        <div style={{fontSize:40,marginBottom:4}}>🧾</div>
+        <div style={{fontSize:13,color:B.textMuted,textAlign:"center"}}>Take a photo of a vendor receipt or invoice. Claude will extract the vendor, amount, and line items automatically.</div>
+        <input type="file" accept="image/*" capture="environment" onChange={async(e)=>{
+          const file=e.target.files?.[0];if(!file)return;setScanningReceipt(true);
+          try{const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+            const resp=await fetch(SUPABASE_URL+"/functions/v1/scan-receipt",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({imageBase64:b64,mimeType:file.type,woId:wo.id})});
+            const result=await resp.json();
+            if(result.success)setReceiptData(result);else{msg("Scan failed: "+(result.error||"Unknown error"));}
+          }catch(err){msg("Error: "+err.message);}setScanningReceipt(false);
+        }} style={{display:"none"}} id="receipt-input"/>
+        <button onClick={()=>document.getElementById("receipt-input")?.click()} disabled={scanningReceipt} style={{...BP,width:"100%",padding:16,fontSize:14}}>
+          {scanningReceipt?"🔄 Scanning with Claude...":"📷 Take Photo / Choose Image"}
+        </button>
+        {scanningReceipt&&<div style={{fontSize:11,color:B.textDim}}>This may take a few seconds...</div>}
+      </div>:<div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{background:B.green+"15",border:"1px solid "+B.green+"33",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16}}>✅</span><span style={{fontSize:13,fontWeight:600,color:B.green}}>Receipt scanned successfully</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={LS}>Vendor</label><div style={{...IS,background:B.surfaceActive}}>{receiptData.extracted?.vendor_name||"—"}</div></div>
+          <div><label style={LS}>Total Amount</label><div style={{...IS,background:B.surfaceActive,fontFamily:M,fontWeight:700}}>${(receiptData.extracted?.total_amount||0).toFixed(2)}</div></div>
+          <div><label style={LS}>Date</label><div style={{...IS,background:B.surfaceActive}}>{receiptData.extracted?.date||"—"}</div></div>
+          <div><label style={LS}>Receipt #</label><div style={{...IS,background:B.surfaceActive}}>{receiptData.extracted?.receipt_number||"—"}</div></div>
+        </div>
+        {receiptData.extracted?.line_items?.length>0&&<div>
+          <label style={LS}>Line Items</label>
+          {receiptData.extracted.line_items.map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid "+B.border,fontSize:12}}><span style={{color:B.text}}>{it.description}{it.quantity>1?" ×"+it.quantity:""}</span><span style={{fontFamily:M,color:B.cyan}}>${(it.amount||0).toFixed(2)}</span></div>)}
+        </div>}
+        {receiptData.matchedPO&&<div style={{background:B.cyan+"15",border:"1px solid "+B.cyan+"33",borderRadius:8,padding:"10px 14px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:B.cyan}}>Matched to PO {receiptData.matchedPO.po_id}</div>
+          <div style={{fontSize:11,color:B.textDim}}>{receiptData.matchedPO.description} — ${parseFloat(receiptData.matchedPO.amount||0).toFixed(2)}</div>
+        </div>}
+        {!receiptData.matchedPO&&<div style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"10px 14px",fontSize:12,color:B.orange}}>No matching PO found. You can create one below.</div>}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setShowReceipt(false);setReceiptData(null);}} style={{...BS,flex:1}}>Close</button>
+          {!receiptData.matchedPO&&<button onClick={()=>{setShowReceipt(false);setShowPO(true);}} style={{...BP,flex:1}}>Create PO from Receipt</button>}
+        </div>
+      </div>}
+    </Modal>}
     {showComplete&&<Modal title={completeStep===1?"Log Time":"Review & Sign"} onClose={()=>setShowComplete(false)} wide><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{background:B.bg,borderRadius:8,padding:14,border:"1px solid "+B.border}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{wo.wo_id} — {wo.title}</div></div>
       <div style={{display:"flex",gap:6,justifyContent:"center",alignItems:"center"}}><div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:completeStep>=1?B.cyan:B.border,color:completeStep>=1?B.bg:B.textDim}}>1</div><div style={{width:24,height:2,background:completeStep>=2?B.cyan:B.border}}/><div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:completeStep>=2?B.cyan:B.border,color:completeStep>=2?B.bg:B.textDim}}>2</div></div>
@@ -1652,6 +1696,76 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
 // ═══════════════════════════════════════════
 // GLOBAL ACTIVITY FEED
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// CALENDAR — Company events, holidays, deadlines
+// ═══════════════════════════════════════════
+function CompanyCalendar({userRole,wos,userName}){
+  const[events,setEvents]=useState([]),[loading,setLoading]=useState(true),[month,setMonth]=useState(new Date());
+  const[showForm,setShowForm]=useState(false),[title,setTitle]=useState(""),[desc,setDesc]=useState(""),[eDate,setEDate]=useState(""),[eType,setEType]=useState("event"),[saving,setSaving]=useState(false),[toast,setToast]=useState("");
+  const isMgr=userRole==="admin"||userRole==="manager";
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  const load=async()=>{const{data}=await sb().from("company_events").select("*").order("event_date");setEvents(data||[]);setLoading(false);};
+  useEffect(()=>{load();},[]);
+
+  const save=async()=>{if(!title.trim()||!eDate||saving)return;setSaving(true);await sb().from("company_events").insert({title:title.trim(),description:desc.trim(),event_date:eDate,event_type:eType});setSaving(false);setShowForm(false);setTitle("");setDesc("");setEDate("");load();msg("Event added");};
+  const del=async(ev)=>{await sb().from("company_events").delete().eq("id",ev.id);load();msg("Deleted");};
+
+  // Calendar grid
+  const y=month.getFullYear(),m=month.getMonth();
+  const firstDay=new Date(y,m,1).getDay();const daysInMonth=new Date(y,m+1,0).getDate();
+  const days=[];for(let i=0;i<firstDay;i++)days.push(null);for(let d=1;d<=daysInMonth;d++)days.push(d);
+  const today=new Date();const todayStr=today.toISOString().slice(0,10);
+  const pad=d=>String(d).padStart(2,"0");
+  const dateStr=d=>y+"-"+pad(m+1)+"-"+pad(d);
+  // Merge events + WO due dates
+  const getDateItems=(d)=>{if(!d)return[];const ds=dateStr(d);const evts=events.filter(e=>e.event_date===ds);const dues=(wos||[]).filter(w=>w.due_date===ds&&w.status!=="completed"&&(w.assignee===userName||(w.crew&&w.crew.includes(userName))));return[...evts.map(e=>({...e,kind:"event"})),...dues.map(w=>({id:w.id,title:w.wo_id+": "+w.title,event_type:"wo_due",kind:"wo"}))];};
+  const typeColors={holiday:B.red,event:B.cyan,deadline:B.orange,meeting:B.purple,wo_due:B.green};
+
+  return(<div><Toast msg={toast}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <button onClick={()=>setMonth(new Date(y,m-1))} style={{...BS,padding:"6px 12px",fontSize:14}}>←</button>
+        <span style={{fontSize:16,fontWeight:800,color:B.text,fontFamily:F,minWidth:160,textAlign:"center"}}>{month.toLocaleString("default",{month:"long",year:"numeric"})}</span>
+        <button onClick={()=>setMonth(new Date(y,m+1))} style={{...BS,padding:"6px 12px",fontSize:14}}>→</button>
+      </div>
+      {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12}}>+ Add Event</button>}
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+      {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:B.textDim,padding:"6px 0",letterSpacing:.5}}>{d}</div>)}
+      {days.map((d,i)=>{const items=getDateItems(d);const isToday=d&&dateStr(d)===todayStr;return<div key={i} style={{minHeight:70,padding:4,background:d?B.surface:B.bg,border:"1px solid "+(isToday?B.cyan:B.border),borderRadius:6,position:"relative"}}>
+        {d&&<div style={{fontSize:11,fontWeight:isToday?800:500,color:isToday?B.cyan:B.text,marginBottom:2}}>{d}</div>}
+        {items.slice(0,3).map(it=><div key={it.id} style={{fontSize:8,padding:"2px 4px",marginBottom:1,borderRadius:3,background:(typeColors[it.event_type]||B.cyan)+"22",color:typeColors[it.event_type]||B.cyan,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.title}</div>)}
+        {items.length>3&&<div style={{fontSize:7,color:B.textDim}}>+{items.length-3} more</div>}
+      </div>})}
+    </div>
+
+    {/* Upcoming events list */}
+    <div style={{marginTop:16}}><span style={{...LS,fontSize:10}}>UPCOMING</span>
+      {events.filter(e=>e.event_date>=todayStr).slice(0,10).map(e=><div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:typeColors[e.event_type]||B.cyan,flexShrink:0}}/>
+          <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{e.title}</div><div style={{fontSize:10,color:B.textDim}}>{new Date(e.event_date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})} · <Badge color={typeColors[e.event_type]||B.cyan}>{e.event_type}</Badge></div></div>
+        </div>
+        {isMgr&&<button onClick={()=>del(e)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:12}}>✕</button>}
+      </div>)}
+      {events.filter(e=>e.event_date>=todayStr).length===0&&<div style={{padding:20,textAlign:"center",color:B.textDim,fontSize:12}}>No upcoming events</div>}
+    </div>
+
+    {showForm&&<Modal title="Add Event" onClose={()=>setShowForm(false)}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Company Holiday, Team Meeting..." style={IS}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={LS}>Date</label><input value={eDate} onChange={e=>setEDate(e.target.value)} type="date" style={IS}/></div>
+          <div><label style={LS}>Type</label><select value={eType} onChange={e=>setEType(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="event">Event</option><option value="holiday">Holiday</option><option value="deadline">Deadline</option><option value="meeting">Meeting</option></select></div>
+        </div>
+        <div><label style={LS}>Description (optional)</label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Details..." style={IS}/></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={save} disabled={saving} style={{...BP,flex:1}}>{saving?"Saving...":"Add Event"}</button></div>
+      </div>
+    </Modal>}
+  </div>);
+}
+
 function GlobalActivityFeed(){
   const[feed,setFeed]=useState([]),[show,setShow]=useState(false),[loading,setLoading]=useState(false);
   const load=async()=>{setLoading(true);const{data}=await sb().from("wo_activity").select("*").order("created_at",{ascending:false}).limit(30);setFeed(data||[]);setLoading(false);};
@@ -2162,7 +2276,8 @@ function TechDash({user,onLogout,D,A,syncing}){
   const recentWOs=[...my].sort((a,b)=>{const aT=D.time.filter(t=>t.wo_id===a.id).sort((x,y)=>(y.logged_date||"").localeCompare(x.logged_date||""))[0];const bT=D.time.filter(t=>t.wo_id===b.id).sort((x,y)=>(y.logged_date||"").localeCompare(x.logged_date||""))[0];return((bT?.logged_date||b.created_at)||"").localeCompare((aT?.logged_date||a.created_at)||"");}).slice(0,5);
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
   const submitQuickLog=async()=>{if(!qlWO||!qlH||qlSaving)return;if(cleanText(qlD,"Description")===null)return;setQlSaving(true);const h=parseFloat(qlH)||0;await A.addTime({wo_id:qlWO,hours:h,description:qlD.trim()||"Work performed",logged_date:qlDate});setQlSaving(false);setQuickLog(false);setQlWO("");setQlH("");setQlD("");};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
     {tab==="today"&&<>{(()=>{const noTimeToday=myActive.filter(o=>o.status==="in_progress"&&!D.time.some(t=>t.wo_id===o.id&&t.logged_date===todayStr));const isAfternoon=new Date().getHours()>=15;return<>
       {noTimeToday.length>0&&<div style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><span style={{fontSize:16}}>⏰</span><span style={{fontSize:13,fontWeight:700,color:B.orange}}>You have {noTimeToday.length} active WO{noTimeToday.length!==1?"s":""} with no time logged today</span></div>
@@ -2220,7 +2335,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");const[navWOId,setNavWOId]=useState(null);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
@@ -2232,6 +2347,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
+    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
   </Shell>);
 }
@@ -2240,7 +2356,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");const[navWOId,setNavWOId]=useState(null);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
@@ -2253,6 +2369,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="settings"&&<Settings emailTemplates={D.emailTemplates} onAddTemplate={A.addEmailTemplate} onUpdateTemplate={A.updateEmailTemplate} onDeleteTemplate={A.deleteEmailTemplate}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
+    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
   </Shell>);
 }
@@ -2353,6 +2470,9 @@ function App(){
       }
     };
     checkRecurringPMs();
+    // Check for WOs approaching deadline (within 2 days)
+    const checkDeadlines=async()=>{const twoDays=new Date(Date.now()+2*86400000).toISOString().slice(0,10);const today=new Date().toISOString().slice(0,10);const{data:due}=await client.from("work_orders").select("wo_id,title,due_date,assignee").neq("status","completed").gte("due_date",today).lte("due_date",twoDays);if(due&&due.length>0){for(const w of due){const{data:existing}=await client.from("notifications").select("id").eq("type","deadline_warning").ilike("message","%"+w.wo_id+"%").gte("created_at",today);if(!existing||existing.length===0)await client.from("notifications").insert({type:"deadline_warning",title:"Deadline Approaching",message:w.wo_id+" — "+w.title+" is due "+w.due_date,for_role:null});}}};
+    checkDeadlines();
     return()=>{client.removeChannel(chan);clearInterval(poll);document.removeEventListener("visibilitychange",onVis);};
   },[authUser,loadData]);
 
@@ -2391,14 +2511,26 @@ function App(){
     logActivity:async(woId,action,details)=>{try{await sb().from("wo_activity").insert({wo_id:woId,action,details,actor:appUser?.name||"System"});}catch(e){}},
     createWO:withSync(async(wo)=>{if(wo.title)wo.title=autoCorrect(wo.title);if(wo.notes)wo.notes=autoCorrect(wo.notes);if(wo.location)wo.location=autoCorrect(wo.location);const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);const{data:inserted}=await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0}).select("id").single();await notify("wo_created","New Work Order",newId+": "+wo.title);if(inserted)await sb().from("wo_activity").insert({wo_id:inserted.id,action:"created",details:"Work order created",actor:appUser?.name||"System"});}),
     updateWO:withTableSync("work_orders",async(wo)=>{if(wo.title)wo.title=autoCorrect(wo.title);if(wo.notes)wo.notes=autoCorrect(wo.notes);if(wo.work_performed)wo.work_performed=autoCorrect(wo.work_performed);if(wo.field_notes)wo.field_notes=autoCorrect(wo.field_notes);const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.assignee&&rest.assignee!==old?.assignee&&rest.assignee!=="Unassigned")await notify("wo_assigned","WO Assigned",(old?.wo_id||"")+" assigned to "+rest.assignee,"technician");if(rest.status==="completed"&&old?.status!=="completed"){await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");await tryAutoInvoice({...old,...rest});}}),
-    deleteWO:withTableSync("work_orders",async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
+    deleteWO:withTableSync("work_orders",async(id)=>{const wo=data.wos.find(w=>w.id===id);if(wo?.invoiced){alert("This WO has been invoiced and cannot be deleted.");return;}const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
     createPO:withSync(async(po)=>{if(po.description)po.description=autoCorrect(po.description);if(po.notes)po.notes=autoCorrect(po.notes);const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
-    updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
+    updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;const old=data.pos.find(p=>p.id===id);await sb().from("purchase_orders").update(rest).eq("id",id);if(rest.status&&rest.status!==old?.status){if(rest.status==="approved")await notify("po_approved","PO Approved",(old?.po_id||"")+" approved — $"+(rest.amount||old?.amount||0),"technician");if(rest.status==="rejected")await notify("po_rejected","PO Rejected",(old?.po_id||"")+" rejected","technician");}}),
     deletePO:withTableSync("purchase_orders",async(po)=>{await sb().from("purchase_orders").delete().eq("id",po.id);}),
     createInvoice:withTableSync("invoices",async(inv)=>{await sb().from("invoices").insert(inv);}),
     updateInvoice:withTableSync("invoices",async(inv)=>{const{id,...rest}=inv;await sb().from("invoices").update(rest).eq("id",id);}),
     deleteInvoice:withTableSync("invoices",async(inv)=>{await sb().from("invoices").delete().eq("id",inv.id);}),
-    addTime:withTableSync("time_entries",async(te)=>{if(te.description)te.description=autoCorrect(te.description);await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
+    addTime:withTableSync("time_entries",async(te)=>{
+      if(te.description)te.description=autoCorrect(te.description);
+      // Auto-round to quarter hour
+      const h=Math.round((parseFloat(te.hours)||0)*4)/4;
+      // Daily hours validation
+      const logDate=te.logged_date||new Date().toISOString().slice(0,10);
+      const dayHrs=data.time.filter(t=>t.technician===appUser.name&&t.logged_date===logDate).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+      if(dayHrs+h>12){alert("Warning: This would put you over 12 hours for "+logDate+" ("+(dayHrs+h).toFixed(1)+"h). Entry blocked.");return;}
+      await sb().from("time_entries").insert({...te,hours:h,technician:appUser.name,logged_date:logDate});
+      // Auto-transition pending → in_progress on first time entry
+      const wo=data.wos.find(w=>w.id===te.wo_id);
+      if(wo&&wo.status==="pending"){await sb().from("work_orders").update({status:"in_progress"}).eq("id",wo.id);await sb().from("wo_activity").insert({wo_id:wo.id,action:"updated",details:"Status → in_progress (auto on first time entry)",actor:appUser?.name||"System"});}
+    }),
     updateTime:withTableSync("time_entries",async(te)=>{if(te.description)te.description=autoCorrect(te.description);const{id,...rest}=te;await sb().from("time_entries").update(rest).eq("id",id);}),
     deleteTime:withTableSync("time_entries",async(id)=>{await sb().from("time_entries").delete().eq("id",id);}),
     addPhoto:withTableSync("photos",async(ph)=>{await sb().from("photos").insert({...ph,uploaded_by:appUser.name,drive_synced:true});}),
