@@ -69,7 +69,6 @@ Supporting: `schedule`, `recurring_templates`, `notifications`, `email_templates
 - Project ID: gwwijjkahwieschfdfbq
 - URL: https://gwwijjkahwieschfdfbq.supabase.co
 - Anon Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3d2lqamthaHdpZXNjaGZkZmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NjI1NzYsImV4cCI6MjA4ODIzODU3Nn0.c79jtEZv9CQ8P2CC6NXyrKqax510530tAMhLnNt75TI
-- Management API Token: sbp_7527fb74ced99be31e87380e5cf76c78c9156b03
 - Google Service Account: fieldops-mailer@c-field-ops.iam.gserviceaccount.com
 - Logo URL: https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png
 
