@@ -885,7 +885,7 @@ function Reports({wos,pos,timeEntries,users,customers}){
       <div style={{marginTop:8}}>{[...new Set(fWOs.map(w=>w.customer).filter(Boolean))].map(c=>{
         const cWOs=fWOs.filter(w=>w.customer===c);const cTime=fTime.filter(t=>cWOs.some(w=>w.id===t.wo_id));const hrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
         const cust=(customers||[]).find(x=>x.name===c);const rate=cust?.billing_rate_override||120;const rev=hrs*rate;
-        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poCost=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const cmk=cust?.parts_markup!=null?parseFloat(cust.parts_markup):25;const poSpend=Math.round(poCost*(1+cmk/100)*100)/100;
         return(<div key={c} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
           <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{c}</div><div style={{fontSize:10,color:B.textDim}}>{cWOs.length} jobs · {hrs.toFixed(1)}h</div></div>
           <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.green}}>${rev.toLocaleString()}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
@@ -964,11 +964,11 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
 }
 function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
-  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[autoInvoice,setAutoInvoice]=useState(false),[saving,setSaving]=useState(false);
+  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[autoInvoice,setAutoInvoice]=useState(false),[partsMarkup,setPartsMarkup]=useState("25"),[saving,setSaving]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
-  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setAutoInvoice(c.auto_invoice||false);setShowForm(true);};
-  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setShowForm(true);};
-  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms,auto_invoice:autoInvoice};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
+  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setAutoInvoice(c.auto_invoice||false);setPartsMarkup(c.parts_markup!=null?String(c.parts_markup):"25");setShowForm(true);};
+  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setPartsMarkup("25");setShowForm(true);};
+  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms,auto_invoice:autoInvoice,parts_markup:parseFloat(partsMarkup)||0};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
   const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
   const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
   return(<div><Toast msg={toast}/>
@@ -990,8 +990,9 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
         <div><label style={LS}>Contact Name</label><input value={contact} onChange={e=>setContact(e.target.value)} placeholder="John Smith" style={IS}/></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Phone</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="555-123-4567" style={IS}/></div><div><label style={LS}>Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="john@abc.com" style={IS}/></div></div>
         <div><label style={LS}>Address</label><input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="123 Main St, City, NC" style={IS}/></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={LS}>Billing Rate Override ($/hr)</label><input value={billingOverride} onChange={e=>setBillingOverride(e.target.value)} type="number" step="5" placeholder="default" style={{...IS,fontFamily:M}}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+          <div><label style={LS}>Billing Rate ($/hr)</label><input value={billingOverride} onChange={e=>setBillingOverride(e.target.value)} type="number" step="5" placeholder="default" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>Parts Markup (%)</label><input value={partsMarkup} onChange={e=>setPartsMarkup(e.target.value)} type="number" step="5" placeholder="25" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>Payment Terms</label><select value={payTerms} onChange={e=>setPayTerms(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="Due on Receipt">Due on Receipt</option></select></div>
         </div>
         <div onClick={()=>setAutoInvoice(!autoInvoice)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:autoInvoice?B.cyan+"15":B.bg,border:"1px solid "+(autoInvoice?B.cyan:B.border),borderRadius:8,cursor:"pointer",transition:"all .15s"}}>
@@ -1446,7 +1447,9 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   const techHours={};filteredTime.forEach(t=>{if(!techHours[t.technician])techHours[t.technician]=0;techHours[t.technician]+=parseFloat(t.hours||0);});
   // POs for filtered WOs
   const filteredPOs=pos.filter(p=>filteredWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");
-  const partsTotal=filteredPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const partsCost=filteredPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const markupPct=customer?.parts_markup!=null?parseFloat(customer.parts_markup):25;
+  const partsTotal=Math.round(partsCost*(1+markupPct/100)*100)/100;
   // PM/CM counts
   const pmCount=filteredWOs.filter(w=>w.wo_type==="PM").length;
   const cmCount=filteredWOs.filter(w=>w.wo_type==="CM").length;
@@ -1462,7 +1465,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
     Object.entries(tierAssign).forEach(([tech,tier])=>{if(tier&&tierHours[tier]!==undefined)tierHours[tier]+=(techHours[tech]||0);});
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
     const tiersData=tiers.map(t=>({name:t.name,rate:t.rate,hours:tierHours[t.name]||0})).filter(t=>t.hours>0||tiers.length<=3);
-    const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:parseFloat(p.amount||0)}));
+    const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
     const body={invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.name?.substring(0,10)||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
     try{
       const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-invoice",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(body)});
@@ -1489,7 +1492,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
         </div>
         {cust&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
           <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WOs · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> techs · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
-          {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsTotal.toLocaleString()} in approved POs</div>}
+          {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed ("+markupPct+"% markup)"}</div>}
         </div>}
         <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(filteredWOs.length===0){msg("No completed WOs found");return;}setStep(2);}} style={{...BP}} disabled={!cust||filteredWOs.length===0}>Next: Assign Labor Tiers</button>
       </div>
@@ -1536,7 +1539,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
           </label>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeParts(!includeParts)}>
             <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeParts?B.cyan:B.border),background:includeParts?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeParts&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
-            <span style={{fontSize:12,color:B.text}}>Include parts / materials ({"$"+partsTotal.toLocaleString()})</span>
+            <span style={{fontSize:12,color:B.text}}>Include parts / materials ({"$"+partsTotal.toLocaleString()}) <span style={{fontSize:10,color:B.textDim}}>{markupPct}% markup on ${partsCost.toLocaleString()} cost</span></span>
           </label>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeBreakdown(!includeBreakdown)}>
             <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeBreakdown?B.cyan:B.border),background:includeBreakdown?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeBreakdown&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
@@ -1891,7 +1894,9 @@ function App(){
     const invTime=data.time.filter(t=>toInvoice.some(w=>w.id===t.wo_id));
     const techHours={};invTime.forEach(t=>{if(!techHours[t.technician])techHours[t.technician]=0;techHours[t.technician]+=parseFloat(t.hours||0);});
     const invPOs=data.pos.filter(p=>toInvoice.some(w=>w.id===p.wo_id)&&p.status==="approved");
-    const partsTotal=invPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const partsCost=invPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const mkup=cust.parts_markup!=null?parseFloat(cust.parts_markup):25;
+    const partsTotal=Math.round(partsCost*(1+mkup/100)*100)/100;
     // Build tiers from tech rates
     const tierMap={};Object.keys(techHours).forEach(tech=>{const u=data.users.find(x=>x.name===tech);const rate=cust.billing_rate_override||(u?.billing_rate)||120;const tierName=rate>=130?"Licensed Technician":rate>=100?"Senior Technician":"Technician";if(!tierMap[tierName])tierMap[tierName]={name:tierName,rate,hours:0};tierMap[tierName].hours+=techHours[tech];});
     const tiers=Object.values(tierMap);
