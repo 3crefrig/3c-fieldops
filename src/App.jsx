@@ -37,7 +37,7 @@ const autoCorrect=(text)=>{if(!text||typeof text!=="string")return text;let t=te
 let _profanityToast=null;
 const setProfanityHandler=(fn)=>{_profanityToast=fn;};
 const cleanText=(text,fieldName)=>{const corrected=autoCorrect(text);if(hasProfanity(corrected)){if(_profanityToast)_profanityToast("Inappropriate language in "+fieldName);else alert("Inappropriate language detected in "+fieldName+".");return null;}return corrected;};
-const sanitizeHTML=(html)=>{if(!html)return"";return html.replace(/<script[\s\S]*?<\/script>/gi,"").replace(/<iframe[\s\S]*?<\/iframe>/gi,"").replace(/\son\w+\s*=\s*["'][^"']*["']/gi,"").replace(/\son\w+\s*=\s*\S+/gi,"").replace(/javascript\s*:/gi,"");};
+const sanitizeHTML=(html)=>{if(!html)return"";const d=document.createElement("div");d.innerHTML=html;d.querySelectorAll("script,iframe,object,embed,form,link,style,svg").forEach(n=>n.remove());d.querySelectorAll("*").forEach(el=>{[...el.attributes].forEach(a=>{if(a.name.startsWith("on")||a.value.includes("javascript:"))el.removeAttribute(a.name);});});return d.innerHTML;};
 const calcWOHours=(woId,timeEntries)=>timeEntries.filter(t=>t.wo_id===woId).reduce((s,t)=>s+parseFloat(t.hours||0),0);
 const PC={high:B.red,medium:B.orange,low:B.green};
 const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
