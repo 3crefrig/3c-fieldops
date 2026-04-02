@@ -1655,7 +1655,7 @@ function RecurringPM({templates,onAdd,onDelete,users}){
   </div>);
 }
 
-function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplate}){
+function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplate,D,userName}){
   const[tab,setTab]=useState("templates"),[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
   const[tName,setTName]=useState(""),[tSubject,setTSubject]=useState(""),[tBody,setTBody]=useState(""),[saving,setSaving]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
@@ -1665,7 +1665,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
   const del=async(t)=>{if(!window.confirm("Delete template '"+t.name+"'?"))return;await onDeleteTemplate(t.id);msg("Deleted");};
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>System Settings</h3>
-    <div style={{display:"flex",gap:6,marginBottom:16}}>{[["templates","📧 Email Templates"],["other","⚙️ Other Settings"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
+    <div style={{display:"flex",gap:6,marginBottom:16}}>{[["templates","📧 Email Templates"],["workflows","⚡ Workflows"],["other","⚙️ Other"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
     {tab==="templates"&&<div>
       <div style={{fontSize:12,color:B.textMuted,marginBottom:12}}>Create email templates for sending timesheets. Templates set the subject line and body text. The timesheet table and Excel attachment are added automatically.</div>
       <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ New Email Template</button>
@@ -1687,6 +1687,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
         </div>
       </Modal>}
     </div>}
+    {tab==="workflows"&&D&&<WorkflowBuilder D={D} userName={userName||"Admin"}/>}
     {tab==="other"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>{[["🔔","Notifications"],["📱","Devices"],["🔐","Security"],["☁️","Storage"],["📊","Reports"],["🏢","Company"],["🔧","Integrations"]].map(([ic,lb])=><Card key={lb} style={{padding:"18px 14px",textAlign:"center",cursor:"pointer"}}><div style={{fontSize:24,marginBottom:6}}>{ic}</div><div style={{fontSize:12,fontWeight:600,color:B.textMuted}}>{lb}</div></Card>)}</div>}
   </div>);
 }
@@ -1790,6 +1791,194 @@ function GlobalActivityFeed(){
       </div>)}
     </div>}
   </Card>);
+}
+
+// ═══════════════════════════════════════════
+// SPARKLINE — Inline SVG mini-chart
+// ═══════════════════════════════════════════
+function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
+  if(!data.length||data.every(v=>v===0))return <div style={{width,height,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:9,color:B.textDim}}>No data</span></div>;
+  const max=Math.max(...data,1);const min=Math.min(...data,0);const range=max-min||1;
+  const pad=4;const w=width-pad*2;const h=height-pad*2;
+  const pts=data.map((v,i)=>({x:pad+(i/(data.length-1||1))*w,y:pad+h-(((v-min)/range)*h)}));
+  const d=pts.map((p,i)=>i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`).join(" ");
+  const fillD=d+` L${pts[pts.length-1].x},${height} L${pts[0].x},${height} Z`;
+  return(<svg width={width} height={height} style={{display:"block"}}>
+    <defs><linearGradient id={"sg-"+color.replace("#","")} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.3"/><stop offset="100%" stopColor={color} stopOpacity="0.02"/></linearGradient></defs>
+    <path d={fillD} fill={`url(#sg-${color.replace("#","")})`}/>
+    <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    {showDots&&pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="2.5" fill={color}/>)}
+  </svg>);
+}
+
+// ═══════════════════════════════════════════
+// KPI DASHBOARD — Replaces Overview tab
+// ═══════════════════════════════════════════
+function KPIDashboard({D,A,userRole,userName}){
+  const isAdmin=userRole==="admin";const isMgr=userRole==="admin"||userRole==="manager";
+  const[range,setRange]=useState("month");const[drillDown,setDrillDown]=useState(null);
+  const now=new Date();
+  const getRangeStart=()=>{const d=new Date(now);if(range==="week"){d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);}else if(range==="month"){d.setDate(1);d.setHours(0,0,0,0);}else if(range==="quarter"){d.setMonth(d.getMonth()-3);d.setHours(0,0,0,0);}else if(range==="year"){d.setMonth(0,1);d.setHours(0,0,0,0);}else{d.setFullYear(2000);}return d;};
+  const rangeStart=getRangeStart();
+  const inRange=(dateStr)=>{if(!dateStr)return false;return new Date(dateStr)>=rangeStart;};
+
+  // ── KPI Calculations ──
+  const completedWOs=D.wos.filter(o=>o.status==="completed"&&inRange(o.date_completed));
+  const allWOsRange=D.wos.filter(o=>inRange(o.created_at));
+
+  // First-Time Fix Rate: completed WOs without a follow-up WO for same customer+location within 30d
+  const ftfr=(()=>{if(completedWOs.length===0)return 0;
+    let fixed=0;completedWOs.forEach(wo=>{const dc=new Date(wo.date_completed);const followUp=D.wos.find(o=>o.id!==wo.id&&o.customer===wo.customer&&o.location===wo.location&&o.status!=="completed"&&o.created_at&&new Date(o.created_at)>dc&&new Date(o.created_at)<new Date(dc.getTime()+30*86400000));
+    if(!followUp)fixed++;});return Math.round((fixed/completedWOs.length)*100);})();
+
+  // Technician Utilization
+  const techs=(D.users||[]).filter(u=>u.role==="technician"&&u.active!==false);
+  const weeksInRange=Math.max(1,Math.round((now-rangeStart)/(7*86400000)));
+  const techUtil=(()=>{if(techs.length===0)return 0;
+    const totalAvail=techs.reduce((s,t)=>(s+(parseFloat(t.available_hours_week)||40)*weeksInRange),0);
+    const totalLogged=D.time.filter(t=>inRange(t.logged_date)&&techs.some(u=>u.name===t.technician)).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+    return totalAvail>0?Math.round((totalLogged/totalAvail)*100):0;})();
+
+  // Revenue Per Tech (admin only)
+  const paidInvoices=(D.invoices||[]).filter(i=>i.status==="paid"&&inRange(i.date_paid));
+  const totalRevenue=paidInvoices.reduce((s,i)=>s+parseFloat(i.amount||0),0);
+  const revPerTech=techs.length>0?Math.round(totalRevenue/techs.length):0;
+
+  // Invoice-to-Payment Time
+  const paidWithDates=(D.invoices||[]).filter(i=>i.status==="paid"&&i.date_sent&&i.date_paid);
+  const avgPayDays=paidWithDates.length>0?Math.round(paidWithDates.reduce((s,i)=>s+Math.max(0,Math.floor((new Date(i.date_paid)-new Date(i.date_sent))/86400000)),0)/paidWithDates.length):0;
+
+  // Outstanding AR
+  const outstandingInv=(D.invoices||[]).filter(i=>i.status==="sent"||i.status==="draft");
+  const totalAR=outstandingInv.reduce((s,i)=>s+parseFloat(i.amount||0),0);
+
+  // Overdue Invoices
+  const overdueInv=(D.invoices||[]).filter(i=>{if(i.status!=="sent")return false;const days=Math.floor((now-new Date(i.date_issued))/86400000);return days>30;});
+  const overdueAmt=overdueInv.reduce((s,i)=>s+parseFloat(i.amount||0),0);
+
+  // Completion Rate
+  const compRate=allWOsRange.length>0?Math.round((completedWOs.length/allWOsRange.length)*100):0;
+
+  // Total hours in range
+  const totalHours=D.time.filter(t=>inRange(t.logged_date)).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+
+  // Weekly sparkline data (8 weeks)
+  const sparkWeeks=(()=>{const weeks=[];for(let i=7;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
+    const hrs=D.time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+    const comp=D.wos.filter(o=>o.status==="completed"&&o.date_completed&&new Date(o.date_completed)>=ws&&new Date(o.date_completed)<=we).length;
+    const rev=(D.invoices||[]).filter(i=>i.status==="paid"&&i.date_paid&&new Date(i.date_paid)>=ws&&new Date(i.date_paid)<=we).reduce((s,i)=>s+parseFloat(i.amount||0),0);
+    weeks.push({hrs,comp,rev});}return weeks;})();
+
+  // Top customers by WO count
+  const custStats=(()=>{const map={};D.wos.filter(o=>inRange(o.created_at)).forEach(o=>{const c=o.customer||"Unknown";if(!map[c])map[c]={total:0,done:0,hours:0};map[c].total++;if(o.status==="completed")map[c].done++;});
+    D.time.filter(t=>inRange(t.logged_date)).forEach(t=>{const wo=D.wos.find(w=>w.id===t.wo_id);if(wo){const c=wo.customer||"Unknown";if(map[c])map[c].hours+=parseFloat(t.hours||0);}});
+    return Object.entries(map).sort((a,b)=>b[1].total-a[1].total).slice(0,6);})();
+
+  // Drill-down modals
+  const drillContent=drillDown==="overdue"?overdueInv:drillDown==="outstanding"?outstandingInv:drillDown==="completed"?completedWOs:null;
+
+  const ranges=[["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
+
+  return(<div>
+    {/* Date Range Pills */}
+    <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
+      {ranges.map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{padding:"6px 14px",borderRadius:6,border:"1px solid "+(range===k?B.cyan:B.border),background:range===k?B.cyanGlow:"transparent",color:range===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
+    </div>
+
+    {/* Primary KPI Cards Row 1 */}
+    <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{flex:"1 1 130px",minWidth:130,cursor:"pointer"}} onClick={()=>setDrillDown("completed")}>
+        <StatCard label="First-Time Fix" value={ftfr+"%"} icon="🎯" color={ftfr>=85?B.green:ftfr>=70?B.orange:B.red}/>
+      </div>
+      <StatCard label="Tech Utilization" value={techUtil+"%"} icon="⚡" color={techUtil>=80?B.green:techUtil>=60?B.orange:B.red}/>
+      <StatCard label="WOs Completed" value={completedWOs.length} icon="✓" color={B.green}/>
+      <StatCard label="Hours Logged" value={totalHours.toFixed(0)+"h"} icon="⏱" color={B.cyan}/>
+    </div>
+
+    {/* Primary KPI Cards Row 2 — Financial (admin/manager) */}
+    {isMgr&&<div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      {isAdmin&&<StatCard label="Revenue/Tech" value={"$"+revPerTech.toLocaleString()} icon="💰" color={B.green}/>}
+      <StatCard label="Avg Days to Pay" value={avgPayDays+"d"} icon="📊" color={avgPayDays<=15?B.green:avgPayDays<=30?B.orange:B.red}/>
+      <div style={{flex:"1 1 130px",minWidth:130,cursor:"pointer"}} onClick={()=>setDrillDown("outstanding")}>
+        <StatCard label="Outstanding AR" value={"$"+totalAR.toLocaleString(undefined,{minimumFractionDigits:0})} icon="📋" color={B.cyan}/>
+      </div>
+      <div style={{flex:"1 1 130px",minWidth:130,cursor:overdueInv.length>0?"pointer":"default"}} onClick={()=>overdueInv.length>0&&setDrillDown("overdue")}>
+        <StatCard label={"Overdue ("+overdueInv.length+")"} value={"$"+overdueAmt.toLocaleString(undefined,{minimumFractionDigits:0})} icon="⚠️" color={B.red}/>
+      </div>
+    </div>}
+
+    {/* Sparkline Trend Widgets */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10,marginBottom:16}}>
+      <Card style={{padding:"14px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>Hours (8 wk)</span>
+          <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.cyan}}>{sparkWeeks[sparkWeeks.length-1].hrs.toFixed(0)}h</span>
+        </div>
+        <Sparkline data={sparkWeeks.map(w=>w.hrs)} color={B.cyan} width={200} height={40}/>
+      </Card>
+      <Card style={{padding:"14px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>Completions (8 wk)</span>
+          <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.green}}>{sparkWeeks[sparkWeeks.length-1].comp}</span>
+        </div>
+        <Sparkline data={sparkWeeks.map(w=>w.comp)} color={B.green} width={200} height={40}/>
+      </Card>
+      {isAdmin&&<Card style={{padding:"14px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>Revenue (8 wk)</span>
+          <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.purple}}>{"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString()}</span>
+        </div>
+        <Sparkline data={sparkWeeks.map(w=>w.rev)} color={B.purple} width={200} height={40}/>
+      </Card>}
+    </div>
+
+    {/* Customer Breakdown */}
+    {isMgr&&custStats.length>0&&<Card style={{padding:"16px 18px",marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Top Accounts</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {custStats.map(([name,s])=>{const pct=s.total>0?Math.round((s.done/s.total)*100):0;return(
+          <div key={name} style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                <span style={{fontSize:12,fontWeight:600,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
+                <span style={{fontSize:10,fontFamily:M,color:B.textDim,flexShrink:0}}>{s.done}/{s.total} WOs · {s.hours.toFixed(0)}h</span>
+              </div>
+              <div style={{height:4,borderRadius:2,background:B.border,overflow:"hidden"}}>
+                <div style={{width:pct+"%",height:"100%",borderRadius:2,background:pct>=80?B.green:pct>=50?B.cyan:B.orange,transition:"width .4s ease-out"}}/>
+              </div>
+            </div>
+            <span style={{fontSize:11,fontFamily:M,fontWeight:700,color:pct>=80?B.green:pct>=50?B.cyan:B.orange,width:36,textAlign:"right"}}>{pct}%</span>
+          </div>);})}
+      </div>
+    </Card>}
+
+    {/* Drill-Down Modal */}
+    {drillDown&&drillContent&&<Modal title={drillDown==="overdue"?"Overdue Invoices":drillDown==="outstanding"?"Outstanding Invoices":"Completed Work Orders"} onClose={()=>setDrillDown(null)} wide>
+      {drillDown==="overdue"||drillDown==="outstanding"?<div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {drillContent.map(inv=><Card key={inv.id} style={{padding:"12px 14px",borderLeft:"3px solid "+(drillDown==="overdue"?B.red:B.cyan)}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <span style={{fontFamily:M,fontWeight:800,fontSize:13,color:B.text}}>INV-{inv.invoice_num}</span>
+              <span style={{fontSize:12,color:B.textMuted,marginLeft:8}}>{inv.customer}</span>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>${parseFloat(inv.amount||0).toFixed(2)}</div>
+              <div style={{fontSize:10,color:B.textDim}}>{inv.date_issued&&Math.floor((now-new Date(inv.date_issued))/86400000)+"d ago"}</div>
+            </div>
+          </div>
+        </Card>)}
+        {drillContent.length===0&&<div style={{textAlign:"center",padding:20,color:B.textDim,fontSize:13}}>None</div>}
+      </div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {drillContent.slice(0,20).map(wo=><Card key={wo.id} style={{padding:"10px 14px",borderLeft:"3px solid "+B.green}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><span style={{fontSize:12,fontWeight:600,color:B.text,marginLeft:8}}>{wo.title}</span></div>
+            <span style={{fontSize:10,color:B.textDim}}>{wo.date_completed}</span>
+          </div>
+        </Card>)}
+        {drillContent.length>20&&<div style={{textAlign:"center",padding:8,color:B.textDim,fontSize:11}}>+{drillContent.length-20} more</div>}
+      </div>}
+    </Modal>}
+  </div>);
 }
 
 function DashAnalytics({wos,time,pos}){
@@ -1934,7 +2123,16 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const totalPaidMonth=paidThisMonth.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
-  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as sent");};
+  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as sent");
+    // Auto-send feedback request
+    try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
+    if(toEmail){const token=crypto.randomUUID();
+      await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:inv.customer,sent_to:toEmail,token});
+      const feedbackUrl=window.location.origin+"/#/feedback/"+token;
+      const body="<div style='font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px'><p>Hi,</p><p>Thank you for choosing 3C Refrigeration. We recently completed work on your behalf (Invoice "+inv.invoice_num+") and would love to hear how we did.</p><p style='text-align:center;margin:24px 0'><a href='"+feedbackUrl+"' style='display:inline-block;padding:14px 28px;background:#00D4F5;color:#101214;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px'>Share Your Feedback</a></p><p style='color:#666;font-size:13px'>It only takes 30 seconds and helps us improve our service.</p><p>Best regards,<br/>3C Refrigeration Team</p></div>";
+      await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:toEmail,subject:"How was our service? — 3C Refrigeration",body})});
+    }}catch(e){console.error("Feedback request error:",e);}
+  };
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
   const del=async(inv)=>{if(!window.confirm("Delete invoice "+inv.invoice_num+"?"))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>{const c=customers.find(x=>x.name===inv.customer);const terms=c?.payment_terms||"Net 30";const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;const issued=inv.date_issued?new Date(inv.date_issued):new Date();const due=new Date(issued);due.setDate(due.getDate()+netDays);const invPOs=pos.filter(p=>inv.wo_ids&&inv.wo_ids.some(wid=>{const wo=wos.find(w=>w.wo_id===wid||w.id===wid);return wo&&p.wo_id===wo.id;})&&p.status==="approved");const mkup=c?.parts_markup!=null?parseFloat(c.parts_markup):35;const partsDetail=invPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+mkup/100)*100)/100}));return{invoiceNum:inv.invoice_num,date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null};};
@@ -2289,11 +2487,21 @@ function TechDash({user,onLogout,D,A,syncing}){
         <div style={{fontSize:12,color:B.red,fontWeight:600}}>It's past 3pm and you have only {todayHours.toFixed(1)}h logged today. Don't forget to log your time before end of day.</div>
       </div>}
       </>;})()}
-      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <StatCard label="Active Jobs" value={myActive.length} icon="🔧" color={B.cyan}/>
         <StatCard label="Today's Hours" value={todayHours.toFixed(1)+"h"} icon="⏱" color={B.green}/>
         <StatCard label="Completed" value={myCompleted.length} icon="✓" color={B.green}/>
       </div>
+      {/* My Performance Stats */}
+      {(()=>{const thirtyDays=new Date(Date.now()-30*86400000);const myCompleted30=my.filter(o=>o.status==="completed"&&o.date_completed&&new Date(o.date_completed)>=thirtyDays);
+        const ftfr=myCompleted30.length>0?(()=>{let fixed=0;myCompleted30.forEach(wo=>{const dc=new Date(wo.date_completed);const followUp=D.wos.find(o=>o.id!==wo.id&&o.customer===wo.customer&&o.location===wo.location&&o.created_at&&new Date(o.created_at)>dc&&new Date(o.created_at)<new Date(dc.getTime()+30*86400000));if(!followUp)fixed++;});return Math.round((fixed/myCompleted30.length)*100);})():0;
+        const weekHrs=myTime.filter(t=>{const d=new Date(t.logged_date);return d>=new Date(new Date().setDate(new Date().getDate()-7));}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+        const avail=parseFloat(user.available_hours_week||40);const util=avail>0?Math.round((weekHrs/avail)*100):0;
+        return <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+          <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Fix Rate (30d)</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:ftfr>=85?B.green:ftfr>=70?B.orange:B.red}}>{ftfr}%</div></Card>
+          <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Week Utilization</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:util>=80?B.green:util>=60?B.orange:B.red}}>{util}%</div></Card>
+          <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Week Hours</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:B.cyan}}>{weekHrs.toFixed(1)}h</div></Card>
+        </div>;})()}
       {recentWOs.length>0&&<div style={{marginBottom:20}}>
         <div style={{fontSize:11,fontWeight:700,color:B.textDim,marginBottom:10,textTransform:"uppercase",letterSpacing:0.8}}>Recent</div>
         <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6}}>{recentWOs.map(wo=>{const sc=wo.status==="completed"?B.green:wo.status==="in_progress"?B.cyan:B.orange;return <div key={wo.id} onClick={()=>{setTab("orders");haptic(15);}} style={{minWidth:148,padding:"12px 14px",background:B.surface,border:"1px solid "+B.border,borderLeft:"3px solid "+sc,borderRadius:10,cursor:"pointer",flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",transition:"transform .15s, box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)";}}>
@@ -2336,13 +2544,14 @@ function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");const[navWOId,setNavWOId]=useState(null);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"feedback",label:"Feedback",icon:"⭐"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+    {tab==="overview"&&<><KPIDashboard D={D} A={A} userRole={user.role} userName={user.name}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
+    {tab==="feedback"&&<FeedbackDashboard D={D}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
@@ -2357,18 +2566,20 @@ function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");const[navWOId,setNavWOId]=useState(null);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
-    {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"feedback",label:"Feedback",icon:"⭐"},{key:"proposals",label:"Proposals",icon:"📑"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+    {tab==="overview"&&<><KPIDashboard D={D} A={A} userRole={user.role} userName={user.name}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
+    {tab==="feedback"&&<FeedbackDashboard D={D}/>}
+    {tab==="proposals"&&<ProposalDashboard D={D} userName={user.name}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
-    {tab==="settings"&&<Settings emailTemplates={D.emailTemplates} onAddTemplate={A.addEmailTemplate} onUpdateTemplate={A.updateEmailTemplate} onDeleteTemplate={A.deleteEmailTemplate}/>}
+    {tab==="settings"&&<Settings emailTemplates={D.emailTemplates} onAddTemplate={A.addEmailTemplate} onUpdateTemplate={A.updateEmailTemplate} onDeleteTemplate={A.deleteEmailTemplate} D={D} userName={user.name}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
     {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
@@ -2412,7 +2623,7 @@ function App(){
   },[]);
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
-    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices]=await Promise.all([
+    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
@@ -2426,13 +2637,14 @@ function App(){
       client.from("projects").select("*").order("created_at",{ascending:false}),
       client.from("wo_drafts").select("*").order("created_at",{ascending:false}),
       client.from("invoices").select("*").order("created_at",{ascending:false}),
+      client.from("feedback").select("*").order("submitted_at",{ascending:false}),
     ]);
-    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
-    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[]});
+    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
+    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[]});
     setLoading(false);
   }catch(err){console.error("loadData failed:",err);}
   },[]);
-  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false}};
+  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false},feedback:{key:"feedback",order:"submitted_at",asc:false}};
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
@@ -2478,6 +2690,36 @@ function App(){
   },[authUser,loadData]);
 
   const withSync=fn=>async(...args)=>{setSyncing(true);try{await fn(...args);await loadData();}finally{setSyncing(false);}};
+  // Workflow trigger evaluation engine
+  const evaluateTriggers=async(triggerType,triggerData)=>{try{
+    const{data:activeWFs}=await sb().from("workflows").select("*").eq("active",true);
+    if(!activeWFs||activeWFs.length===0)return;
+    for(const wf of activeWFs){const triggerNode=(wf.nodes||[]).find(n=>n.type==="trigger"&&n.config?.event===triggerType);
+      if(!triggerNode)continue;
+      const edges=wf.edges||[];const nodes=wf.nodes||[];const log=[];let paused=false;
+      // Walk the graph from trigger
+      const visit=async(nodeId)=>{const outEdges=edges.filter(e=>e.source===nodeId);
+        for(const edge of outEdges){const next=nodes.find(n=>n.id===edge.target);if(!next)continue;
+          if(next.type==="condition"){const{field,operator,value}=next.config||{};const actual=triggerData[field];
+            let passes=true;if(field&&operator){const a=String(actual||"").toLowerCase(),v=String(value||"").toLowerCase();
+              if(operator==="equals"||operator==="=")passes=a===v;else if(operator==="not_equals"||operator==="!=")passes=a!==v;
+              else if(operator===">")passes=parseFloat(actual)>parseFloat(value);else if(operator==="<")passes=parseFloat(actual)<parseFloat(value);
+              else if(operator===">=")passes=parseFloat(actual)>=parseFloat(value);else if(operator==="<=")passes=parseFloat(actual)<=parseFloat(value);
+              else if(operator==="contains")passes=a.includes(v);}
+            log.push({node_id:next.id,action:"condition",result:passes,timestamp:new Date().toISOString()});
+            if(passes)await visit(next.id);
+          }else if(next.type==="wait"){const hrs=next.config?.delay_hours||24;
+            await sb().from("workflow_runs").insert({workflow_id:wf.id,trigger_type:triggerType,trigger_data:triggerData,status:"waiting",current_node_id:next.id,resume_at:new Date(Date.now()+hrs*3600000).toISOString(),execution_log:[...log,{node_id:next.id,action:"wait",delay_hours:hrs,timestamp:new Date().toISOString()}]});
+            paused=true;
+          }else if(next.type==="action"){const cfg=next.config||{};
+            if(cfg.action_type==="create_notification"){await sb().from("notifications").insert({type:"workflow",title:cfg.title||"Workflow Alert",message:cfg.message||"",for_role:cfg.for_role||null});log.push({node_id:next.id,action:"notification",timestamp:new Date().toISOString()});}
+            else if(cfg.action_type==="send_email"&&cfg.to_email){try{await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:cfg.to_email,subject:cfg.subject||"Notification",body:cfg.body||""})});log.push({node_id:next.id,action:"email",timestamp:new Date().toISOString()});}catch(e){}}
+            else if(cfg.action_type==="log_activity"&&triggerData.id){await sb().from("wo_activity").insert({wo_id:triggerData.id,action:"workflow",details:cfg.message||"Automated action",actor:"Workflow"});log.push({node_id:next.id,action:"log",timestamp:new Date().toISOString()});}
+            await visit(next.id);}
+        }};
+      await visit(triggerNode.id);
+      if(!paused&&log.length>0){await sb().from("workflow_runs").insert({workflow_id:wf.id,trigger_type:triggerType,trigger_data:triggerData,status:"completed",execution_log:log,completed_at:new Date().toISOString()});}
+    }}catch(e){console.error("Workflow trigger error:",e);}};
   const withTableSync=(table,fn)=>async(...args)=>{setSyncing(true);try{await fn(...args);await reloadTable(table);}finally{setSyncing(false);}};
   const notify=async(type,title,message,forRole)=>{await sb().from("notifications").insert({type,title,message,for_role:forRole||null});};
 
@@ -2510,11 +2752,11 @@ function App(){
   const actions={
     loadData,
     logActivity:async(woId,action,details)=>{try{await sb().from("wo_activity").insert({wo_id:woId,action,details,actor:appUser?.name||"System"});}catch(e){}},
-    createWO:withSync(async(wo)=>{if(wo.title)wo.title=autoCorrect(wo.title);if(wo.notes)wo.notes=autoCorrect(wo.notes);if(wo.location)wo.location=autoCorrect(wo.location);const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);const{data:inserted}=await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0}).select("id").single();await notify("wo_created","New Work Order",newId+": "+wo.title);if(inserted)await sb().from("wo_activity").insert({wo_id:inserted.id,action:"created",details:"Work order created",actor:appUser?.name||"System"});}),
-    updateWO:withTableSync("work_orders",async(wo)=>{if(wo.title)wo.title=autoCorrect(wo.title);if(wo.notes)wo.notes=autoCorrect(wo.notes);if(wo.work_performed)wo.work_performed=autoCorrect(wo.work_performed);if(wo.field_notes)wo.field_notes=autoCorrect(wo.field_notes);const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.assignee&&rest.assignee!==old?.assignee&&rest.assignee!=="Unassigned")await notify("wo_assigned","WO Assigned",(old?.wo_id||"")+" assigned to "+rest.assignee,"technician");if(rest.status==="completed"&&old?.status!=="completed"){await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");await tryAutoInvoice({...old,...rest});}}),
+    createWO:withSync(async(wo)=>{if(wo.title)wo.title=autoCorrect(wo.title);if(wo.notes)wo.notes=autoCorrect(wo.notes);if(wo.location)wo.location=autoCorrect(wo.location);const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);const{data:inserted}=await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0}).select("id").single();await notify("wo_created","New Work Order",newId+": "+wo.title);if(inserted){await sb().from("wo_activity").insert({wo_id:inserted.id,action:"created",details:"Work order created",actor:appUser?.name||"System"});evaluateTriggers("wo_created",{...wo,wo_id:newId,id:inserted.id});}}),
+    updateWO:withTableSync("work_orders",async(wo)=>{if(wo.title)wo.title=autoCorrect(wo.title);if(wo.notes)wo.notes=autoCorrect(wo.notes);if(wo.work_performed)wo.work_performed=autoCorrect(wo.work_performed);if(wo.field_notes)wo.field_notes=autoCorrect(wo.field_notes);const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.assignee&&rest.assignee!==old?.assignee&&rest.assignee!=="Unassigned")await notify("wo_assigned","WO Assigned",(old?.wo_id||"")+" assigned to "+rest.assignee,"technician");if(rest.status==="completed"&&old?.status!=="completed"){await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");await tryAutoInvoice({...old,...rest});evaluateTriggers("wo_completed",{...old,...rest});}if(rest.status&&rest.status!==old?.status)evaluateTriggers("wo_status_changed",{...old,...rest,status:rest.status});}),
     deleteWO:withTableSync("work_orders",async(id)=>{const wo=data.wos.find(w=>w.id===id);if(wo?.invoiced){alert("This WO has been invoiced and cannot be deleted.");return;}const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
-    createPO:withSync(async(po)=>{if(po.description)po.description=autoCorrect(po.description);if(po.notes)po.notes=autoCorrect(po.notes);const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
-    updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;const old=data.pos.find(p=>p.id===id);await sb().from("purchase_orders").update(rest).eq("id",id);if(rest.status&&rest.status!==old?.status){if(rest.status==="approved")await notify("po_approved","PO Approved",(old?.po_id||"")+" approved — $"+(rest.amount||old?.amount||0),"technician");if(rest.status==="rejected")await notify("po_rejected","PO Rejected",(old?.po_id||"")+" rejected","technician");}}),
+    createPO:withSync(async(po)=>{if(po.description)po.description=autoCorrect(po.description);if(po.notes)po.notes=autoCorrect(po.notes);const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");evaluateTriggers("po_requested",{...po,po_id:id});}),
+    updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;const old=data.pos.find(p=>p.id===id);await sb().from("purchase_orders").update(rest).eq("id",id);if(rest.status&&rest.status!==old?.status){if(rest.status==="approved"){await notify("po_approved","PO Approved",(old?.po_id||"")+" approved — $"+(rest.amount||old?.amount||0),"technician");evaluateTriggers("po_approved",{...old,...rest});}if(rest.status==="rejected"){await notify("po_rejected","PO Rejected",(old?.po_id||"")+" rejected","technician");evaluateTriggers("po_rejected",{...old,...rest});}}}),
     deletePO:withTableSync("purchase_orders",async(po)=>{await sb().from("purchase_orders").delete().eq("id",po.id);}),
     createInvoice:withTableSync("invoices",async(inv)=>{await sb().from("invoices").insert(inv);}),
     updateInvoice:withTableSync("invoices",async(inv)=>{const{id,...rest}=inv;await sb().from("invoices").update(rest).eq("id",id);}),
@@ -2579,9 +2821,738 @@ class ErrorBoundary extends React.Component{
   componentDidCatch(error,info){console.error("App crash:",error,info);}
   render(){if(this.state.hasError){return<div style={{minHeight:"100vh",background:"#101214",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow',sans-serif",color:"#E8EAED",padding:40,textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⚠️</div><h1 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Something went wrong</h1><p style={{fontSize:14,color:"#8B929A",marginBottom:20,maxWidth:400}}>The app encountered an unexpected error. Try refreshing the page.</p><button onClick={()=>{this.setState({hasError:false,error:null});window.location.reload();}} style={{padding:"12px 24px",borderRadius:8,border:"none",background:"#00D4F5",color:"#101214",fontSize:14,fontWeight:700,cursor:"pointer"}}>Refresh App</button><pre style={{marginTop:20,fontSize:10,color:"#5E656E",maxWidth:500,overflow:"auto",textAlign:"left"}}>{this.state.error?.message}</pre></div>;}return this.props.children;}
 }
+// ═══════════════════════════════════════════
+// VISUAL WORKFLOW BUILDER
+// ═══════════════════════════════════════════
+const WF_TRIGGERS=[{key:"wo_created",label:"Work Order Created",icon:"📋",fields:["customer","priority","wo_type","assignee"]},{key:"wo_completed",label:"WO Completed",icon:"✅",fields:["customer","priority","wo_type","assignee"]},{key:"wo_status_changed",label:"WO Status Changed",icon:"🔄",fields:["customer","priority","status","assignee"]},{key:"invoice_sent",label:"Invoice Sent",icon:"📧",fields:["customer","amount","status"]},{key:"invoice_overdue",label:"Invoice Overdue (30d)",icon:"⚠️",fields:["customer","amount"]},{key:"po_requested",label:"PO Requested",icon:"📄",fields:["amount","customer"]},{key:"po_approved",label:"PO Approved",icon:"✅",fields:["amount","customer"]},{key:"feedback_received",label:"Feedback Received",icon:"⭐",fields:["customer_name","star_rating","nps_score"]}];
+const WF_ACTIONS=[{key:"send_email",label:"Send Email",icon:"📧",fields:["to_email","subject","body"]},{key:"create_notification",label:"Create Notification",icon:"🔔",fields:["title","message","for_role"]},{key:"change_wo_status",label:"Change WO Status",icon:"🔄",fields:["new_status"]},{key:"send_feedback_request",label:"Send Feedback Request",icon:"⭐",fields:[]},{key:"log_activity",label:"Log Activity",icon:"📝",fields:["message"]},{key:"wait",label:"Wait / Delay",icon:"⏳",fields:["delay_hours"]}];
+const WF_OPERATORS=[{key:"equals",label:"="},{key:"not_equals",label:"!="},{key:">",label:">"},{key:"<",label:"<"},{key:">=",label:">="},{key:"<=",label:"<="},{key:"contains",label:"contains"}];
+
+function WorkflowBuilder({D,userName}){
+  const[workflows,setWorkflows]=useState([]);const[loading,setLoading]=useState(true);const[toast,setToast]=useState("");
+  const[editing,setEditing]=useState(null);const[runs,setRuns]=useState([]);const[view,setView]=useState("list");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const load=async()=>{const[{data:wf},{data:wr}]=await Promise.all([sb().from("workflows").select("*").order("created_at",{ascending:false}),sb().from("workflow_runs").select("*").order("started_at",{ascending:false}).limit(50)]);setWorkflows(wf||[]);setRuns(wr||[]);setLoading(false);};
+  useEffect(()=>{load();},[]);
+
+  const toggleActive=async(wf)=>{await sb().from("workflows").update({active:!wf.active}).eq("id",wf.id);await load();msg(wf.active?"Deactivated":"Activated");};
+  const del=async(id)=>{if(!window.confirm("Delete this workflow?"))return;await sb().from("workflows").delete().eq("id",id);await load();msg("Deleted");};
+
+  if(editing)return<WorkflowCanvas workflow={editing} onSave={async(wf)=>{if(wf.id){await sb().from("workflows").update({name:wf.name,description:wf.description,nodes:wf.nodes,edges:wf.edges,updated_by:userName,updated_at:new Date().toISOString()}).eq("id",wf.id);}else{await sb().from("workflows").insert({...wf,created_by:userName});}await load();setEditing(null);msg("Workflow saved!");}} onCancel={()=>setEditing(null)}/>;
+
+  return(<div><Toast msg={toast}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Workflow Automations</h3>
+      <div style={{display:"flex",gap:6}}>
+        <button onClick={()=>setView(view==="list"?"runs":"list")} style={{...BS,fontSize:11,padding:"6px 12px"}}>{view==="list"?"📋 Run Log":"← Workflows"}</button>
+        <button onClick={()=>setEditing({name:"",description:"",nodes:[],edges:[],active:false})} style={{...BP,fontSize:12}}>+ New Workflow</button>
+      </div>
+    </div>
+
+    {view==="runs"&&<div>
+      <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Recent Workflow Runs</div>
+      {runs.length===0&&<Card style={{textAlign:"center",padding:20,color:B.textDim}}><div style={{fontSize:13}}>No workflow runs yet.</div></Card>}
+      {runs.map(r=>{const wf=workflows.find(w=>w.id===r.workflow_id);return(
+        <Card key={r.id} style={{padding:"10px 14px",marginBottom:6,borderLeft:"3px solid "+(r.status==="completed"?B.green:r.status==="waiting"?B.orange:r.status==="failed"?B.red:B.cyan)}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><span style={{fontSize:12,fontWeight:600,color:B.text}}>{wf?.name||"Unknown"}</span><span style={{fontSize:10,color:B.textDim,marginLeft:8}}>{r.trigger_type}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <Badge color={r.status==="completed"?B.green:r.status==="waiting"?B.orange:r.status==="failed"?B.red:B.cyan}>{r.status}</Badge>
+              <span style={{fontSize:10,color:B.textDim}}>{new Date(r.started_at).toLocaleString()}</span>
+            </div>
+          </div>
+          {r.execution_log&&r.execution_log.length>0&&<div style={{marginTop:6,fontSize:10,color:B.textDim}}>{r.execution_log.length} steps executed</div>}
+        </Card>);})}
+    </div>}
+
+    {view==="list"&&<>
+      {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
+      {!loading&&workflows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:36,marginBottom:8}}>⚡</div><div style={{fontSize:14,fontWeight:600,marginBottom:4}}>No workflows yet</div><div style={{fontSize:12}}>Create your first automation to get started.</div></Card>}
+      {workflows.map(wf=>{const triggerNode=wf.nodes?.find(n=>n.type==="trigger");const actionNodes=(wf.nodes||[]).filter(n=>n.type==="action");const recentRuns=runs.filter(r=>r.workflow_id===wf.id).length;
+        return(<Card key={wf.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(wf.active?B.green:B.textDim),opacity:wf.active?1:0.7}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:14,fontWeight:700,color:B.text}}>{wf.name}</span>
+                <Badge color={wf.active?B.green:B.textDim}>{wf.active?"Active":"Inactive"}</Badge>
+              </div>
+              {wf.description&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>{wf.description}</div>}
+              <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
+                {triggerNode&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:B.cyan+"18",color:B.cyan,fontWeight:600}}>When: {WF_TRIGGERS.find(t=>t.key===triggerNode.config?.event)?.label||triggerNode.config?.event}</span>}
+                {actionNodes.map((n,i)=><span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:B.purple+"18",color:B.purple,fontWeight:600}}>→ {WF_ACTIONS.find(a=>a.key===n.config?.action_type)?.label||n.config?.action_type}</span>)}
+              </div>
+              <div style={{fontSize:10,color:B.textDim,marginTop:4}}>{(wf.nodes||[]).length} nodes · {recentRuns} runs</div>
+            </div>
+            <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <button onClick={()=>toggleActive(wf)} style={{...BS,padding:"5px 10px",fontSize:10,color:wf.active?B.red:B.green,borderColor:(wf.active?B.red:B.green)+"40"}}>{wf.active?"Pause":"Activate"}</button>
+              <button onClick={()=>setEditing(wf)} style={{...BS,padding:"5px 10px",fontSize:10}}>Edit</button>
+              <button onClick={()=>del(wf.id)} style={{...BS,padding:"5px 10px",fontSize:10,color:B.red,borderColor:B.red+"40"}}>✕</button>
+            </div>
+          </div>
+        </Card>);})}
+
+      {/* Pre-built templates */}
+      {workflows.length===0&&<div style={{marginTop:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Quick Start Templates</div>
+        {[{name:"Payment Reminder",desc:"Send reminders when invoices go unpaid",nodes:[{id:"t1",type:"trigger",x:50,y:50,config:{event:"invoice_sent"}},{id:"w1",type:"wait",x:50,y:140,config:{delay_hours:360}},{id:"c1",type:"condition",x:50,y:230,config:{field:"status",operator:"equals",value:"sent"}},{id:"a1",type:"action",x:50,y:320,config:{action_type:"send_email",subject:"Reminder: Invoice Payment",body:"This is a friendly reminder that your invoice is now 15 days old.",to_email:""}}],edges:[{id:"e1",source:"t1",target:"w1"},{id:"e2",source:"w1",target:"c1"},{id:"e3",source:"c1",target:"a1"}]},
+          {name:"Feedback After Invoice",desc:"Send feedback request 3 days after invoice sent",nodes:[{id:"t1",type:"trigger",x:50,y:50,config:{event:"invoice_sent"}},{id:"w1",type:"wait",x:50,y:140,config:{delay_hours:72}},{id:"a1",type:"action",x:50,y:230,config:{action_type:"send_feedback_request"}}],edges:[{id:"e1",source:"t1",target:"w1"},{id:"e2",source:"w1",target:"a1"}]},
+          {name:"New WO Alert",desc:"Notify when high-priority WO created",nodes:[{id:"t1",type:"trigger",x:50,y:50,config:{event:"wo_created"}},{id:"c1",type:"condition",x:50,y:140,config:{field:"priority",operator:"equals",value:"high"}},{id:"a1",type:"action",x:50,y:230,config:{action_type:"create_notification",title:"Urgent WO Created",message:"High-priority work order created",for_role:"manager"}}],edges:[{id:"e1",source:"t1",target:"c1"},{id:"e2",source:"c1",target:"a1"}]}
+        ].map(tpl=><Card key={tpl.name} onClick={()=>setEditing({name:tpl.name,description:tpl.desc,nodes:tpl.nodes,edges:tpl.edges,active:false})} style={{padding:"12px 16px",marginBottom:6,cursor:"pointer"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>{tpl.name}</div><div style={{fontSize:11,color:B.textDim}}>{tpl.desc}</div></div>
+            <span style={{fontSize:11,color:B.cyan,fontWeight:600}}>Use →</span>
+          </div>
+        </Card>)}
+      </div>}
+    </>}
+  </div>);
+}
+
+function WorkflowCanvas({workflow,onSave,onCancel}){
+  const[name,setName]=useState(workflow.name||"");const[desc,setDesc]=useState(workflow.description||"");
+  const[nodes,setNodes]=useState(workflow.nodes||[]);const[edges,setEdges]=useState(workflow.edges||[]);
+  const[selected,setSelected]=useState(null);const[connecting,setConnecting]=useState(null);
+  const[configNode,setConfigNode]=useState(null);const[dragNode,setDragNode]=useState(null);
+  const[pan,setPan]=useState({x:0,y:0});const canvasRef=useRef(null);
+
+  const addNode=(type,config={})=>{const id="n"+Date.now();const y=nodes.length>0?Math.max(...nodes.map(n=>n.y))+100:60;
+    setNodes([...nodes,{id,type,x:100,y,config}]);};
+  const removeNode=(id)=>{setNodes(nodes.filter(n=>n.id!==id));setEdges(edges.filter(e=>e.source!==id&&e.target!==id));setSelected(null);};
+  const updateNodeConfig=(id,cfg)=>setNodes(nodes.map(n=>n.id===id?{...n,config:{...n.config,...cfg}}:n));
+  const addEdge=(src,tgt)=>{if(src===tgt||edges.some(e=>e.source===src&&e.target===tgt))return;setEdges([...edges,{id:"e"+Date.now(),source:src,target:tgt}]);};
+  const removeEdge=(id)=>setEdges(edges.filter(e=>e.id!==id));
+
+  const nodeColors={trigger:B.cyan,condition:B.orange,action:B.purple,wait:B.textDim};
+  const nodeIcons={trigger:"⚡",condition:"❓",action:"▶",wait:"⏳"};
+
+  const handleMouseDown=(e,nodeId)=>{e.stopPropagation();if(connecting){addEdge(connecting,nodeId);setConnecting(null);return;}
+    setSelected(nodeId);setDragNode({id:nodeId,startX:e.clientX,startY:e.clientY,origX:nodes.find(n=>n.id===nodeId).x,origY:nodes.find(n=>n.id===nodeId).y});};
+  const handleMouseMove=(e)=>{if(!dragNode)return;const dx=e.clientX-dragNode.startX;const dy=e.clientY-dragNode.startY;
+    setNodes(ns=>ns.map(n=>n.id===dragNode.id?{...n,x:dragNode.origX+dx,y:dragNode.origY+dy}:n));};
+  const handleMouseUp=()=>setDragNode(null);
+
+  const getNodeLabel=(n)=>{if(n.type==="trigger")return WF_TRIGGERS.find(t=>t.key===n.config?.event)?.label||"Select trigger";
+    if(n.type==="action")return WF_ACTIONS.find(a=>a.key===n.config?.action_type)?.label||"Select action";
+    if(n.type==="condition")return(n.config?.field||"field")+" "+(n.config?.operator||"=")+" "+(n.config?.value||"?");
+    if(n.type==="wait")return"Wait "+(n.config?.delay_hours||24)+"h";return n.type;};
+
+  return(<div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    {/* Toolbar */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid "+B.border,marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F}}>← Back</button>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Workflow name..." style={{...IS,width:200,padding:8,fontSize:13,fontWeight:700}}/>
+      </div>
+      <button onClick={()=>onSave({...workflow,name:name||"Untitled Workflow",description:desc,nodes,edges})} style={{...BP,fontSize:12,padding:"8px 16px"}}>Save Workflow</button>
+    </div>
+    <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description..." style={{...IS,marginBottom:12,padding:8,fontSize:12}}/>
+
+    {/* Add Node Buttons */}
+    <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+      <button onClick={()=>addNode("trigger",{event:"wo_created"})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.cyan+"40",color:B.cyan}}>+ Trigger</button>
+      <button onClick={()=>addNode("condition",{field:"",operator:"equals",value:""})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.orange+"40",color:B.orange}}>+ Condition</button>
+      <button onClick={()=>addNode("action",{action_type:"create_notification"})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.purple+"40",color:B.purple}}>+ Action</button>
+      <button onClick={()=>addNode("wait",{delay_hours:24})} style={{...BS,padding:"6px 12px",fontSize:11,color:B.textMuted}}>+ Wait</button>
+      {connecting&&<span style={{fontSize:11,color:B.orange,fontWeight:600,padding:"6px 12px"}}>Click a node to connect...</span>}
+    </div>
+
+    {/* Canvas */}
+    <div ref={canvasRef} style={{flex:1,minHeight:400,background:B.bg,border:"1px solid "+B.border,borderRadius:10,position:"relative",overflow:"hidden",cursor:dragNode?"grabbing":"default"}}
+      onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onClick={()=>{setSelected(null);setConnecting(null);}}>
+      {/* SVG edges */}
+      <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}}>
+        {edges.map(e=>{const src=nodes.find(n=>n.id===e.source);const tgt=nodes.find(n=>n.id===e.target);if(!src||!tgt)return null;
+          const x1=src.x+90,y1=src.y+30,x2=tgt.x+90,y2=tgt.y+10;const cy1=y1+(y2-y1)*0.5,cy2=y2-(y2-y1)*0.5;
+          return<g key={e.id}><path d={`M${x1},${y1} C${x1},${cy1} ${x2},${cy2} ${x2},${y2}`} fill="none" stroke={B.textDim} strokeWidth="2" strokeDasharray="6 3"/>
+            <circle cx={x2} cy={y2} r="3" fill={B.textDim}/></g>;})}
+      </svg>
+
+      {/* Nodes */}
+      {nodes.map(n=>{const c=nodeColors[n.type];const isSelected=selected===n.id;return(
+        <div key={n.id} style={{position:"absolute",left:n.x,top:n.y,width:180,background:B.surface,border:"2px solid "+(isSelected?c:B.border),borderRadius:10,padding:"10px 12px",cursor:"grab",boxShadow:isSelected?"0 4px 16px "+c+"30":"0 1px 4px rgba(0,0,0,0.1)",transition:"box-shadow .15s",zIndex:isSelected?10:1}}
+          onMouseDown={e=>handleMouseDown(e,n.id)} onDoubleClick={(e)=>{e.stopPropagation();setConfigNode(n);}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:12}}>{nodeIcons[n.type]}</span>
+              <span style={{fontSize:9,fontWeight:700,color:c,textTransform:"uppercase",letterSpacing:0.5}}>{n.type}</span>
+            </div>
+            <div style={{display:"flex",gap:2}}>
+              <button onClick={e=>{e.stopPropagation();setConnecting(n.id);}} style={{background:B.cyan+"22",border:"none",color:B.cyan,width:18,height:18,borderRadius:4,fontSize:10,cursor:"pointer"}} title="Connect">→</button>
+              <button onClick={e=>{e.stopPropagation();removeNode(n.id);}} style={{background:B.red+"22",border:"none",color:B.red,width:18,height:18,borderRadius:4,fontSize:10,cursor:"pointer"}}>×</button>
+            </div>
+          </div>
+          <div style={{fontSize:11,fontWeight:600,color:B.text,lineHeight:1.3}}>{getNodeLabel(n)}</div>
+          <div style={{fontSize:9,color:B.textDim,marginTop:4}}>Double-click to configure</div>
+        </div>);})}
+
+      {nodes.length===0&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",color:B.textDim}}>
+        <div style={{fontSize:36,marginBottom:8}}>⚡</div><div style={{fontSize:13}}>Add nodes to build your workflow</div>
+        <div style={{fontSize:11,marginTop:4}}>Start with a Trigger, then add Conditions and Actions</div>
+      </div>}
+    </div>
+
+    {/* Node Configuration Modal */}
+    {configNode&&<Modal title={"Configure "+configNode.type.charAt(0).toUpperCase()+configNode.type.slice(1)} onClose={()=>setConfigNode(null)} wide>
+      {configNode.type==="trigger"&&<div>
+        <label style={LS}>When this happens:</label>
+        <select value={configNode.config?.event||""} onChange={e=>{updateNodeConfig(configNode.id,{event:e.target.value});setConfigNode({...configNode,config:{...configNode.config,event:e.target.value}});}} style={{...IS,cursor:"pointer"}}>
+          {WF_TRIGGERS.map(t=><option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+        </select>
+      </div>}
+      {configNode.type==="condition"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div><label style={LS}>Field</label><select value={configNode.config?.field||""} onChange={e=>{updateNodeConfig(configNode.id,{field:e.target.value});setConfigNode({...configNode,config:{...configNode.config,field:e.target.value}});}} style={{...IS,cursor:"pointer"}}>
+          <option value="">Select field</option>
+          {["customer","priority","status","amount","wo_type","assignee","star_rating","nps_score"].map(f=><option key={f} value={f}>{f}</option>)}
+        </select></div>
+        <div><label style={LS}>Operator</label><select value={configNode.config?.operator||"equals"} onChange={e=>{updateNodeConfig(configNode.id,{operator:e.target.value});setConfigNode({...configNode,config:{...configNode.config,operator:e.target.value}});}} style={{...IS,cursor:"pointer"}}>
+          {WF_OPERATORS.map(o=><option key={o.key} value={o.key}>{o.label}</option>)}
+        </select></div>
+        <div><label style={LS}>Value</label><input value={configNode.config?.value||""} onChange={e=>{updateNodeConfig(configNode.id,{value:e.target.value});setConfigNode({...configNode,config:{...configNode.config,value:e.target.value}});}} style={IS} placeholder="Value to compare"/></div>
+      </div>}
+      {configNode.type==="action"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div><label style={LS}>Action Type</label><select value={configNode.config?.action_type||""} onChange={e=>{updateNodeConfig(configNode.id,{action_type:e.target.value});setConfigNode({...configNode,config:{...configNode.config,action_type:e.target.value}});}} style={{...IS,cursor:"pointer"}}>
+          {WF_ACTIONS.filter(a=>a.key!=="wait").map(a=><option key={a.key} value={a.key}>{a.icon} {a.label}</option>)}
+        </select></div>
+        {configNode.config?.action_type==="send_email"&&<>
+          <div><label style={LS}>To Email</label><input value={configNode.config?.to_email||""} onChange={e=>{updateNodeConfig(configNode.id,{to_email:e.target.value});setConfigNode({...configNode,config:{...configNode.config,to_email:e.target.value}});}} style={IS} placeholder="Leave blank to use customer email"/></div>
+          <div><label style={LS}>Subject</label><input value={configNode.config?.subject||""} onChange={e=>{updateNodeConfig(configNode.id,{subject:e.target.value});setConfigNode({...configNode,config:{...configNode.config,subject:e.target.value}});}} style={IS}/></div>
+          <div><label style={LS}>Body</label><textarea value={configNode.config?.body||""} onChange={e=>{updateNodeConfig(configNode.id,{body:e.target.value});setConfigNode({...configNode,config:{...configNode.config,body:e.target.value}});}} rows={3} style={{...IS,resize:"vertical"}}/></div>
+        </>}
+        {configNode.config?.action_type==="create_notification"&&<>
+          <div><label style={LS}>Title</label><input value={configNode.config?.title||""} onChange={e=>{updateNodeConfig(configNode.id,{title:e.target.value});setConfigNode({...configNode,config:{...configNode.config,title:e.target.value}});}} style={IS}/></div>
+          <div><label style={LS}>Message</label><input value={configNode.config?.message||""} onChange={e=>{updateNodeConfig(configNode.id,{message:e.target.value});setConfigNode({...configNode,config:{...configNode.config,message:e.target.value}});}} style={IS}/></div>
+          <div><label style={LS}>For Role</label><select value={configNode.config?.for_role||""} onChange={e=>{updateNodeConfig(configNode.id,{for_role:e.target.value});setConfigNode({...configNode,config:{...configNode.config,for_role:e.target.value}});}} style={{...IS,cursor:"pointer"}}><option value="">All</option><option value="admin">Admin</option><option value="manager">Manager</option><option value="technician">Technician</option></select></div>
+        </>}
+        {configNode.config?.action_type==="change_wo_status"&&<div><label style={LS}>New Status</label><select value={configNode.config?.new_status||""} onChange={e=>{updateNodeConfig(configNode.id,{new_status:e.target.value});setConfigNode({...configNode,config:{...configNode.config,new_status:e.target.value}});}} style={{...IS,cursor:"pointer"}}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select></div>}
+        {configNode.config?.action_type==="log_activity"&&<div><label style={LS}>Activity Message</label><input value={configNode.config?.message||""} onChange={e=>{updateNodeConfig(configNode.id,{message:e.target.value});setConfigNode({...configNode,config:{...configNode.config,message:e.target.value}});}} style={IS}/></div>}
+      </div>}
+      {configNode.type==="wait"&&<div>
+        <label style={LS}>Delay (hours)</label>
+        <input value={configNode.config?.delay_hours||24} onChange={e=>{const v=parseFloat(e.target.value)||24;updateNodeConfig(configNode.id,{delay_hours:v});setConfigNode({...configNode,config:{...configNode.config,delay_hours:v}});}} type="number" style={{...IS,fontFamily:M}} placeholder="24"/>
+        <div style={{fontSize:11,color:B.textDim,marginTop:6}}>Common: 24h (1 day), 72h (3 days), 168h (1 week), 360h (15 days), 720h (30 days)</div>
+      </div>}
+      <button onClick={()=>setConfigNode(null)} style={{...BP,width:"100%",marginTop:16}}>Done</button>
+    </Modal>}
+  </div>);
+}
+
+// ═══════════════════════════════════════════
+// PROPOSAL & ESTIMATE SYSTEM
+// ═══════════════════════════════════════════
+function genProposalNum(existing){const n=new Date(),pfx="PROP-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(p=>p.proposal_num&&p.proposal_num.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.proposal_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+function genEstimateNum(existing){const n=new Date(),pfx="EST-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(e=>e.estimate_num&&e.estimate_num.startsWith(pfx)).reduce((m,e)=>{const s=parseInt(e.estimate_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+
+function EstimateBuilder({customers,users,onSave,onCancel,initial}){
+  const[cust,setCust]=useState(initial?.customer_name||"");
+  const[tiers,setTiers]=useState(initial?.tier_data||[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
+  const[parts,setParts]=useState(initial?.parts_data||[]);const[desc,setDesc]=useState(initial?.job_description||"");
+  const[notes,setNotes]=useState(initial?.notes||"");const[validUntil,setValidUntil]=useState(initial?.valid_until||"");
+  const[terms,setTerms]=useState(initial?.payment_terms||"Net 30");const[saving,setSaving]=useState(false);
+
+  const addTier=()=>setTiers([...tiers,{name:"",rate:0,hours:0}]);
+  const updateTier=(i,k,v)=>{const t=[...tiers];t[i]={...t[i],[k]:k==="name"?v:parseFloat(v)||0};setTiers(t);};
+  const removeTier=(i)=>setTiers(tiers.filter((_,j)=>j!==i));
+  const addPart=()=>setParts([...parts,{description:"",quantity:1,unit_cost:0,markup_pct:35}]);
+  const updatePart=(i,k,v)=>{const p=[...parts];p[i]={...p[i],[k]:k==="description"?v:parseFloat(v)||0};setParts(p);};
+  const removePart=(i)=>setParts(parts.filter((_,j)=>j!==i));
+
+  const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
+  const partsTotal=parts.reduce((s,p)=>s+p.quantity*p.unit_cost*(1+p.markup_pct/100),0);
+  const grandTotal=laborTotal+partsTotal;
+
+  // Load customer tiers if available
+  useEffect(()=>{if(cust&&!initial){const c=customers.find(x=>x.name===cust);if(c?.labor_tiers&&Array.isArray(c.labor_tiers)&&c.labor_tiers.length>0){setTiers(c.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0})));}}
+  },[cust]);
+
+  const save=async()=>{if(!cust||saving)return;setSaving(true);
+    const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,tier_data:tiers,parts_data:parts,labor_total:laborTotal,parts_total:Math.round(partsTotal*100)/100,grand_total:Math.round(grandTotal*100)/100,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
+    await onSave(data);setSaving(false);};
+
+  return(<div>
+    <div style={{marginBottom:16}}>
+      <label style={LS}>Customer</label>
+      <CustomSelect value={cust} onChange={setCust} options={customers.map(c=>({value:c.name,label:c.name}))} placeholder="Select customer"/>
+    </div>
+    <div style={{marginBottom:16}}><label style={LS}>Job Description</label><textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Describe the work..."/></div>
+
+    {/* Labor Tiers */}
+    <div style={{marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <span style={{...LS,marginBottom:0}}>Labor Tiers</span>
+        <button onClick={addTier} style={{...BS,padding:"4px 10px",fontSize:10}}>+ Add Tier</button>
+      </div>
+      {tiers.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:6,alignItems:"center"}}>
+        <input value={t.name} onChange={e=>updateTier(i,"name",e.target.value)} placeholder="Tier name" style={{...IS,padding:8,fontSize:12}}/>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate||""} onChange={e=>updateTier(i,"rate",e.target.value)} type="number" placeholder="Rate" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/><span style={{fontSize:10,color:B.textDim}}>/hr</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><input value={t.hours||""} onChange={e=>updateTier(i,"hours",e.target.value)} type="number" step="0.25" placeholder="Hrs" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/><span style={{fontSize:10,color:B.textDim}}>hrs</span></div>
+        <button onClick={()=>removeTier(i)} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:4}}>×</button>
+      </div>)}
+      <div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.cyan,fontWeight:700}}>Labor: ${laborTotal.toFixed(2)}</div>
+    </div>
+
+    {/* Parts */}
+    <div style={{marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <span style={{...LS,marginBottom:0}}>Parts & Materials</span>
+        <button onClick={addPart} style={{...BS,padding:"4px 10px",fontSize:10}}>+ Add Part</button>
+      </div>
+      {parts.map((p,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 0.5fr 1fr 0.7fr auto",gap:6,marginBottom:6,alignItems:"center"}}>
+        <input value={p.description} onChange={e=>updatePart(i,"description",e.target.value)} placeholder="Part description" style={{...IS,padding:8,fontSize:12}}/>
+        <input value={p.quantity||""} onChange={e=>updatePart(i,"quantity",e.target.value)} type="number" placeholder="Qty" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={p.unit_cost||""} onChange={e=>updatePart(i,"unit_cost",e.target.value)} type="number" placeholder="Cost" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:8,fontSize:12,fontFamily:M,width:50}}/><span style={{fontSize:10,color:B.textDim}}>%</span></div>
+        <button onClick={()=>removePart(i)} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:4}}>×</button>
+      </div>)}
+      {parts.length>0&&<div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.orange,fontWeight:700}}>Parts: ${partsTotal.toFixed(2)}</div>}
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+      <div><label style={LS}>Valid Until</label><input value={validUntil} onChange={e=>setValidUntil(e.target.value)} type="date" style={IS}/></div>
+      <div><label style={LS}>Payment Terms</label><input value={terms} onChange={e=>setTerms(e.target.value)} style={IS}/></div>
+    </div>
+    <div style={{marginBottom:16}}><label style={LS}>Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Additional notes..."/></div>
+
+    {/* Total */}
+    <Card style={{padding:16,marginBottom:16,borderLeft:"3px solid "+B.green,textAlign:"center"}}>
+      <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:4}}>Estimated Total</div>
+      <div style={{fontSize:28,fontWeight:900,fontFamily:M,color:B.green}}>${grandTotal.toFixed(2)}</div>
+      <div style={{fontSize:11,color:B.textMuted,marginTop:4}}>Labor: ${laborTotal.toFixed(2)} + Parts: ${partsTotal.toFixed(2)}</div>
+    </Card>
+
+    <div style={{display:"flex",gap:8}}>
+      <button onClick={save} disabled={!cust||saving} style={{...BP,flex:1,opacity:(!cust||saving)?.6:1}}>{saving?"Saving...":"Save Estimate"}</button>
+      {onCancel&&<button onClick={onCancel} style={{...BS,flex:1}}>Cancel</button>}
+    </div>
+  </div>);
+}
+
+function ProposalBuilder({customers,users,userName,onClose}){
+  const[step,setStep]=useState(1);const[cust,setCust]=useState("");const[title,setTitle]=useState("");
+  const[scope,setScope]=useState("");const[custType,setCustType]=useState("");const[location,setLocation]=useState("");
+  const[pastExamples,setPastExamples]=useState("");
+  const[generating,setGenerating]=useState(false);const[proposal,setProposal]=useState(null);const[editedContent,setEditedContent]=useState("");
+  const[includeEstimate,setIncludeEstimate]=useState(false);const[estimate,setEstimate]=useState(null);
+  const[expiry,setExpiry]=useState("");const[saving,setSaving]=useState(false);const[toast,setToast]=useState("");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+
+  const generate=async()=>{if(!cust||!scope||generating)return;setGenerating(true);
+    try{const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-proposal",{method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
+      body:JSON.stringify({customer_name:cust,project_title:title,scope_description:scope,customer_type:custType,location,past_examples:pastExamples||null,estimate_summary:estimate?`Labor: $${estimate.labor_total}, Parts: $${estimate.parts_total}, Total: $${estimate.grand_total}`:null})});
+      const result=await resp.json();
+      if(result.success&&result.proposal){setProposal(result.proposal);
+        const titles={project_summary:"1. Project Summary",project_objectives:"2. Project Objectives",scope_of_work:"3. Scope of Work",corrective_maintenance:"4. Corrective Maintenance",pricing_and_billing:"Pricing & Billing",terms_and_conditions:"Proposal Terms & Conditions",closing_statement:""};
+        const formatted=Object.entries(result.proposal).filter(([_,v])=>v).map(([k,v])=>{const t=titles[k];return(t?t+"\n\n":"")+v;}).join("\n\n---\n\n");
+        setEditedContent(formatted);setStep(3);
+      }else msg("Generation failed: "+(result.error||"Unknown error"));
+    }catch(e){msg("Network error");}setGenerating(false);};
+
+  const saveProposal=async()=>{if(saving)return;setSaving(true);
+    try{const{data:existing}=await sb().from("proposals").select("proposal_num");const num=genProposalNum(existing||[]);
+      const custObj=customers.find(c=>c.name===cust);
+      let estId=null;
+      if(includeEstimate&&estimate){const{data:estExisting}=await sb().from("estimates").select("estimate_num");const estNum=genEstimateNum(estExisting||[]);
+        const{data:ins}=await sb().from("estimates").insert({estimate_num:estNum,customer_name:cust,customer_id:custObj?.id||null,...estimate,status:"draft",created_by:userName}).select("id").single();
+        estId=ins?.id;}
+      const token=crypto.randomUUID();
+      await sb().from("proposals").insert({proposal_num:num,customer_name:cust,customer_id:custObj?.id||null,title:title||"Service Proposal",scope_of_work:scope,ai_generated_content:JSON.stringify(proposal),user_edits:editedContent,estimate_id:estId,status:"draft",approval_token:token,expires_at:expiry||null,created_by:userName});
+      msg("Proposal "+num+" saved!");setTimeout(()=>onClose&&onClose(),1500);
+    }catch(e){msg("Error saving");}setSaving(false);};
+
+  return(<div><Toast msg={toast}/>
+    {/* Step indicator */}
+    <div style={{display:"flex",gap:0,marginBottom:20}}>
+      {["Details","Generate","Review","Finalize"].map((l,i)=>{const s=i+1;const active=step===s;const done=step>s;return<div key={i} style={{flex:1,textAlign:"center",padding:"10px 0",background:active?B.cyanGlow:done?B.green+"15":"transparent",borderBottom:"2px solid "+(active?B.cyan:done?B.green:B.border)}}><span style={{fontSize:11,fontWeight:700,color:active?B.cyan:done?B.green:B.textDim}}>{l}</span></div>;})}
+    </div>
+
+    {/* Step 1: Details */}
+    {step===1&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div><label style={LS}>Customer *</label><CustomSelect value={cust} onChange={setCust} options={customers.map(c=>({value:c.name,label:c.name}))} placeholder="Select customer"/></div>
+      <div><label style={LS}>Project Title</label><input value={title} onChange={e=>setTitle(e.target.value)} style={IS} placeholder="e.g., Annual HVAC Maintenance Contract"/></div>
+      <div><label style={LS}>Customer Type</label><CustomSelect value={custType} onChange={setCustType} options={[{value:"university",label:"University"},{value:"biotech",label:"Biotech/Pharma"},{value:"healthcare",label:"Healthcare"},{value:"research",label:"Research Facility"},{value:"food_service",label:"Food Service"},{value:"commercial",label:"Commercial"}]} placeholder="Select type"/></div>
+      <div><label style={LS}>Location</label><input value={location} onChange={e=>setLocation(e.target.value)} style={IS} placeholder="Building/campus name"/></div>
+      <div><label style={LS}>Scope Description *</label><textarea value={scope} onChange={e=>setScope(e.target.value)} rows={4} style={{...IS,resize:"vertical"}} placeholder="Describe the work in detail — what needs to be done, equipment involved, special requirements..."/></div>
+      <div><label style={LS}>Past Proposal Examples (optional)</label><textarea value={pastExamples} onChange={e=>setPastExamples(e.target.value)} rows={3} style={{...IS,resize:"vertical",fontSize:12}} placeholder="Paste sections from previous proposals for the AI to reference..."/></div>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:B.bg,borderRadius:8,border:"1px solid "+B.border}}>
+        <input type="checkbox" checked={includeEstimate} onChange={e=>setIncludeEstimate(e.target.checked)} style={{width:18,height:18,accentColor:B.cyan}}/>
+        <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>Include Cost Estimate</div><div style={{fontSize:11,color:B.textDim}}>Attach a detailed labor & parts estimate to this proposal</div></div>
+      </div>
+      {includeEstimate&&<Card style={{padding:16}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate saved");}} onCancel={()=>setIncludeEstimate(false)}/></Card>}
+      <button onClick={()=>setStep(2)} disabled={!cust||!scope} style={{...BP,width:"100%",opacity:(!cust||!scope)?.6:1}}>Continue to Generation</button>
+    </div>}
+
+    {/* Step 2: AI Generate */}
+    {step===2&&<div style={{textAlign:"center",padding:20}}>
+      <div style={{fontSize:48,marginBottom:16}}>🤖</div>
+      <h3 style={{fontSize:16,fontWeight:800,color:B.text,marginBottom:8}}>Ready to Generate</h3>
+      <p style={{fontSize:13,color:B.textMuted,marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>
+        AI will draft a professional proposal for <strong>{cust}</strong> based on your scope description.
+        {estimate&&" It will reference your $"+estimate.grand_total?.toFixed(2)+" estimate."}
+      </p>
+      <button onClick={generate} disabled={generating} style={{...BP,padding:"14px 32px",fontSize:15,opacity:generating?.6:1}}>
+        {generating?"Generating... (30-60s)":"Generate Proposal"}
+      </button>
+      <div style={{marginTop:12}}><button onClick={()=>setStep(1)} style={{...BS,fontSize:12}}>← Back to Details</button></div>
+    </div>}
+
+    {/* Step 3: Review & Edit */}
+    {step===3&&<div>
+      <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:13,fontWeight:700,color:B.text}}>Review & Edit Proposal</span>
+        <button onClick={generate} disabled={generating} style={{...BS,fontSize:11,padding:"5px 12px"}}>{generating?"Regenerating...":"Regenerate"}</button>
+      </div>
+      <textarea value={editedContent} onChange={e=>setEditedContent(e.target.value)} rows={20} style={{...IS,resize:"vertical",fontSize:13,lineHeight:1.6,fontFamily:F,minHeight:400}}/>
+      <div style={{display:"flex",gap:8,marginTop:12}}>
+        <button onClick={()=>setStep(4)} style={{...BP,flex:1}}>Looks Good → Finalize</button>
+        <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>← Back</button>
+      </div>
+    </div>}
+
+    {/* Step 4: Finalize */}
+    {step===4&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card style={{padding:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:8}}>Proposal Summary</div>
+        <div style={{fontSize:12,color:B.textMuted}}>Customer: <strong style={{color:B.text}}>{cust}</strong></div>
+        <div style={{fontSize:12,color:B.textMuted}}>Title: <strong style={{color:B.text}}>{title||"Service Proposal"}</strong></div>
+        {estimate&&<div style={{fontSize:12,color:B.textMuted}}>Estimate: <strong style={{color:B.green}}>${estimate.grand_total?.toFixed(2)}</strong></div>}
+        <div style={{fontSize:12,color:B.textMuted,marginTop:4}}>Content: {editedContent.length} characters</div>
+      </Card>
+      <div><label style={LS}>Proposal Expiry Date</label><input value={expiry} onChange={e=>setExpiry(e.target.value)} type="date" style={IS}/></div>
+      <button onClick={saveProposal} disabled={saving} style={{...BP,width:"100%",padding:14,fontSize:15,opacity:saving?.6:1}}>
+        {saving?"Saving...":"Save Proposal as Draft"}
+      </button>
+      <button onClick={()=>setStep(3)} style={{...BS,width:"100%"}}>← Back to Edit</button>
+    </div>}
+  </div>);
+}
+
+function ProposalDashboard({D,userName}){
+  const[proposals,setProposals]=useState([]);const[estimates,setEstimates]=useState([]);
+  const[loading,setLoading]=useState(true);const[toast,setToast]=useState("");const[view,setView]=useState("list");const[selProp,setSelProp]=useState(null);
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const load=async()=>{const[{data:p},{data:e}]=await Promise.all([sb().from("proposals").select("*").order("created_at",{ascending:false}),sb().from("estimates").select("*").order("created_at",{ascending:false})]);setProposals(p||[]);setEstimates(e||[]);setLoading(false);};
+  useEffect(()=>{load();},[]);
+
+  const PSC_PROP={draft:B.purple,sent:B.cyan,approved:B.green,rejected:B.red,expired:B.textDim};
+  const totalQuoted=proposals.filter(p=>p.status!=="rejected").reduce((s,p)=>{const est=estimates.find(e=>e.id===p.estimate_id);return s+(est?.grand_total||0);},0);
+  const approvedCount=proposals.filter(p=>p.status==="approved").length;
+  const approvalRate=proposals.length>0?Math.round((approvedCount/proposals.length)*100):0;
+
+  const sendProposal=async(prop)=>{const cust=D.customers.find(c=>c.name===prop.customer_name);const toEmail=cust?.email||cust?.feedback_email;
+    if(!toEmail){msg("No email found for "+prop.customer_name);return;}
+    const portalUrl=window.location.origin+"/#/proposal/"+prop.approval_token;
+    const body="<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px'><p>Dear "+( cust?.contact_name||"Valued Customer")+",</p><p>Thank you for the opportunity to provide a proposal for your refrigeration/HVAC service needs. Please review our proposal at the link below:</p><p style='text-align:center;margin:24px 0'><a href='"+portalUrl+"' style='display:inline-block;padding:14px 28px;background:#00D4F5;color:#101214;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px'>View Proposal</a></p><p>This proposal"+(prop.expires_at?" is valid until "+new Date(prop.expires_at).toLocaleDateString():"")+". Please don't hesitate to reach out with any questions.</p><p>Best regards,<br/>3C Refrigeration Team</p></div>";
+    try{await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:toEmail,subject:"Proposal from 3C Refrigeration — "+prop.title,body})});
+      await sb().from("proposals").update({status:"sent",sent_to:toEmail,sent_at:new Date().toISOString()}).eq("id",prop.id);await load();msg("Proposal sent to "+toEmail);
+    }catch(e){msg("Send failed");}};
+
+  const del=async(id)=>{if(!window.confirm("Delete this proposal?"))return;await sb().from("proposals").delete().eq("id",id);await load();msg("Deleted");};
+
+  if(view==="create")return<div><button onClick={()=>setView("list")} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F,marginBottom:10}}>← Back</button><ProposalBuilder customers={D.customers} users={D.users} userName={userName} onClose={()=>{setView("list");load();}}/></div>;
+
+  return(<div><Toast msg={toast}/>
+    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      <StatCard label="Total Proposals" value={proposals.length} icon="📋" color={B.cyan}/>
+      <StatCard label="Approval Rate" value={approvalRate+"%"} icon="✓" color={approvalRate>=50?B.green:B.orange}/>
+      <StatCard label="Quoted Value" value={"$"+totalQuoted.toLocaleString(undefined,{minimumFractionDigits:0})} icon="💰" color={B.green}/>
+      <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="⏳" color={B.orange}/>
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Proposals</h3>
+      <button onClick={()=>setView("create")} style={{...BP,fontSize:12}}>+ New Proposal</button>
+    </div>
+
+    {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
+    {!loading&&proposals.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📋</div><div style={{fontSize:13}}>No proposals yet. Create your first one.</div></Card>}
+
+    {proposals.map(prop=>{const est=estimates.find(e=>e.id===prop.estimate_id);return(
+      <Card key={prop.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(PSC_PROP[prop.status]||B.border)}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontFamily:M,fontWeight:800,fontSize:14,color:B.text}}>{prop.proposal_num}</span>
+              <Badge color={PSC_PROP[prop.status]||B.textDim}>{prop.status}</Badge>
+            </div>
+            <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{prop.customer_name} — {prop.title}</div>
+            <div style={{fontSize:11,color:B.textDim,marginTop:2}}>
+              Created {new Date(prop.created_at).toLocaleDateString()}
+              {est&&<span> · Est: <strong style={{color:B.green}}>${est.grand_total?.toFixed(2)}</strong></span>}
+              {prop.expires_at&&<span> · Expires {new Date(prop.expires_at).toLocaleDateString()}</span>}
+              {prop.sent_to&&<span> · Sent to {prop.sent_to}</span>}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:4,flexShrink:0}}>
+            {prop.status==="draft"&&<button onClick={()=>sendProposal(prop)} style={{...BP,padding:"5px 12px",fontSize:11}}>Send</button>}
+            <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/#/proposal/"+prop.approval_token);msg("Link copied!");}} style={{...BS,padding:"5px 10px",fontSize:11}}>🔗</button>
+            <button onClick={()=>del(prop.id)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
+          </div>
+        </div>
+      </Card>);})}
+  </div>);
+}
+
+function ProposalPortal({token}){
+  const[loading,setLoading]=useState(true);const[prop,setProp]=useState(null);const[est,setEst]=useState(null);const[error,setError]=useState(null);
+  const[rejReason,setRejReason]=useState("");const[showReject,setShowReject]=useState(false);const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(null);
+
+  useEffect(()=>{(async()=>{const{data,error:e}=await sb().from("proposals").select("*").eq("approval_token",token).single();
+    if(e||!data){setError("This proposal link is invalid or has expired.");setLoading(false);return;}
+    if(data.estimate_id){const{data:estData}=await sb().from("estimates").select("*").eq("id",data.estimate_id).single();setEst(estData);}
+    setProp(data);setLoading(false);
+  })();},[token]);
+
+  const approve=async()=>{if(submitting)return;setSubmitting(true);
+    await sb().from("proposals").update({status:"approved",approved_at:new Date().toISOString(),approved_by:"Customer"}).eq("id",prop.id);
+    // If estimate exists, mark it approved too
+    if(est){await sb().from("estimates").update({status:"approved",approved_at:new Date().toISOString()}).eq("id",est.id);}
+    await sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name,for_role:"admin"});
+    setDone("approved");setSubmitting(false);};
+
+  const reject=async()=>{if(submitting)return;setSubmitting(true);
+    await sb().from("proposals").update({status:"rejected",rejected_at:new Date().toISOString(),rejection_reason:rejReason}).eq("id",prop.id);
+    await sb().from("notifications").insert({type:"proposal_rejected",title:"Proposal Rejected",message:prop.proposal_num+" rejected by "+prop.customer_name+(rejReason?": "+rejReason.slice(0,80):""),for_role:"admin"});
+    setDone("rejected");setSubmitting(false);};
+
+  if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+  if(error)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"✅":"📝"}</div><h2 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
+
+  const isExpired=prop.expires_at&&new Date(prop.expires_at)<new Date();
+  const alreadyActioned=prop.status==="approved"||prop.status==="rejected";
+
+  return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text}}>
+    <div style={{background:B.surface,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Proposal</div></div>
+    <div style={{maxWidth:700,margin:"0 auto",padding:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div><h2 style={{fontSize:20,fontWeight:800,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
+        <Badge color={PSC[prop.status]||B.textDim}>{prop.status}</Badge>
+      </div>
+
+      {/* Proposal Content */}
+      <Card style={{padding:20,marginBottom:16}}>
+        <div style={{fontSize:14,color:B.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{prop.user_edits||prop.ai_generated_content||prop.scope_of_work}</div>
+      </Card>
+
+      {/* Estimate */}
+      {est&&<Card style={{padding:20,marginBottom:16,borderLeft:"3px solid "+B.green}}>
+        <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Cost Estimate</div>
+        {est.tier_data&&est.tier_data.length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:6}}>Labor</div>
+          {est.tier_data.map((t,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
+            <span style={{color:B.text}}>{t.name}</span><span style={{fontFamily:M,color:B.text}}>{t.hours}h × ${t.rate}/hr = <strong>${(t.hours*t.rate).toFixed(2)}</strong></span>
+          </div>)}</>}
+        {est.parts_data&&est.parts_data.length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginTop:12,marginBottom:6}}>Parts & Materials</div>
+          {est.parts_data.map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
+            <span style={{color:B.text}}>{p.description} (×{p.quantity})</span><span style={{fontFamily:M,color:B.text}}>${(p.quantity*p.unit_cost*(1+p.markup_pct/100)).toFixed(2)}</span>
+          </div>)}</>}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0 0",marginTop:8,fontSize:16,fontWeight:800}}>
+          <span style={{color:B.text}}>Total</span><span style={{fontFamily:M,color:B.green}}>${est.grand_total?.toFixed(2)}</span>
+        </div>
+        {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:6}}>Valid until {new Date(est.valid_until).toLocaleDateString()}</div>}
+        {est.payment_terms&&<div style={{fontSize:11,color:B.textDim}}>Payment terms: {est.payment_terms}</div>}
+      </Card>}
+
+      {/* Actions */}
+      {!alreadyActioned&&!isExpired&&<div style={{display:"flex",gap:10,marginTop:20}}>
+        <button onClick={approve} disabled={submitting} style={{...BP,flex:1,padding:16,fontSize:15,background:B.green,opacity:submitting?.6:1}}>
+          {submitting?"Processing...":"✓ Approve Proposal"}
+        </button>
+        <button onClick={()=>setShowReject(!showReject)} style={{...BS,flex:1,padding:16,fontSize:15,color:B.red,borderColor:B.red+"40"}}>
+          Decline
+        </button>
+      </div>}
+      {showReject&&<Card style={{padding:16,marginTop:12}}>
+        <label style={LS}>Reason for declining (optional)</label>
+        <textarea value={rejReason} onChange={e=>setRejReason(e.target.value)} rows={2} style={{...IS,resize:"vertical",marginBottom:12}} placeholder="Let us know why..."/>
+        <button onClick={reject} disabled={submitting} style={{...BP,width:"100%",background:B.red,opacity:submitting?.6:1}}>{submitting?"Submitting...":"Confirm Decline"}</button>
+      </Card>}
+      {isExpired&&<Card style={{padding:16,textAlign:"center",borderLeft:"3px solid "+B.red}}><div style={{fontSize:13,color:B.red,fontWeight:600}}>This proposal has expired. Please contact us for an updated proposal.</div></Card>}
+      {alreadyActioned&&<Card style={{padding:16,textAlign:"center",borderLeft:"3px solid "+(prop.status==="approved"?B.green:B.red)}}><div style={{fontSize:13,color:prop.status==="approved"?B.green:B.red,fontWeight:600}}>This proposal has been {prop.status}.</div></Card>}
+    </div>
+  </div>);
+}
+
+// ═══════════════════════════════════════════
+// FEEDBACK FORM — Public page (no auth)
+// ═══════════════════════════════════════════
+function FeedbackForm({token}){
+  const[loading,setLoading]=useState(true);const[request,setRequest]=useState(null);const[error,setError]=useState(null);
+  const[step,setStep]=useState(1);const[stars,setStars]=useState(0);const[hoverStar,setHoverStar]=useState(0);
+  const[npsScore,setNpsScore]=useState(null);const[npsFeedback,setNpsFeedback]=useState("");
+  const[testimonial,setTestimonial]=useState("");const[privateFb,setPrivateFb]=useState("");
+  const[name,setName]=useState("");const[email,setEmail]=useState("");
+  const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(false);
+
+  useEffect(()=>{(async()=>{const{data,error:e}=await sb().from("feedback_requests").select("*").eq("token",token).single();
+    if(e||!data){setError("This feedback link is invalid or has expired.");setLoading(false);return;}
+    if(data.completed){setError("Feedback has already been submitted. Thank you!");setLoading(false);return;}
+    // Check if customer is key account
+    const{data:cust}=await sb().from("customers").select("is_key_account").eq("name",data.customer_name).single();
+    setRequest({...data,isKeyAccount:cust?.is_key_account||false});setLoading(false);
+  })();},[token]);
+
+  const submit=async()=>{if(!stars||submitting)return;setSubmitting(true);
+    try{const resp=await fetch(SUPABASE_URL+"/functions/v1/submit-feedback",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token,star_rating:stars,nps_score:npsScore,nps_feedback:npsFeedback||null,testimonial_text:testimonial||null,private_feedback:privateFb||null,respondent_name:name||null,respondent_email:email||null})});
+      const result=await resp.json();if(result.success)setDone(true);else setError(result.error||"Failed to submit");
+    }catch(e){setError("Network error. Please try again.");}setSubmitting(false);};
+
+  const bg=B.bg,sf=B.surface;
+  if(loading)return<div style={{minHeight:"100vh",background:bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+  if(error)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>🙏</div><h2 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Thank you!</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>Your feedback helps us improve our service. We truly appreciate your time.</p><div style={{marginTop:24}}><Logo/></div></div>;
+
+  return(<div style={{minHeight:"100vh",background:bg,fontFamily:F,color:B.text}}>
+    <div style={{background:sf,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Feedback</div></div>
+    <div style={{maxWidth:500,margin:"0 auto",padding:24}}>
+      <h2 style={{fontSize:18,fontWeight:800,marginBottom:4}}>How did we do?</h2>
+      <p style={{fontSize:13,color:B.textMuted,marginBottom:24}}>We'd love to hear about your experience with 3C Refrigeration.</p>
+
+      {/* Step 1: Star Rating */}
+      {step>=1&&<Card style={{padding:20,marginBottom:16,textAlign:"center"}}>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Rate Our Service</div>
+        <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:8}}>
+          {[1,2,3,4,5].map(s=><button key={s} onClick={()=>{setStars(s);if(step===1)setTimeout(()=>setStep(2),300);}}
+            onMouseEnter={()=>setHoverStar(s)} onMouseLeave={()=>setHoverStar(0)}
+            style={{background:"none",border:"none",fontSize:40,cursor:"pointer",transform:(hoverStar>=s||stars>=s)?"scale(1.15)":"scale(1)",transition:"transform .15s",filter:(hoverStar>=s||stars>=s)?"none":"grayscale(0.8) opacity(0.4)"}}>
+            {(hoverStar>=s||stars>=s)?"⭐":"☆"}
+          </button>)}
+        </div>
+        {stars>0&&<div style={{fontSize:12,fontWeight:600,color:stars>=4?B.green:stars>=3?B.orange:B.red}}>
+          {stars===5?"Excellent!":stars===4?"Great!":stars===3?"Good":stars===2?"Could be better":stars===1?"We're sorry to hear that":""}
+        </div>}
+      </Card>}
+
+      {/* Step 2: NPS (key accounts) or feedback */}
+      {step>=2&&stars>0&&<Card style={{padding:20,marginBottom:16,animation:"slideUp .25s ease-out"}}>
+        {request.isKeyAccount&&<>
+          <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>How likely are you to recommend us? (0-10)</div>
+          <div style={{display:"flex",justifyContent:"center",gap:4,marginBottom:12,flexWrap:"wrap"}}>
+            {Array.from({length:11},(_, i)=>i).map(n=><button key={n} onClick={()=>{setNpsScore(n);if(step===2)setTimeout(()=>setStep(3),300);}}
+              style={{width:36,height:36,borderRadius:8,border:"1px solid "+(npsScore===n?B.cyan:B.border),background:npsScore===n?B.cyanGlow:"transparent",color:npsScore===n?B.cyan:B.textMuted,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:M}}>{n}</button>)}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:B.textDim,marginBottom:8}}><span>Not likely</span><span>Extremely likely</span></div>
+        </>}
+        {(!request.isKeyAccount||npsScore!==null)&&<>
+          {stars>=4?<>
+            <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>Would you share a testimonial?</div>
+            <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>Your words help other organizations choose the right service partner.</p>
+            <textarea value={testimonial} onChange={e=>setTestimonial(e.target.value)} placeholder="Tell us what stood out about our service..." rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
+          </>:<>
+            <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>What could we improve?</div>
+            <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>This feedback goes directly to our management team.</p>
+            <textarea value={privateFb} onChange={e=>setPrivateFb(e.target.value)} placeholder="Tell us what we could do better..." rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
+          </>}
+          {step===2&&<button onClick={()=>setStep(3)} style={{...BP,width:"100%",marginTop:12}}>Continue</button>}
+        </>}
+      </Card>}
+
+      {/* Step 3: Contact info + Submit */}
+      {step>=3&&<Card style={{padding:20,marginBottom:16,animation:"slideUp .25s ease-out"}}>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Your Information (Optional)</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+          <div><label style={LS}>Name</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={IS}/></div>
+          <div><label style={LS}>Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={IS}/></div>
+        </div>
+        <button onClick={submit} disabled={submitting} style={{...BP,width:"100%",padding:16,fontSize:15,opacity:submitting?.6:1}}>
+          {submitting?"Submitting...":"Submit Feedback"}
+        </button>
+      </Card>}
+    </div>
+  </div>);
+}
+
+// ═══════════════════════════════════════════
+// FEEDBACK DASHBOARD — Admin/Manager tab
+// ═══════════════════════════════════════════
+function FeedbackDashboard({D}){
+  const[feedback,setFeedback]=useState([]);const[loading,setLoading]=useState(true);const[toast,setToast]=useState("");const[tab,setTab]=useState("all");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const load=async()=>{const{data}=await sb().from("feedback").select("*").order("submitted_at",{ascending:false});setFeedback(data||[]);setLoading(false);};
+  useEffect(()=>{load();},[]);
+
+  const toggleApprove=async(fb)=>{await sb().from("feedback").update({testimonial_approved:!fb.testimonial_approved}).eq("id",fb.id);await load();msg(fb.testimonial_approved?"Unapproved":"Approved for display");};
+  const togglePublic=async(fb)=>{await sb().from("feedback").update({testimonial_public:!fb.testimonial_public}).eq("id",fb.id);await load();msg(fb.testimonial_public?"Removed from website":"Added to website");};
+
+  // Calculate metrics
+  const avgRating=feedback.length>0?(feedback.reduce((s,f)=>s+(f.star_rating||0),0)/feedback.length).toFixed(1):0;
+  const npsResponses=feedback.filter(f=>f.nps_score!==null);
+  const npsScore=npsResponses.length>0?(()=>{const promo=npsResponses.filter(f=>f.nps_score>=9).length;const detract=npsResponses.filter(f=>f.nps_score<=6).length;return Math.round(((promo-detract)/npsResponses.length)*100);})():null;
+  const testimonials=feedback.filter(f=>f.testimonial_text&&f.testimonial_text.trim());
+  const lowRatings=feedback.filter(f=>f.star_rating<=2);
+  const distribution=[1,2,3,4,5].map(s=>({star:s,count:feedback.filter(f=>f.star_rating===s).length}));
+  const maxDist=Math.max(...distribution.map(d=>d.count),1);
+
+  const filtered=tab==="testimonials"?testimonials:tab==="low"?lowRatings:feedback;
+
+  return(<div><Toast msg={toast}/>
+    {/* Metrics Row */}
+    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      <StatCard label="Avg Rating" value={avgRating+"★"} icon="⭐" color={parseFloat(avgRating)>=4?B.green:parseFloat(avgRating)>=3?B.orange:B.red}/>
+      <StatCard label="Responses" value={feedback.length} icon="📊" color={B.cyan}/>
+      {npsScore!==null&&<StatCard label="NPS Score" value={npsScore} icon="📈" color={npsScore>=50?B.green:npsScore>=0?B.orange:B.red}/>}
+      <StatCard label="Testimonials" value={testimonials.length} icon="💬" color={B.purple}/>
+    </div>
+
+    {/* Rating Distribution */}
+    <Card style={{padding:"16px 18px",marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Rating Distribution</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {[5,4,3,2,1].map(s=>{const d=distribution.find(x=>x.star===s);return(
+          <div key={s} style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:12,fontFamily:M,color:B.textDim,width:16,textAlign:"right"}}>{s}</span>
+            <span style={{fontSize:14}}>⭐</span>
+            <div style={{flex:1,height:8,borderRadius:4,background:B.border,overflow:"hidden"}}>
+              <div style={{width:(d.count/maxDist*100)+"%",height:"100%",borderRadius:4,background:s>=4?B.green:s===3?B.orange:B.red,transition:"width .4s"}}/>
+            </div>
+            <span style={{fontSize:11,fontFamily:M,color:B.textMuted,width:24,textAlign:"right"}}>{d.count}</span>
+          </div>);})}
+      </div>
+    </Card>
+
+    {/* Tabs */}
+    <div style={{display:"flex",gap:4,marginBottom:14}}>
+      {[["all","All ("+feedback.length+")"],["testimonials","Testimonials ("+testimonials.length+")"],["low","Needs Attention ("+lowRatings.length+")"]].map(([k,l])=>
+        <button key={k} onClick={()=>setTab(k)} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
+    </div>
+
+    {/* Feedback List */}
+    {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
+    {!loading&&filtered.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13}}>No feedback yet.</div></Card>}
+    {filtered.map(fb=><Card key={fb.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(fb.star_rating>=4?B.green:fb.star_rating===3?B.orange:B.red)}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+            <span style={{fontSize:14}}>{Array.from({length:fb.star_rating},(_,i)=>"⭐").join("")}</span>
+            {fb.nps_score!==null&&<Badge color={fb.nps_score>=9?B.green:fb.nps_score>=7?B.cyan:B.red}>NPS: {fb.nps_score}</Badge>}
+          </div>
+          <div style={{fontSize:13,fontWeight:600,color:B.text}}>{fb.customer_name}</div>
+          {fb.respondent_name&&<div style={{fontSize:11,color:B.textDim}}>{fb.respondent_name}{fb.respondent_email&&" · "+fb.respondent_email}</div>}
+          <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{new Date(fb.submitted_at).toLocaleDateString()}{fb.invoice_num&&" · INV-"+fb.invoice_num}</div>
+        </div>
+      </div>
+      {fb.testimonial_text&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,borderLeft:"2px solid "+B.purple}}>
+        <div style={{fontSize:12,color:B.text,fontStyle:"italic",lineHeight:1.5}}>"{fb.testimonial_text}"</div>
+        <div style={{display:"flex",gap:6,marginTop:8}}>
+          <button onClick={()=>toggleApprove(fb)} style={{...BS,padding:"4px 10px",fontSize:10,color:fb.testimonial_approved?B.green:B.textMuted,borderColor:fb.testimonial_approved?B.green+"40":B.border}}>{fb.testimonial_approved?"✓ Approved":"Approve"}</button>
+          {fb.testimonial_approved&&<button onClick={()=>togglePublic(fb)} style={{...BS,padding:"4px 10px",fontSize:10,color:fb.testimonial_public?B.cyan:B.textMuted,borderColor:fb.testimonial_public?B.cyan+"40":B.border}}>{fb.testimonial_public?"On Website":"Add to Website"}</button>}
+        </div>
+      </div>}
+      {fb.private_feedback&&<div style={{marginTop:8,padding:"10px 12px",background:B.red+"08",borderRadius:6,borderLeft:"2px solid "+B.red}}>
+        <div style={{fontSize:10,fontWeight:700,color:B.red,textTransform:"uppercase",marginBottom:4}}>Private Feedback</div>
+        <div style={{fontSize:12,color:B.text,lineHeight:1.5}}>{fb.private_feedback}</div>
+      </div>}
+      {fb.nps_feedback&&<div style={{marginTop:6,fontSize:12,color:B.textMuted,fontStyle:"italic"}}>{fb.nps_feedback}</div>}
+    </Card>)}
+  </div>);
+}
+
 export default function AppRouter(){
   const hash=window.location.hash;
   const portalMatch=hash.match(/#\/portal\/(.+)/);
   if(portalMatch)return <ErrorBoundary><CustomerPortal customerSlug={portalMatch[1]}/></ErrorBoundary>;
+  const feedbackMatch=hash.match(/#\/feedback\/(.+)/);
+  if(feedbackMatch)return <ErrorBoundary><FeedbackForm token={feedbackMatch[1]}/></ErrorBoundary>;
+  const proposalMatch=hash.match(/#\/proposal\/(.+)/);
+  if(proposalMatch)return <ErrorBoundary><ProposalPortal token={proposalMatch[1]}/></ErrorBoundary>;
   return <ErrorBoundary><App/></ErrorBoundary>;
 }
