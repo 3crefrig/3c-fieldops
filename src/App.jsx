@@ -935,7 +935,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         <input type="file" accept="image/*" capture="environment" onChange={async(e)=>{
           const file=e.target.files?.[0];if(!file)return;setScanningReceipt(true);
           try{const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-            const resp=await fetch(SUPABASE_URL+"/functions/v1/scan-receipt",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({imageBase64:b64,mimeType:file.type,woId:wo.id})});
+            const{data:{session}}=await sb().auth.getSession();const authToken=session?.access_token||SUPABASE_ANON_KEY;
+            const resp=await fetch(SUPABASE_URL+"/functions/v1/scan-receipt",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+authToken},body:JSON.stringify({imageBase64:b64,mimeType:file.type,woId:wo.id})});
             const result=await resp.json();
             if(result.success)setReceiptData(result);else{msg("Scan failed: "+(result.error||"Unknown error"));}
           }catch(err){msg("Error: "+err.message);}setScanningReceipt(false);
