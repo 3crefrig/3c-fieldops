@@ -24,7 +24,7 @@ function App(){
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
     const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData]=await Promise.all([
-      client.from("work_orders").select("*").order("created_at",{ascending:false}),
+      client.from("work_orders").select("id,wo_id,title,description,status,priority,wo_type,customer,customer_wo,location,building,notes,field_notes,assignee,crew,due_date,date_completed,work_performed,invoiced,invoice_id,tms_entered,created_at,updated_at").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
       client.from("photos").select("*").order("uploaded_at",{ascending:false}),
@@ -159,7 +159,7 @@ function App(){
       const h=Math.round((parseFloat(te.hours)||0)*4)/4;
       const logDate=te.logged_date||new Date().toISOString().slice(0,10);
       const dayHrs=data.time.filter(t=>t.technician===appUser.name&&t.logged_date===logDate).reduce((s,t)=>s+parseFloat(t.hours||0),0);
-      if(dayHrs+h>12){alert("Warning: This would put you over 12 hours for "+logDate+" ("+(dayHrs+h).toFixed(1)+"h). Entry blocked.");return;}
+      if(dayHrs+h>12){const isManager=appUser.role==="admin"||appUser.role==="manager";if(!isManager){alert("Daily limit: 12 hours exceeded for "+logDate+". Ask a manager to override.");return;}if(!window.confirm("This would put "+(appUser.name)+" over 12 hours for "+logDate+" ("+(dayHrs+h).toFixed(1)+"h). Override and allow?")){return;}}
       await sb().from("time_entries").insert({...te,hours:h,technician:appUser.name,logged_date:logDate});
       const wo=data.wos.find(w=>w.id===te.wo_id);
       if(wo&&wo.status==="pending"){await sb().from("work_orders").update({status:"in_progress"}).eq("id",wo.id);await sb().from("wo_activity").insert({wo_id:wo.id,action:"updated",details:"Status → in_progress (auto on first time entry)",actor:appUser?.name||"System"});}
