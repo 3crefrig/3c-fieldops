@@ -1786,7 +1786,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
 function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
-  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false);
+  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
@@ -1807,7 +1807,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
   const cmCount=filteredWOs.filter(w=>w.wo_type==="CM").length;
   // Default tiers based on customer
   const totalLogged=Object.values(techHours).reduce((s,h)=>s+h,0);
-  const buildTiers=(c)=>{const isDuke=c.includes("DUMC")||c.includes("Medical");const base=isDuke?[{name:"Journeyman Mechanic",rate:60,hours:0},{name:"Senior Technician",rate:75,hours:0},{name:"Licensed Technician",rate:90,hours:0}]:[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];if(customer?.billing_rate_override)base.forEach(t=>{t.rate=customer.billing_rate_override;});base[0].hours=totalLogged;return base;};
+  const buildTiers=(c)=>{let base;if(customer?.labor_tiers&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0){base=customer.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));}else{const isDuke=c.includes("DUMC")||c.includes("Medical");base=isDuke?[{name:"Journeyman Mechanic",rate:60,hours:0},{name:"Senior Technician",rate:75,hours:0},{name:"Licensed Technician",rate:90,hours:0}]:[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];}if(base.length>0)base[0].hours=totalLogged;return base;};
   const[tiers,setTiers]=useState(()=>cust?buildTiers(cust):[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
   // Auto-generate invoice number
@@ -1826,6 +1826,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
     await onCreateInvoice({invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()});
     filteredWOs.forEach(w=>{sb().from("work_orders").update({invoiced:true}).eq("id",w.id);});
+    if(customer)sb().from("customers").update({labor_tiers:tiers.map(t=>({name:t.name,rate:t.rate}))}).eq("id",customer.id);
   };
   const generateXLSX=async()=>{
     if(generating)return;setGenerating(true);
@@ -1880,7 +1881,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>Step 2: Set Labor Rates</div>
       <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>
       <div style={{marginBottom:14}}>
-        {tiers.map((t,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+        {tiers.map((t,i)=><div key={i} draggable onDragStart={()=>setDragIdx(i)} onDragOver={e=>{e.preventDefault();setDragOver(i);}} onDragEnd={()=>{setDragIdx(null);setDragOver(null);}} onDrop={e=>{e.preventDefault();if(dragIdx===null||dragIdx===i)return;const n=[...tiers];const[moved]=n.splice(dragIdx,1);n.splice(i,0,moved);setTiers(n);setDragIdx(null);setDragOver(null);}} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+(dragOver===i?B.cyan:B.border),opacity:dragIdx===i?0.4:1,transition:"border-color .15s,opacity .15s",cursor:"grab"}}>
+          <span style={{color:B.textDim,fontSize:14,cursor:"grab",userSelect:"none",flexShrink:0}}>⠿</span>
           <input value={t.name} onChange={e=>{const n=[...tiers];n[i]={...n[i],name:e.target.value};setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}} placeholder="Tier name"/>
           <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate} onChange={e=>{const n=[...tiers];n[i]={...n[i],rate:parseFloat(e.target.value)||0};setTiers(n);}} type="number" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>/hr</span></div>
           <div style={{display:"flex",alignItems:"center",gap:2}}><input value={t.hours||""} onChange={e=>{const n=[...tiers];n[i]={...n[i],hours:parseFloat(e.target.value)||0};setTiers(n);}} type="number" step="0.25" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>hrs</span></div>
@@ -2274,9 +2276,10 @@ function App(){
     const partsCost=woPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const mkup=cust.parts_markup!=null?parseFloat(cust.parts_markup):35;
     const partsTotal=Math.round(partsCost*(1+mkup/100)*100)/100;
-    // Default tiers — editable later in the invoice tracker
-    const defaultTiers=cust.name.includes("DUMC")||cust.name.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
-    if(cust.billing_rate_override)defaultTiers.forEach(t=>{t.rate=cust.billing_rate_override;});
+    // Use saved tiers or fall back to defaults
+    let defaultTiers;
+    if(cust.labor_tiers&&Array.isArray(cust.labor_tiers)&&cust.labor_tiers.length>0){defaultTiers=cust.labor_tiers.map(t=>({name:t.name,rate:t.rate}));}
+    else{defaultTiers=cust.name.includes("DUMC")||cust.name.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];}
     // Put all hours into the first tier as a starting point — user can reassign
     const tiers=defaultTiers.map((t,i)=>({...t,hours:i===0?totalHrs:0}));
     const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
