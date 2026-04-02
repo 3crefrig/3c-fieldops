@@ -1798,7 +1798,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   const[tiers,setTiers]=useState(()=>cust?buildTiers(cust):[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
   // Auto-generate invoice number
-  useEffect(()=>{if(!invoiceNum){const now=new Date();setInvoiceNum(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+"01");}},[]);
+  useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
 
   const buildInvoiceData=()=>{
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
@@ -2259,7 +2259,7 @@ function App(){
     // Put all hours into the first tier as a starting point — user can reassign
     const tiers=defaultTiers.map((t,i)=>({...t,hours:i===0?totalHrs:0}));
     const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
-    const now=new Date();const invNum=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+String(Math.floor(Math.random()*90)+10);
+    const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data:invAll}=await sb().from("invoices").select("invoice_num");const mxInv=(invAll||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);const invNum=pfx+String(mxInv+1).padStart(2,"0");
     await sb().from("invoices").insert({invoice_num:invNum,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:[completedWO.wo_id],tier_data:tiers,job_desc:completedWO.title,po_number:completedWO.customer_wo||"",notes:""});
     await sb().from("work_orders").update({invoiced:true}).eq("id",completedWO.id);
     await notify("invoice_created","Invoice Draft","$"+(laborTotal+partsTotal).toFixed(2)+" for "+cust.name+" — "+(completedWO.wo_id||""),"admin");
