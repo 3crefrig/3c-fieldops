@@ -203,6 +203,8 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
       else{indicator.style.opacity="0";ready=false;}};
     const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>{if(onRefresh)onRefresh();indicator.style.opacity="0";pulling=false;},200);}else{indicator.style.opacity="0";}startY=0;startX=0;startTime=0;ready=false;aborted=false;pulling=false;};
     el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[onRefresh]);
+  // Ensure wheel/trackpad scroll always works even when hovering over overflow:hidden children
+  useEffect(()=>{const el=contentRef.current;if(!el)return;const onWheel=(e)=>{const t=e.target;let n=t;let scrollable=false;while(n&&n!==el){if(n.scrollHeight>n.clientHeight&&(getComputedStyle(n).overflowY==="auto"||getComputedStyle(n).overflowY==="scroll")){scrollable=true;break;}n=n.parentElement;}if(!scrollable){el.scrollTop+=e.deltaY;e.preventDefault();}};el.addEventListener("wheel",onWheel,{passive:false});return()=>el.removeEventListener("wheel",onWheel);},[]);
   return(<div style={{height:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
