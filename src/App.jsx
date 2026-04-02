@@ -1779,11 +1779,11 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
           </Card>);})}
       </div>
     </div>}
-    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} onCreateInvoice={onCreateInvoice}/>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice}/>}
   </div>);
 }
 
-function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
+function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
@@ -1864,7 +1864,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
-        {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><select value={selWO} onChange={e=>{setSelWO(e.target.value);const w=custWOs.find(x=>x.id===e.target.value);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");}}} style={{...IS,cursor:"pointer"}}><option value="">— Select WO —</option>{custWOs.map(w=><option key={w.id} value={w.id}>{w.wo_id} — {w.title}{w.invoiced?" (already invoiced)":""}</option>)}</select></div>}
+        {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><select value={selWO} onChange={e=>{setSelWO(e.target.value);const w=custWOs.find(x=>x.id===e.target.value);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");}}} style={{...IS,cursor:"pointer"}}><option value="">— Select WO —</option>{custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const tag=inv?(inv.status==="draft"?" \u25CF Draft":inv.status==="sent"?(new Date()-new Date(inv.date_issued)>30*86400000?" \u25CF Overdue":" \u25CF Sent"):""):"";return<option key={w.id} value={w.id}>{w.wo_id} — {w.title}{tag}</option>})}</select></div>}
         {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>From</label><input value={dateFrom} onChange={e=>setDateFrom(e.target.value)} type="date" style={IS}/></div>
           <div><label style={LS}>To</label><input value={dateTo} onChange={e=>setDateTo(e.target.value)} type="date" style={IS}/></div>
