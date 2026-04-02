@@ -1188,7 +1188,7 @@ function Reports({wos,pos,timeEntries,users,customers}){
       <div style={{marginTop:8}}>{[...new Set(fWOs.map(w=>w.customer).filter(Boolean))].map(c=>{
         const cWOs=fWOs.filter(w=>w.customer===c);const cTime=fTime.filter(t=>cWOs.some(w=>w.id===t.wo_id));const hrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
         const cust=(customers||[]).find(x=>x.name===c);const rate=cust?.billing_rate_override||120;const rev=hrs*rate;
-        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poCost=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const cmk=cust?.parts_markup!=null?parseFloat(cust.parts_markup):25;const poSpend=Math.round(poCost*(1+cmk/100)*100)/100;
+        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poCost=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const cmk=cust?.parts_markup!=null?parseFloat(cust.parts_markup):35;const poSpend=Math.round(poCost*(1+cmk/100)*100)/100;
         return(<div key={c} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
           <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{c}</div><div style={{fontSize:10,color:B.textDim}}>{cWOs.length} jobs · {hrs.toFixed(1)}h</div></div>
           <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.green}}>${rev.toLocaleString()}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
@@ -1270,7 +1270,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[autoInvoice,setAutoInvoice]=useState(false),[partsMarkup,setPartsMarkup]=useState("25"),[custIdCode,setCustIdCode]=useState(""),[vendorNum,setVendorNum]=useState(""),[saving,setSaving]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setAutoInvoice(c.auto_invoice||false);setPartsMarkup(c.parts_markup!=null?String(c.parts_markup):"25");setCustIdCode(c.customer_id_code||"");setVendorNum(c.vendor_number||"");setShowForm(true);};
-  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setPartsMarkup("25");setCustIdCode("");setVendorNum("");setShowForm(true);};
+  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setPartsMarkup("35");setCustIdCode("");setVendorNum("");setShowForm(true);};
   const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms,auto_invoice:autoInvoice,parts_markup:parseFloat(partsMarkup)||0,customer_id_code:custIdCode.trim()||null,vendor_number:vendorNum.trim()||null};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
   const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
   const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
@@ -1299,7 +1299,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:12}}>
           <div><label style={LS}>Billing Rate ($/hr)</label><input value={billingOverride} onChange={e=>setBillingOverride(e.target.value)} type="number" step="5" placeholder="default" style={{...IS,fontFamily:M}}/></div>
-          <div><label style={LS}>Parts Markup (%)</label><input value={partsMarkup} onChange={e=>setPartsMarkup(e.target.value)} type="number" step="5" placeholder="25" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>Parts Markup (%)</label><input value={partsMarkup} onChange={e=>setPartsMarkup(e.target.value)} type="number" step="5" placeholder="35" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>Payment Terms</label><select value={payTerms} onChange={e=>setPayTerms(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="Due on Receipt">Due on Receipt</option></select></div>
         </div>
         <div onClick={()=>setAutoInvoice(!autoInvoice)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:autoInvoice?B.cyan+"15":B.bg,border:"1px solid "+(autoInvoice?B.cyan:B.border),borderRadius:8,cursor:"pointer",transition:"all .15s"}}>
@@ -1756,7 +1756,8 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   // POs for filtered WOs
   const filteredPOs=pos.filter(p=>filteredWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");
   const partsCost=filteredPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const markupPct=customer?.parts_markup!=null?parseFloat(customer.parts_markup):25;
+  const[markupPct,setMarkupPct]=useState(35);
+  useEffect(()=>{if(customer)setMarkupPct(customer.parts_markup!=null?parseFloat(customer.parts_markup):35);},[cust]);
   const partsTotal=Math.round(partsCost*(1+markupPct/100)*100)/100;
   // PM/CM counts
   const pmCount=filteredWOs.filter(w=>w.wo_type==="PM").length;
@@ -1784,6 +1785,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
       const url=URL.createObjectURL(blob);const a=document.createElement("a");
       a.href=url;a.download="INV_"+invoiceNum+"_"+safeName+".xlsx";a.click();URL.revokeObjectURL(url);
       msg("Invoice downloaded!");
+      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
       if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
@@ -1794,6 +1796,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
       const d=buildInvoiceData();const doc=await buildInvoicePDF(d);
       doc.save("INV_"+invoiceNum+"_"+safeName+".pdf");
       msg("PDF downloaded!");
+      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
       if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
@@ -1855,8 +1858,14 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
           </label>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeParts(!includeParts)}>
             <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeParts?B.cyan:B.border),background:includeParts?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeParts&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
-            <span style={{fontSize:12,color:B.text}}>Include parts / materials ({"$"+partsTotal.toLocaleString()}) <span style={{fontSize:10,color:B.textDim}}>{markupPct}% markup on ${partsCost.toLocaleString()} cost</span></span>
+            <span style={{fontSize:12,color:B.text}}>Include parts / materials ({"$"+partsTotal.toLocaleString()})</span>
           </label>
+          {includeParts&&partsCost>0&&<div style={{display:"flex",alignItems:"center",gap:8,marginLeft:28}}>
+            <span style={{fontSize:11,color:B.textDim}}>Markup:</span>
+            <input value={markupPct} onChange={e=>setMarkupPct(parseFloat(e.target.value)||0)} type="number" step="5" style={{...IS,width:65,padding:"4px 8px",fontSize:12,fontFamily:M,textAlign:"center"}}/>
+            <span style={{fontSize:11,color:B.textDim}}>%</span>
+            <span style={{fontSize:10,color:B.textDim}}>{"($"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed)"}</span>
+          </div>}
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeBreakdown(!includeBreakdown)}>
             <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeBreakdown?B.cyan:B.border),background:includeBreakdown?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeBreakdown&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
             <span style={{fontSize:12,color:B.text}}>Include PM/CM breakdown ({pmCount} PM, {cmCount} CM)</span>
@@ -2211,7 +2220,7 @@ function App(){
     const totalHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
     const woPOs=data.pos.filter(p=>p.wo_id===completedWO.id&&p.status==="approved");
     const partsCost=woPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-    const mkup=cust.parts_markup!=null?parseFloat(cust.parts_markup):25;
+    const mkup=cust.parts_markup!=null?parseFloat(cust.parts_markup):35;
     const partsTotal=Math.round(partsCost*(1+mkup/100)*100)/100;
     // Default tiers — editable later in the invoice tracker
     const defaultTiers=cust.name.includes("DUMC")||cust.name.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
