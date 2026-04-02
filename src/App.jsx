@@ -1434,13 +1434,14 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,wos,pos,time
 }
 
 function InvoiceGenerator({wos,pos,time,users,customers}){
-  const[cust,setCust]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
+  const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState("");
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
-  // Filter completed WOs for customer in date range
-  const filteredWOs=wos.filter(w=>{if(w.customer!==cust||w.status!=="completed")return false;const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
+  const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
+  // Filter: per-WO mode or date range mode
+  const filteredWOs=mode==="wo"?(selWO?custWOs.filter(w=>w.id===selWO):[]): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
   // Get time entries for filtered WOs
   const filteredTime=time.filter(t=>filteredWOs.some(w=>w.id===t.wo_id));
   // Group hours by technician
@@ -1454,17 +1455,16 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
   const pmCount=filteredWOs.filter(w=>w.wo_type==="PM").length;
   const cmCount=filteredWOs.filter(w=>w.wo_type==="CM").length;
   // Default tiers based on customer
-  const defaultTiers=cust.includes("DUMC")||cust.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
-  const[tiers,setTiers]=useState(defaultTiers);
-  useEffect(()=>{if(customer?.billing_rate_override){setTiers(prev=>prev.map(t=>({...t,rate:customer.billing_rate_override})));}else{setTiers(cust.includes("DUMC")||cust.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}]);}},[cust]);
+  const totalLogged=Object.values(techHours).reduce((s,h)=>s+h,0);
+  const buildTiers=(c)=>{const isDuke=c.includes("DUMC")||c.includes("Medical");const base=isDuke?[{name:"Journeyman Mechanic",rate:60,hours:0},{name:"Senior Technician",rate:75,hours:0},{name:"Licensed Technician",rate:90,hours:0}]:[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];if(customer?.billing_rate_override)base.forEach(t=>{t.rate=customer.billing_rate_override;});base[0].hours=totalLogged;return base;};
+  const[tiers,setTiers]=useState(()=>cust?buildTiers(cust):[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
+  useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){const now=new Date();setInvoiceNum(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+"01");}},[]);
 
   const generateXLSX=async()=>{
-    const tierHours={};tiers.forEach(t=>{tierHours[t.name]=0;});
-    Object.entries(tierAssign).forEach(([tech,tier])=>{if(tier&&tierHours[tier]!==undefined)tierHours[tier]+=(techHours[tech]||0);});
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
-    const tiersData=tiers.map(t=>({name:t.name,rate:t.rate,hours:tierHours[t.name]||0})).filter(t=>t.hours>0||tiers.length<=3);
+    const tiersData=tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
     const body={invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.name?.substring(0,10)||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
     try{
@@ -1483,44 +1483,39 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Invoice Generator</h3>
 
     {step===1&&<Card style={{padding:18,maxWidth:600}}>
-      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Date Range</div>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+        {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
+        {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><select value={selWO} onChange={e=>{setSelWO(e.target.value);const w=custWOs.find(x=>x.id===e.target.value);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");}}} style={{...IS,cursor:"pointer"}}><option value="">— Select WO —</option>{custWOs.map(w=><option key={w.id} value={w.id}>{w.wo_id} — {w.title}{w.invoiced?" (already invoiced)":""}</option>)}</select></div>}
+        {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>From</label><input value={dateFrom} onChange={e=>setDateFrom(e.target.value)} type="date" style={IS}/></div>
           <div><label style={LS}>To</label><input value={dateTo} onChange={e=>setDateTo(e.target.value)} type="date" style={IS}/></div>
-        </div>
-        {cust&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
-          <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WOs · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> techs · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
+        </div>}
+        {cust&&filteredWOs.length>0&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
+          <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WO{filteredWOs.length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> tech{Object.keys(techHours).length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
           {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed ("+markupPct+"% markup)"}</div>}
         </div>}
-        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(filteredWOs.length===0){msg("No completed WOs found");return;}setStep(2);}} style={{...BP}} disabled={!cust||filteredWOs.length===0}>Next: Assign Labor Tiers</button>
+        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select a work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||filteredWOs.length===0}>Next: Set Labor Rates</button>
       </div>
     </Card>}
 
     {step===2&&<Card style={{padding:18,maxWidth:600}}>
-      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>Step 2: Assign Labor Tiers</div>
-      <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Assign each tech's hours to a billing tier</div>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>Step 2: Set Labor Rates</div>
+      <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>LABOR TIERS (editable)</div>
-        {tiers.map((t,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-          <input value={t.name} onChange={e=>{const n=[...tiers];n[i].name=e.target.value;setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}}/>
-          <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate} onChange={e=>{const n=[...tiers];n[i].rate=parseFloat(e.target.value)||0;setTiers(n);}} type="number" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}}/><span style={{fontSize:11,color:B.textDim}}>/hr</span></div>
-          {tiers.length>1&&<button onClick={()=>setTiers(tiers.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer"}}>×</button>}
+        {tiers.map((t,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+          <input value={t.name} onChange={e=>{const n=[...tiers];n[i]={...n[i],name:e.target.value};setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}} placeholder="Tier name"/>
+          <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate} onChange={e=>{const n=[...tiers];n[i]={...n[i],rate:parseFloat(e.target.value)||0};setTiers(n);}} type="number" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>/hr</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:2}}><input value={t.hours||""} onChange={e=>{const n=[...tiers];n[i]={...n[i],hours:parseFloat(e.target.value)||0};setTiers(n);}} type="number" step="0.25" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>hrs</span></div>
+          <span style={{fontFamily:M,fontSize:12,color:B.green,minWidth:60,textAlign:"right"}}>${((t.rate||0)*(t.hours||0)).toFixed(0)}</span>
+          {tiers.length>1&&<button onClick={()=>setTiers(tiers.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14}}>×</button>}
         </div>)}
-        <button onClick={()=>setTiers([...tiers,{name:"New Tier",rate:0}])} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Tier</button>
+        <button onClick={()=>setTiers([...tiers,{name:"Technician",rate:100,hours:0}])} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Tier</button>
       </div>
-      <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>ASSIGN TECHS</div>
-      {Object.entries(techHours).map(([tech,hrs])=><div key={tech} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
-        <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>{tech}</div><div style={{fontSize:11,fontFamily:M,color:B.cyan}}>{hrs.toFixed(1)}h</div></div>
-        <select value={tierAssign[tech]||""} onChange={e=>setTierAssign({...tierAssign,[tech]:e.target.value})} style={{...IS,width:"auto",padding:"6px 10px",fontSize:11,cursor:"pointer"}}>
-          <option value="">— Select Tier —</option>{tiers.map(t=><option key={t.name} value={t.name}>{t.name} ({"$"+t.rate}/hr)</option>)}
-        </select>
-      </div>)}
-      {Object.keys(techHours).length>0&&Object.values(tierAssign).filter(Boolean).length<Object.keys(techHours).length&&<div style={{marginTop:8,padding:8,background:B.orange+"15",borderRadius:6,fontSize:11,color:B.orange}}>⚠ Assign all techs to a tier before generating</div>}
       <div style={{display:"flex",gap:8,marginTop:14}}>
         <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
-        <button onClick={()=>{if(Object.values(tierAssign).filter(Boolean).length<Object.keys(techHours).length){msg("Assign all techs first");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
+        <button onClick={()=>{if(tiers.every(t=>!t.hours)){msg("Enter hours for at least one tier");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
       </div>
     </Card>}
 
@@ -1549,9 +1544,9 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
         {/* Preview */}
         <div style={{background:B.bg,borderRadius:8,padding:14,marginTop:4}}>
           <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>PREVIEW</div>
-          {tiers.map(t=>{const hrs=Object.entries(tierAssign).filter(([_,tier])=>tier===t.name).reduce((s,[tech])=>s+(techHours[tech]||0),0);return hrs>0?<div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {hrs.toFixed(1)}h × {"$"+t.rate}</span><span style={{fontFamily:M}}>{"$"+(hrs*t.rate).toFixed(2)}</span></div>:null;})}
+          {tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {(t.hours||0).toFixed(1)}h × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
-          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>{const hrs=Object.entries(tierAssign).filter(([_,tier])=>tier===t.name).reduce((s2,[tech])=>s2+(techHours[tech]||0),0);return s+hrs*t.rate;},0)+(includeParts?partsTotal:0)).toFixed(2)}</span></div>
+          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0)+(includeParts?partsTotal:0)).toFixed(2)}</span></div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setStep(2)} style={{...BS,flex:1}}>Back</button>
@@ -1880,32 +1875,28 @@ function App(){
   const withTableSync=(table,fn)=>async(...args)=>{setSyncing(true);try{await fn(...args);await reloadTable(table);}finally{setSyncing(false);}};
   const notify=async(type,title,message,forRole)=>{await sb().from("notifications").insert({type,title,message,for_role:forRole||null});};
 
-  // Auto-invoice: creates draft invoice when last WO for an auto_invoice customer is completed
+  // Auto-invoice: creates a draft invoice for a single completed WO
   const tryAutoInvoice=async(completedWO)=>{
     try{const cust=data.customers.find(c=>c.name===completedWO.customer);
     if(!cust||!cust.auto_invoice)return;
-    // Check if there are other non-completed WOs for this customer
-    const otherActive=data.wos.filter(w=>w.customer===cust.name&&w.id!==completedWO.id&&w.status!=="completed");
-    if(otherActive.length>0)return; // still has open WOs, don't invoice yet
-    // Gather all uninvoiced completed WOs for this customer
-    const toInvoice=data.wos.filter(w=>w.customer===cust.name&&w.status==="completed"&&!w.invoiced);
-    if(toInvoice.length===0)return;
-    // Build invoice data
-    const invTime=data.time.filter(t=>toInvoice.some(w=>w.id===t.wo_id));
-    const techHours={};invTime.forEach(t=>{if(!techHours[t.technician])techHours[t.technician]=0;techHours[t.technician]+=parseFloat(t.hours||0);});
-    const invPOs=data.pos.filter(p=>toInvoice.some(w=>w.id===p.wo_id)&&p.status==="approved");
-    const partsCost=invPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    if(completedWO.invoiced)return;
+    // Build invoice for this single WO
+    const woTime=data.time.filter(t=>t.wo_id===completedWO.id);
+    const totalHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
+    const woPOs=data.pos.filter(p=>p.wo_id===completedWO.id&&p.status==="approved");
+    const partsCost=woPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const mkup=cust.parts_markup!=null?parseFloat(cust.parts_markup):25;
     const partsTotal=Math.round(partsCost*(1+mkup/100)*100)/100;
-    // Build tiers from tech rates
-    const tierMap={};Object.keys(techHours).forEach(tech=>{const u=data.users.find(x=>x.name===tech);const rate=cust.billing_rate_override||(u?.billing_rate)||120;const tierName=rate>=130?"Licensed Technician":rate>=100?"Senior Technician":"Technician";if(!tierMap[tierName])tierMap[tierName]={name:tierName,rate,hours:0};tierMap[tierName].hours+=techHours[tech];});
-    const tiers=Object.values(tierMap);
+    // Default tiers — editable later in the invoice tracker
+    const defaultTiers=cust.name.includes("DUMC")||cust.name.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
+    if(cust.billing_rate_override)defaultTiers.forEach(t=>{t.rate=cust.billing_rate_override;});
+    // Put all hours into the first tier as a starting point — user can reassign
+    const tiers=defaultTiers.map((t,i)=>({...t,hours:i===0?totalHrs:0}));
     const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
     const now=new Date();const invNum=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+String(Math.floor(Math.random()*90)+10);
-    await sb().from("invoices").insert({invoice_num:invNum,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:toInvoice.map(w=>w.wo_id),tier_data:tiers,job_desc:toInvoice.map(w=>w.title).join(", "),po_number:"",notes:""});
-    // Mark WOs as invoiced
-    for(const w of toInvoice){await sb().from("work_orders").update({invoiced:true}).eq("id",w.id);}
-    await notify("invoice_created","Invoice Draft Created","$"+(laborTotal+partsTotal).toFixed(2)+" for "+cust.name+" ("+toInvoice.length+" WOs)","admin");
+    await sb().from("invoices").insert({invoice_num:invNum,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:[completedWO.wo_id],tier_data:tiers,job_desc:completedWO.title,po_number:completedWO.customer_wo||"",notes:""});
+    await sb().from("work_orders").update({invoiced:true}).eq("id",completedWO.id);
+    await notify("invoice_created","Invoice Draft","$"+(laborTotal+partsTotal).toFixed(2)+" for "+cust.name+" — "+(completedWO.wo_id||""),"admin");
     }catch(e){console.error("Auto-invoice error:",e);}
   };
 
