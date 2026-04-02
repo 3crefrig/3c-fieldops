@@ -527,134 +527,146 @@ async function buildInvoiceExcel(d){
 
 async function buildInvoicePDF(d){
   const doc=new jsPDF({unit:"mm",format:"letter"});
-  const pw=215.9,lm=20,rm=20,cw=pw-lm-rm;
-  const cyan=[0,180,232],dark=[30,34,42],mid=[100,110,125],light=[240,243,248],shade=[217,226,243];
-  let y=20;
-  const drawLine=(y1,color)=>{doc.setDrawColor(...color);doc.setLineWidth(0.3);doc.line(lm,y1,pw-rm,y1);};
-  const drawRect=(x,y1,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,y1,w,h,"F");};
+  const pw=215.9,ph=279.4,lm=18,rm=18,cw=pw-lm-rm;
+  const cyan=[0,212,245],cyanDk=[0,160,200],dark=[30,34,40],mid=[100,112,130],light=[245,247,252],white=[255,255,255];
+  let y=0;
+  const R=(x,y1,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,y1,w,h,"F");};
+  const L=(y1,c,w)=>{doc.setDrawColor(...c);doc.setLineWidth(w||0.3);doc.line(lm,y1,pw-rm,y1);};
+  const txt=(t,x,yy,opts)=>doc.text(String(t||""),x,yy,opts||{});
 
-  // Logo
+  // ── Top accent bar ──
+  R(0,0,pw,3,cyan);
+
+  // ── Header section ──
+  y=12;
   const logo=await fetchLogoBase64();
-  if(logo)doc.addImage(logo,"PNG",lm,y,40,14);
+  if(logo)doc.addImage(logo,"PNG",lm,y,44,16);
 
-  // INVOICE title
-  doc.setFont("helvetica","bold");doc.setFontSize(22);doc.setTextColor(...dark);
-  doc.text("INVOICE",pw-rm,y+10,{align:"right"});
-  y+=20;
+  // INVOICE title — large, right-aligned
+  doc.setFont("helvetica","bold");doc.setFontSize(28);doc.setTextColor(...dark);
+  txt("INVOICE",pw-rm,y+8,{align:"right"});
+  // Cyan underline under INVOICE
+  doc.setDrawColor(...cyan);doc.setLineWidth(1.2);doc.line(pw-rm-52,y+11,pw-rm,y+11);
 
-  // Company info
-  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
-  const compInfo=["3065 Gwyn Rd.","Elon, N.C. 27244","Phone: 336-264-0935","Email: service@3crefrigeration.com","FAX: (877) 278-4608","N.C. License 4923","Vendor Number "+(d.vendorNumber||"126337")];
-  compInfo.forEach((t,i)=>{doc.text(t,lm,y+i*4);});
+  // Invoice details box — right side
+  y+=18;
+  const boxX=pw-rm-62,boxW=62;
+  R(boxX,y,boxW,28,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(boxX,y,boxX,y+28);
+  doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
+  txt("DATE",boxX+4,y+6);txt("INVOICE #",boxX+4,y+14);txt("CUSTOMER ID",boxX+4,y+22);
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+  txt(d.date,pw-rm-3,y+6,{align:"right"});txt(d.invoiceNum,pw-rm-3,y+14,{align:"right"});txt(d.customerId,pw-rm-3,y+22,{align:"right"});
 
-  // Right side — date, invoice #, customer ID
-  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...dark);
-  doc.text("Date:",pw-rm-40,y);doc.setFont("helvetica","normal");doc.text(d.date,pw-rm,y,{align:"right"});
-  doc.setFont("helvetica","bold");doc.text("Invoice #:",pw-rm-40,y+5);doc.setFont("helvetica","normal");doc.text(d.invoiceNum,pw-rm,y+5,{align:"right"});
-  doc.setFont("helvetica","bold");doc.text("Customer ID:",pw-rm-40,y+10);doc.setFont("helvetica","normal");doc.text(d.customerId,pw-rm,y+10,{align:"right"});
+  // Company info — left side
+  doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
+  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923"+(d.vendorNumber?"  |  Vendor #"+d.vendorNumber:"")];
+  ci.forEach((t,i)=>{txt(t,lm,y+5+i*4.2);});
   y+=32;
 
-  // Bill To
-  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
-  doc.text("To:",lm,y);
-  doc.setFont("helvetica","normal");doc.text(d.customerName,lm+10,y);
-  if(d.customerAddress){y+=5;doc.text(d.customerAddress,lm+10,y);}
-  if(d.customerAddress2){y+=5;doc.text(d.customerAddress2,lm+10,y);}
-  y+=12;
+  // ── Bill To ──
+  R(lm,y,cw,18,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+18);
+  doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);
+  txt("BILL TO",lm+5,y+5.5);
+  doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...dark);
+  txt(d.customerName,lm+5,y+11.5);
+  if(d.customerAddress){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);txt(d.customerAddress,lm+5,y+16);}
+  y+=24;
 
-  // Separator
-  drawLine(y,shade);y+=4;
+  // ── Order info row ──
+  const cols=[{label:"PURCHASE ORDER",val:d.poNumber||"—",w:cw*0.22},{label:"JOB DESCRIPTION",val:d.jobDesc||"Repairs",w:cw*0.38},{label:"PAYMENT TERMS",val:d.paymentTerms||"Net 30",w:cw*0.22},{label:"DUE DATE",val:d.dueDate||"—",w:cw*0.18}];
+  R(lm,y,cw,14,dark);
+  let cx=lm;
+  doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...cyan);
+  cols.forEach(c=>{txt(c.label,cx+4,y+4.5);cx+=c.w;});
+  cx=lm;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...white);
+  cols.forEach(c=>{txt(c.val,cx+4,y+10.5);cx+=c.w;});
+  y+=18;
 
-  // Order info header
-  drawRect(lm,y,cw,8,shade);
-  doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...dark);
-  const colW=cw/4;
-  doc.text("Purchase Order",lm+2,y+5.5);doc.text("Job",lm+colW+2,y+5.5);doc.text("Payment Terms",lm+colW*2+2,y+5.5);doc.text("Due Date",lm+colW*3+2,y+5.5);
-  y+=8;
-  // Order info values
-  drawRect(lm,y,cw,8,shade);
-  doc.setFont("helvetica","normal");doc.setFontSize(9);
-  doc.text(d.poNumber||"",lm+2,y+5.5);doc.text(d.jobDesc||"Repairs",lm+colW+2,y+5.5);doc.text(d.paymentTerms||"Net 30",lm+colW*2+2,y+5.5);doc.text(d.dueDate||"",lm+colW*3+2,y+5.5);
-  y+=12;
+  // ── Line items ──
+  // Header
+  R(lm,y,cw,7,[0,212,245]);
+  doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...white);
+  txt("QTY",lm+4,y+5);txt("DESCRIPTION",lm+24,y+5);txt("RATE",pw-rm-34,y+5);txt("AMOUNT",pw-rm-2,y+5,{align:"right"});
+  y+=9;
 
-  // Line items header
-  drawRect(lm,y,cw,8,shade);
-  doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...dark);
-  doc.text("Qty",lm+2,y+5.5);doc.text("Description",lm+22,y+5.5);doc.text("Unit Price",pw-rm-38,y+5.5);doc.text("Line Total",pw-rm-2,y+5.5,{align:"right"});
-  y+=10;
+  // Labor section
+  doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
+  txt("LABOR",lm+4,y+5);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+6.5,lm+22,y+6.5);
+  y+=9;
 
-  // Labor label
-  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...dark);
-  doc.text("Labor",lm+22,y+4);y+=7;
-
-  // Labor tiers
-  doc.setFont("helvetica","normal");doc.setFontSize(9);
-  d.tiers.forEach(t=>{
+  doc.setFontSize(9.5);
+  d.tiers.forEach((t,i)=>{
     const total=(t.hours||0)*(t.rate||0);
-    doc.text((t.hours||0).toFixed(2),lm+4,y+4);
-    doc.text(t.name,lm+22,y+4);
-    doc.text("$"+(t.rate||0).toFixed(2),pw-rm-38,y+4);
+    if(i%2===0)R(lm,y-1,cw,8,light);
+    doc.setFont("helvetica","normal");doc.setTextColor(...dark);
+    txt((t.hours||0).toFixed(2),lm+6,y+4);
+    txt(t.name,lm+24,y+4);
+    txt("$"+(t.rate||0).toFixed(2),pw-rm-34,y+4);
     doc.setFont("helvetica","bold");
-    doc.text("$"+total.toFixed(2),pw-rm-2,y+4,{align:"right"});
-    doc.setFont("helvetica","normal");
-    drawRect(pw-rm-20,y,20,6,[245,247,250]);
-    doc.text("$"+total.toFixed(2),pw-rm-2,y+4,{align:"right"});
-    y+=7;
+    txt("$"+total.toFixed(2),pw-rm-2,y+4,{align:"right"});
+    y+=8;
   });
-  y+=3;
+  y+=2;L(y,[220,225,235],0.2);y+=4;
 
   // Description
   if(d.description){
-    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.text("Description:",lm+22,y+4);y+=7;
-    doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(...mid);
-    const descLines=doc.splitTextToSize(d.description,cw-30);
-    descLines.slice(0,12).forEach(line=>{doc.text(line,lm+22,y+4);y+=4;});
-    doc.setTextColor(...dark);y+=3;
+    doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
+    txt("WORK PERFORMED",lm+4,y+4);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+40,y+5.5);
+    y+=8;
+    doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
+    const descLines=doc.splitTextToSize(d.description,cw-12);
+    descLines.slice(0,15).forEach(line=>{txt(line,lm+6,y+3);y+=4;});
+    y+=2;L(y,[220,225,235],0.2);y+=4;
   }
 
   // Parts
   if(d.partsTotal>0){
-    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...dark);
-    doc.text("Parts:",lm+22,y+4);
-    doc.text("$"+(d.partsTotal||0).toFixed(2),pw-rm-2,y+4,{align:"right"});
-    y+=7;
-    if(d.partsDetail){
+    doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
+    txt("PARTS & MATERIALS",lm+4,y+4);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+42,y+5.5);
+    doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
+    txt("$"+(d.partsTotal||0).toFixed(2),pw-rm-2,y+4,{align:"right"});
+    y+=8;
+    if(d.partsDetail&&d.partsDetail.length>0){
       doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(...mid);
-      d.partsDetail.forEach(p=>{doc.text(p.desc+" — $"+p.amount.toFixed(2),lm+26,y+4);y+=4;});
-      doc.setTextColor(...dark);
+      d.partsDetail.forEach(p=>{txt(p.desc+" — $"+p.amount.toFixed(2),lm+8,y+3);y+=4.5;});
     }
-    y+=3;
+    y+=2;L(y,[220,225,235],0.2);y+=4;
   }
 
-  // Totals
-  y+=4;drawLine(y,shade);y+=6;
+  // ── Totals ──
+  y+=4;
   const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
   const subtotal=laborTotal+(d.partsTotal||0);
-  drawRect(pw-rm-60,y,60,8,shade);
-  doc.setFont("helvetica","bold");doc.setFontSize(9);
-  doc.text("Subtotal",pw-rm-58,y+5.5);doc.text("$"+subtotal.toFixed(2),pw-rm-2,y+5.5,{align:"right"});
-  y+=9;
-  drawRect(pw-rm-60,y,60,8,shade);
-  doc.text("Sales Tax",pw-rm-58,y+5.5);doc.text("$0.00",pw-rm-2,y+5.5,{align:"right"});
-  y+=9;
-  drawRect(pw-rm-60,y,60,10,dark);
-  doc.setFontSize(11);doc.setTextColor(255,255,255);
-  doc.text("Total",pw-rm-58,y+7);doc.text("$"+subtotal.toFixed(2),pw-rm-2,y+7,{align:"right"});
-  doc.setTextColor(...dark);
-  y+=20;
+  const tw=70,tx=pw-rm-tw;
 
-  // Footer
-  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
-  doc.text("Make all checks payable to 3C Refrigeration, LLC",pw/2,y,{align:"center"});
+  R(tx,y,tw,9,light);
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
-  doc.text("Thank you for your business!",pw/2,y+6,{align:"center"});
+  txt("Subtotal",tx+4,y+6);doc.setTextColor(...dark);txt("$"+subtotal.toFixed(2),pw-rm-4,y+6,{align:"right"});
+  y+=10;
+  R(tx,y,tw,9,light);
+  doc.setTextColor(...mid);txt("Sales Tax",tx+4,y+6);doc.setTextColor(...dark);txt("$0.00",pw-rm-4,y+6,{align:"right"});
+  y+=11;
+  R(tx,y,tw,12,cyan);
+  doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...white);
+  txt("TOTAL",tx+5,y+8.5);txt("$"+subtotal.toFixed(2),pw-rm-4,y+8.5,{align:"right"});
+  y+=22;
 
-  // Page footer
-  const fy=269;
-  drawLine(fy-4,[220,225,230]);
-  doc.setFontSize(7);doc.setTextColor(...mid);
-  doc.text("3C Refrigeration LLC  |  service@3crefrigeration.com",pw/2,fy,{align:"center"});
-  doc.text("Generated "+new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}),pw/2,fy+4,{align:"center"});
+  // ── Footer ──
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
+  txt("Make all checks payable to 3C Refrigeration, LLC",pw/2,y,{align:"center"});
+  doc.setFont("helvetica","italic");doc.setFontSize(9);doc.setTextColor(...mid);
+  txt("Thank you for your business!",pw/2,y+6,{align:"center"});
+
+  // Bottom bar
+  R(0,ph-8,pw,8,dark);
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(180,190,200);
+  txt("3C Refrigeration LLC  |  service@3crefrigeration.com  |  336-264-0935",pw/2,ph-3.5,{align:"center"});
 
   return doc;
 }
@@ -1774,7 +1786,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
     const tiersData=tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
-    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||customer?.name?.substring(0,10)||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
+    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
   const generateXLSX=async()=>{
