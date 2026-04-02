@@ -869,11 +869,11 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
 }
 function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
-  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[saving,setSaving]=useState(false);
+  const[name,setName]=useState(""),[addr,setAddr]=useState(""),[contact,setContact]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState(""),[billingOverride,setBillingOverride]=useState(""),[payTerms,setPayTerms]=useState("Net 30"),[autoInvoice,setAutoInvoice]=useState(false),[saving,setSaving]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
-  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setShowForm(true);};
-  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setShowForm(true);};
-  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
+  const openEdit=(c)=>{setEditing(c);setName(c.name);setAddr(c.address||"");setContact(c.contact_name||"");setPhone(c.phone||"");setEmail(c.email||"");setBillingOverride(c.billing_rate_override||"");setPayTerms(c.payment_terms||"Net 30");setAutoInvoice(c.auto_invoice||false);setShowForm(true);};
+  const openNew=()=>{setEditing(null);setName("");setAddr("");setContact("");setPhone("");setEmail("");setBillingOverride("");setPayTerms("Net 30");setAutoInvoice(false);setShowForm(true);};
+  const go=async()=>{if(!name.trim()||saving)return;setSaving(true);const obj={name:name.trim(),address:addr.trim(),contact_name:contact.trim(),phone:phone.trim(),email:email.trim(),billing_rate_override:parseFloat(billingOverride)||null,payment_terms:payTerms,auto_invoice:autoInvoice};if(editing){await onUpdate({...editing,...obj});}else{await onAdd(obj);}setSaving(false);setShowForm(false);msg(editing?"Customer updated":"Customer added");};
   const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
   const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
   return(<div><Toast msg={toast}/>
@@ -898,6 +898,10 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>Billing Rate Override ($/hr)</label><input value={billingOverride} onChange={e=>setBillingOverride(e.target.value)} type="number" step="5" placeholder="default" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>Payment Terms</label><select value={payTerms} onChange={e=>setPayTerms(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="Due on Receipt">Due on Receipt</option></select></div>
+        </div>
+        <div onClick={()=>setAutoInvoice(!autoInvoice)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:autoInvoice?B.cyan+"15":B.bg,border:"1px solid "+(autoInvoice?B.cyan:B.border),borderRadius:8,cursor:"pointer",transition:"all .15s"}}>
+          <div style={{width:20,height:20,borderRadius:4,border:"2px solid "+(autoInvoice?B.cyan:B.border),background:autoInvoice?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{autoInvoice&&<span style={{color:"#fff",fontSize:12,fontWeight:800}}>✓</span>}</div>
+          <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>Auto-generate invoice on job completion</div><div style={{fontSize:10,color:B.textDim,marginTop:2}}>When enabled, a draft invoice is created when all WOs for this customer are completed. Disable for TMS-entry-only customers.</div></div>
         </div>
         <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Add Customer")}</button></div>
       </div>
@@ -1234,6 +1238,77 @@ function KnowledgeBase({userName,userRole}){
 // ═══════════════════════════════════════════
 // INVOICE GENERATOR
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// INVOICE DASHBOARD — Aging tracker + invoice generator
+// ═══════════════════════════════════════════
+function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,wos,pos,time,users,customers}){
+  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null);
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  const today=new Date();
+  const daysOut=(d)=>{if(!d)return 0;return Math.floor((today-new Date(d))/86400000);};
+  const agingColor=(days)=>days>30?B.red:days>15?B.orange:B.green;
+  const outstanding=invoices.filter(i=>i.status==="sent"||i.status==="draft");
+  const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>30);
+  const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===today.toISOString().slice(0,7));
+  const totalOutstanding=outstanding.reduce((s,i)=>s+parseFloat(i.amount||0),0);
+  const totalPaidMonth=paidThisMonth.reduce((s,i)=>s+parseFloat(i.amount||0),0);
+  const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
+
+  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as sent");};
+  const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
+  const del=async(inv)=>{if(!window.confirm("Delete invoice "+inv.invoice_num+"?"))return;await onDeleteInvoice(inv);msg("Deleted");};
+
+  const ISC={draft:B.purple,sent:B.cyan,paid:B.green,overdue:B.red};
+  const ISL={draft:"Draft",sent:"Sent",paid:"Paid",overdue:"Overdue"};
+  const getStatus=(inv)=>inv.status==="sent"&&daysOut(inv.date_issued)>30?"overdue":inv.status;
+
+  return(<div><Toast msg={toast}/>
+    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+      <StatCard label="Outstanding" value={"$"+totalOutstanding.toLocaleString(undefined,{minimumFractionDigits:2})} icon="💰" color={B.cyan}/>
+      <StatCard label="Overdue (30d+)" value={overdue.length} icon="⚠️" color={B.red}/>
+      <StatCard label="Avg Days to Pay" value={avgDays+"d"} icon="📊" color={B.orange}/>
+      <StatCard label="Paid This Month" value={"$"+totalPaidMonth.toLocaleString(undefined,{minimumFractionDigits:2})} icon="✓" color={B.green}/>
+    </div>
+    <div style={{display:"flex",gap:6,marginBottom:16}}>
+      <button onClick={()=>setView("tracker")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="tracker"?B.cyan:B.border),background:view==="tracker"?B.cyanGlow:"transparent",color:view==="tracker"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>📋 Invoice Tracker</button>
+      <button onClick={()=>setView("create")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ Create Invoice</button>
+    </div>
+    {view==="tracker"&&<div>
+      {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📝</div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {invoices.map(inv=>{const st=getStatus(inv);const days=daysOut(inv.date_issued);const ac=agingColor(days);return(
+          <Card key={inv.id} style={{padding:"14px 16px",borderLeft:"3px solid "+(ISC[st]||B.border)}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontFamily:M,fontWeight:800,fontSize:15,color:B.text}}>INV-{inv.invoice_num}</span>
+                  <Badge color={ISC[st]||B.textDim}>{ISL[st]||inv.status}</Badge>
+                  {st==="sent"&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:ac}}>{days}d</span>}
+                </div>
+                <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{inv.customer}</div>
+                <div style={{fontSize:11,color:B.textDim,marginTop:2}}>
+                  <span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(inv.amount||0).toFixed(2)}</span>
+                  {inv.parts_total>0&&<span> (incl. ${parseFloat(inv.parts_total).toFixed(2)} parts)</span>}
+                  {" · Issued "+inv.date_issued}
+                  {inv.date_sent&&" · Sent "+inv.date_sent}
+                  {inv.date_paid&&" · Paid "+inv.date_paid}
+                  {inv.wo_ids&&<span> · {inv.wo_ids.length} WO{inv.wo_ids.length!==1?"s":""}</span>}
+                </div>
+                {inv.job_desc&&<div style={{fontSize:10,color:B.textDim,marginTop:2,fontStyle:"italic"}}>{inv.job_desc}</div>}
+              </div>
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"5px 10px",fontSize:11}}>Mark Sent</button>}
+                {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Mark Paid</button>}
+                <button onClick={()=>del(inv)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
+              </div>
+            </div>
+          </Card>);})}
+      </div>
+    </div>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers}/>}
+  </div>);
+}
+
 function InvoiceGenerator({wos,pos,time,users,customers}){
   const[cust,setCust]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
@@ -1534,7 +1609,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
@@ -1542,6 +1617,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
+    {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
@@ -1560,7 +1636,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
-    {tab==="invoices"&&<InvoiceGenerator wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
+    {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
@@ -1607,7 +1683,7 @@ function App(){
   },[]);
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
-    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts]=await Promise.all([
+    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
@@ -1620,13 +1696,14 @@ function App(){
       client.from("email_templates").select("*").order("name"),
       client.from("projects").select("*").order("created_at",{ascending:false}),
       client.from("wo_drafts").select("*").order("created_at",{ascending:false}),
+      client.from("invoices").select("*").order("created_at",{ascending:false}),
     ]);
-    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
-    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[]});
+    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
+    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[]});
     setLoading(false);
   }catch(err){console.error("loadData failed:",err);}
   },[]);
-  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false}};
+  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false}};
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
@@ -1635,7 +1712,7 @@ function App(){
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
   useEffect(()=>{if(!authUser)return;const client=sb();
-    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>reloadTable("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>reloadTable("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>reloadTable("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>reloadTable("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>reloadTable("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>reloadTable("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>reloadTable("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>reloadTable("wo_drafts")).subscribe();
+    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>reloadTable("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>reloadTable("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>reloadTable("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>reloadTable("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>reloadTable("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>reloadTable("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>reloadTable("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>reloadTable("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>reloadTable("invoices")).subscribe();
     const poll=setInterval(()=>loadData(),300000);
     const onVis=()=>{if(document.visibilityState==="visible")loadData();};document.addEventListener("visibilitychange",onVis);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
@@ -1672,15 +1749,45 @@ function App(){
   const withTableSync=(table,fn)=>async(...args)=>{setSyncing(true);try{await fn(...args);await reloadTable(table);}finally{setSyncing(false);}};
   const notify=async(type,title,message,forRole)=>{await sb().from("notifications").insert({type,title,message,for_role:forRole||null});};
 
+  // Auto-invoice: creates draft invoice when last WO for an auto_invoice customer is completed
+  const tryAutoInvoice=async(completedWO)=>{
+    try{const cust=data.customers.find(c=>c.name===completedWO.customer);
+    if(!cust||!cust.auto_invoice)return;
+    // Check if there are other non-completed WOs for this customer
+    const otherActive=data.wos.filter(w=>w.customer===cust.name&&w.id!==completedWO.id&&w.status!=="completed");
+    if(otherActive.length>0)return; // still has open WOs, don't invoice yet
+    // Gather all uninvoiced completed WOs for this customer
+    const toInvoice=data.wos.filter(w=>w.customer===cust.name&&w.status==="completed"&&!w.invoiced);
+    if(toInvoice.length===0)return;
+    // Build invoice data
+    const invTime=data.time.filter(t=>toInvoice.some(w=>w.id===t.wo_id));
+    const techHours={};invTime.forEach(t=>{if(!techHours[t.technician])techHours[t.technician]=0;techHours[t.technician]+=parseFloat(t.hours||0);});
+    const invPOs=data.pos.filter(p=>toInvoice.some(w=>w.id===p.wo_id)&&p.status==="approved");
+    const partsTotal=invPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    // Build tiers from tech rates
+    const tierMap={};Object.keys(techHours).forEach(tech=>{const u=data.users.find(x=>x.name===tech);const rate=cust.billing_rate_override||(u?.billing_rate)||120;const tierName=rate>=130?"Licensed Technician":rate>=100?"Senior Technician":"Technician";if(!tierMap[tierName])tierMap[tierName]={name:tierName,rate,hours:0};tierMap[tierName].hours+=techHours[tech];});
+    const tiers=Object.values(tierMap);
+    const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
+    const now=new Date();const invNum=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0")+String(Math.floor(Math.random()*90)+10);
+    await sb().from("invoices").insert({invoice_num:invNum,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:toInvoice.map(w=>w.wo_id),tier_data:tiers,job_desc:toInvoice.map(w=>w.title).join(", "),po_number:"",notes:""});
+    // Mark WOs as invoiced
+    for(const w of toInvoice){await sb().from("work_orders").update({invoiced:true}).eq("id",w.id);}
+    await notify("invoice_created","Invoice Draft Created","$"+(laborTotal+partsTotal).toFixed(2)+" for "+cust.name+" ("+toInvoice.length+" WOs)","admin");
+    }catch(e){console.error("Auto-invoice error:",e);}
+  };
+
   const actions={
     loadData,
     logActivity:async(woId,action,details)=>{try{await sb().from("wo_activity").insert({wo_id:woId,action,details,actor:appUser?.name||"System"});}catch(e){}},
     createWO:withSync(async(wo)=>{const{data:ex}=await sb().from("work_orders").select("wo_id").order("wo_id",{ascending:false}).limit(1);const ln=ex&&ex[0]?parseInt(ex[0].wo_id.replace("WO-",""))||1000:1000;const newId="WO-"+(ln+1);const{data:inserted}=await sb().from("work_orders").insert({...wo,wo_id:newId,status:"pending",hours_total:0}).select("id").single();await notify("wo_created","New Work Order",newId+": "+wo.title);if(inserted)await sb().from("wo_activity").insert({wo_id:inserted.id,action:"created",details:"Work order created",actor:appUser?.name||"System"});}),
-    updateWO:withTableSync("work_orders",async(wo)=>{const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.assignee&&rest.assignee!==old?.assignee&&rest.assignee!=="Unassigned")await notify("wo_assigned","WO Assigned",(old?.wo_id||"")+" assigned to "+rest.assignee,"technician");if(rest.status==="completed"&&old?.status!=="completed")await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");}),
+    updateWO:withTableSync("work_orders",async(wo)=>{const{id,...rest}=wo;const old=data.wos.find(w=>w.id===id);const{error}=await sb().from("work_orders").update(rest).eq("id",id);if(error)console.error("updateWO error:",error);const changes=[];if(old){if(rest.status&&rest.status!==old.status)changes.push("Status → "+rest.status);if(rest.assignee&&rest.assignee!==old.assignee)changes.push("Assigned → "+rest.assignee);if(rest.priority&&rest.priority!==old.priority)changes.push("Priority → "+rest.priority);if(rest.tms_entered!==undefined&&rest.tms_entered!==old.tms_entered)changes.push(rest.tms_entered?"TMS marked complete":"TMS unmarked");}if(changes.length>0)await sb().from("wo_activity").insert({wo_id:id,action:"updated",details:changes.join(", "),actor:appUser?.name||"System"});if(rest.assignee&&rest.assignee!==old?.assignee&&rest.assignee!=="Unassigned")await notify("wo_assigned","WO Assigned",(old?.wo_id||"")+" assigned to "+rest.assignee,"technician");if(rest.status==="completed"&&old?.status!=="completed"){await notify("wo_completed","WO Completed",(old?.wo_id||"")+" completed","admin");await tryAutoInvoice({...old,...rest});}}),
     deleteWO:withTableSync("work_orders",async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
     createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
     updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
     deletePO:withTableSync("purchase_orders",async(po)=>{await sb().from("purchase_orders").delete().eq("id",po.id);}),
+    createInvoice:withTableSync("invoices",async(inv)=>{await sb().from("invoices").insert(inv);}),
+    updateInvoice:withTableSync("invoices",async(inv)=>{const{id,...rest}=inv;await sb().from("invoices").update(rest).eq("id",id);}),
+    deleteInvoice:withTableSync("invoices",async(inv)=>{await sb().from("invoices").delete().eq("id",inv.id);}),
     addTime:withTableSync("time_entries",async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
     updateTime:withTableSync("time_entries",async(te)=>{const{id,...rest}=te;await sb().from("time_entries").update(rest).eq("id",id);}),
     deleteTime:withTableSync("time_entries",async(id)=>{await sb().from("time_entries").delete().eq("id",id);}),
