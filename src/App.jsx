@@ -551,28 +551,41 @@ async function buildInvoicePDF(d){
   // Invoice details box — right side
   y+=18;
   const boxX=pw-rm-62,boxW=62;
-  R(boxX,y,boxW,28,light);
-  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(boxX,y,boxX,y+28);
+  R(boxX,y,boxW,20,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(boxX,y,boxX,y+20);
   doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
-  txt("DATE",boxX+4,y+6);txt("INVOICE #",boxX+4,y+14);txt("CUSTOMER ID",boxX+4,y+22);
+  txt("DATE",boxX+4,y+6);txt("INVOICE #",boxX+4,y+14);
   doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
-  txt(d.date,pw-rm-3,y+6,{align:"right"});txt(d.invoiceNum,pw-rm-3,y+14,{align:"right"});txt(d.customerId,pw-rm-3,y+22,{align:"right"});
+  txt(d.date,pw-rm-3,y+6,{align:"right"});txt(d.invoiceNum,pw-rm-3,y+14,{align:"right"});
 
   // Company info — left side
   doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
-  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923"+(d.vendorNumber?"  |  Vendor #"+d.vendorNumber:"")];
+  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923"];
   ci.forEach((t,i)=>{txt(t,lm,y+5+i*4.2);});
   y+=32;
 
   // ── Bill To ──
-  R(lm,y,cw,18,light);
-  doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+18);
+  const billLines=[d.customerDisplayName,d.customerName,d.customerAddress,d.customerAddress2].filter(Boolean);
+  const billH=Math.max(20,10+billLines.length*5);
+  R(lm,y,cw*0.55,billH,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+billH);
   doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);
   txt("BILL TO",lm+5,y+5.5);
+  let by=y+11;
   doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...dark);
-  txt(d.customerName,lm+5,y+11.5);
-  if(d.customerAddress){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);txt(d.customerAddress,lm+5,y+16);}
-  y+=24;
+  txt(billLines[0]||"",lm+5,by);by+=5.5;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  billLines.slice(1).forEach(l=>{txt(l,lm+5,by);by+=4.5;});
+  // Customer ID on right side
+  if(d.customerId){
+    const cidX=lm+cw*0.55+6;
+    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);
+    txt("CUSTOMER ID",cidX,y+5.5);
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);
+    txt(d.customerId,cidX,y+11);
+    if(d.vendorNumber){doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);txt("VENDOR #",cidX,y+17);doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);txt(d.vendorNumber,cidX,y+22.5);}
+  }
+  y+=billH+6;
 
   // ── Order info row ──
   const cols=[{label:"PURCHASE ORDER",val:d.poNumber||"—",w:cw*0.22},{label:"JOB DESCRIPTION",val:d.jobDesc||"Repairs",w:cw*0.38},{label:"PAYMENT TERMS",val:d.paymentTerms||"Net 30",w:cw*0.22},{label:"DUE DATE",val:d.dueDate||"—",w:cw*0.18}];
@@ -1786,7 +1799,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
     const tiersData=tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
-    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
+    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:customer?.payment_terms||"Net 30",dueDate:"",tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
   const generateXLSX=async()=>{
