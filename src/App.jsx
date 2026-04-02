@@ -1710,7 +1710,7 @@ function KnowledgeBase({userName,userRole}){
 // ═══════════════════════════════════════════
 // INVOICE DASHBOARD — Aging tracker + invoice generator
 // ═══════════════════════════════════════════
-function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,wos,pos,time,users,customers}){
+function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers}){
   const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const today=new Date();
@@ -1774,11 +1774,11 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,wos,pos,time
           </Card>);})}
       </div>
     </div>}
-    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers}/>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} onCreateInvoice={onCreateInvoice}/>}
   </div>);
 }
 
-function InvoiceGenerator({wos,pos,time,users,customers}){
+function InvoiceGenerator({wos,pos,time,users,customers,onCreateInvoice}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false);
@@ -1816,6 +1816,12 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
     return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
+  const saveInvoiceRecord=async(d)=>{
+    if(!onCreateInvoice)return;
+    const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
+    await onCreateInvoice({invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()});
+    filteredWOs.forEach(w=>{sb().from("work_orders").update({invoiced:true}).eq("id",w.id);});
+  };
   const generateXLSX=async()=>{
     if(generating)return;setGenerating(true);
     try{
@@ -1824,6 +1830,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
       const url=URL.createObjectURL(blob);const a=document.createElement("a");
       a.href=url;a.download="INV_"+invoiceNum+"_"+safeName+".xlsx";a.click();URL.revokeObjectURL(url);
       msg("Invoice downloaded!");
+      await saveInvoiceRecord(d);
       if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
       if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
@@ -1835,6 +1842,7 @@ function InvoiceGenerator({wos,pos,time,users,customers}){
       const d=buildInvoiceData();const doc=await buildInvoicePDF(d);
       doc.save("INV_"+invoiceNum+"_"+safeName+".pdf");
       msg("PDF downloaded!");
+      await saveInvoiceRecord(d);
       if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
       if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
@@ -2117,7 +2125,7 @@ function MgrDash({user,onLogout,D,A,syncing}){
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
-    {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
+    {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time}/>}
@@ -2136,7 +2144,7 @@ function AdminDash({user,onLogout,D,A,syncing}){
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
-    {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
+    {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}
