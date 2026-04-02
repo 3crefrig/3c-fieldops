@@ -560,30 +560,41 @@ async function buildInvoicePDF(d){
 
   // Company info — left side
   doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
-  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923"];
+  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923",d.vendorNumber?"Vendor Number "+d.vendorNumber:null].filter(Boolean);
   ci.forEach((t,i)=>{txt(t,lm,y+5+i*4.2);});
   y+=32;
 
-  // ── Bill To ──
-  const billLines=[d.customerDisplayName,d.customerName,d.customerAddress,d.customerAddress2].filter(Boolean);
-  const billH=Math.max(20,10+billLines.length*5);
-  R(lm,y,cw*0.55,billH,light);
+  // ── Bill To + Customer ID ──
+  const billW=cw*0.62,cidW=cw*0.38;
+  // Build address lines — wrap long addresses
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  const addrLines=[];
+  if(d.customerName)addrLines.push(d.customerName);
+  if(d.customerAddress){const wrapped=doc.splitTextToSize(d.customerAddress,billW-12);wrapped.forEach(l=>addrLines.push(l));}
+  if(d.customerAddress2){const wrapped=doc.splitTextToSize(d.customerAddress2,billW-12);wrapped.forEach(l=>addrLines.push(l));}
+  const billH=Math.max(24,14+addrLines.length*4.5);
+  R(lm,y,billW,billH,light);
   doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+billH);
   doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);
   txt("BILL TO",lm+5,y+5.5);
-  let by=y+11;
   doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...dark);
-  txt(billLines[0]||"",lm+5,by);by+=5.5;
+  txt(d.customerDisplayName||"",lm+5,y+12);
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
-  billLines.slice(1).forEach(l=>{txt(l,lm+5,by);by+=4.5;});
-  // Customer ID on right side
+  let by=y+17;
+  addrLines.forEach(l=>{txt(l,lm+5,by);by+=4.5;});
+  // Customer ID / Vendor # on right
+  const cidX=lm+billW+6;
   if(d.customerId){
-    const cidX=lm+cw*0.55+6;
     doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);
     txt("CUSTOMER ID",cidX,y+5.5);
-    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);
-    txt(d.customerId,cidX,y+11);
-    if(d.vendorNumber){doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);txt("VENDOR #",cidX,y+17);doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);txt(d.vendorNumber,cidX,y+22.5);}
+    doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+    txt(d.customerId,cidX,y+12);
+  }
+  if(d.vendorNumber){
+    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);
+    txt("VENDOR #",cidX,y+19);
+    doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+    txt(d.vendorNumber,cidX,y+25.5);
   }
   y+=billH+6;
 
