@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { jsPDF } from "jspdf";
 
 /*
  * 3C Refrigeration FieldOps Pro — Full Feature Edition
@@ -24,6 +25,7 @@ const ROLES={admin:{label:"Admin",color:B.red,grad:`linear-gradient(135deg,${B.r
 const _BW=["fuck","shit","ass","bitch","damn","dick","cock","pussy","cunt","bastard","slut","whore","nigger","nigga","faggot","fag","retard","retarded","spic","chink","kike","wetback","cracker","dyke","tranny","motherfucker","bullshit","asshole","dumbass","jackass","goddamn","piss","twat","wanker"];
 const hasProfanity=(text)=>{if(!text)return false;const lower=text.toLowerCase().replace(/[^a-z\s]/g,"");return _BW.some(w=>{const re=new RegExp("\\b"+w+"\\b","i");return re.test(lower);});};
 const cleanText=(text,fieldName)=>{if(hasProfanity(text)){alert("Inappropriate language detected in "+fieldName+". Please use professional language.");return null;}return text;};
+const sanitizeHTML=(html)=>{if(!html)return"";return html.replace(/<script[\s\S]*?<\/script>/gi,"").replace(/<iframe[\s\S]*?<\/iframe>/gi,"").replace(/\son\w+\s*=\s*["'][^"']*["']/gi,"").replace(/\son\w+\s*=\s*\S+/gi,"").replace(/javascript\s*:/gi,"");};
 const PC={high:B.red,medium:B.orange,low:B.green};
 const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
 const SL={pending:"Pending",in_progress:"In Progress",completed:"Completed"};
@@ -84,7 +86,7 @@ function SignaturePad({onSign}){
   return <canvas ref={canvasRef} width={320} height={140} style={{border:"1px solid "+B.border,borderRadius:6,touchAction:"none",cursor:"crosshair",width:"100%",maxWidth:320,height:140}}/>;
 }
 
-function CameraUpload({woId,woName,onUploaded,userName}){
+function CameraUpload({woId,woName,onUploaded,userName,inputId}){
   const fileRef=useRef(null);
   const[uploading,setUploading]=useState(false);
   const handleFile=async(e)=>{
@@ -115,7 +117,7 @@ function CameraUpload({woId,woName,onUploaded,userName}){
     if(fileRef.current)fileRef.current.value="";
   };
   return(<div>
-    <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
+    <input ref={fileRef} id={inputId} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
     <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{...BS,width:"100%",padding:14,opacity:uploading?.6:1}}>
       <div style={{fontSize:24,marginBottom:4}}>📷</div>
       <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":"Tap to Take Photo or Choose from Gallery"}</div>
@@ -127,11 +129,12 @@ function CameraUpload({woId,woName,onUploaded,userName}){
 // NOTIFICATION BELL
 // ═══════════════════════════════════════════
 function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,userRole,onNavigate}){
-  const[open,setOpen]=useState(false);
+  const[open,setOpen]=useState(false);const bellRef=useRef(null);
+  useEffect(()=>{if(!open)return;const handler=(e)=>{if(bellRef.current&&!bellRef.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",handler);return()=>document.removeEventListener("mousedown",handler);},[open]);
   const unread=notifications.filter(n=>!n.read).length;
   const isManager=userRole==="admin"||userRole==="manager";
   const tapNotif=(n)=>{const woMatch=n.message?.match(/WO-\d+/);if(woMatch&&onNavigate){onNavigate(woMatch[0]);setOpen(false);}};
-  return(<div style={{position:"relative"}}>
+  return(<div ref={bellRef} style={{position:"relative"}}>
     <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",position:"relative"}}>🔔{unread>0&&<span style={{position:"absolute",top:-4,right:-4,background:B.red,color:"#fff",fontSize:9,fontWeight:800,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread}</span>}</button>
     {open&&<div style={{position:"absolute",right:0,top:30,width:300,background:B.surface,border:"1px solid "+B.border,borderRadius:8,zIndex:999,maxHeight:350,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid "+B.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:B.text}}>Notifications</span>{unread>0&&<button onClick={async()=>{await onMarkRead();setOpen(false);}} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer"}}>Mark all read</button>}</div>
@@ -162,27 +165,27 @@ function FirstSetup({authUser,onDone}){
   return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,fontFamily:F}}><div style={{width:"100%",maxWidth:400,textAlign:"center"}}><div style={{display:"inline-block",marginBottom:20}}><Logo size="large"/></div><Card><div style={{fontSize:18,fontWeight:800,color:B.cyan,marginBottom:6}}>Welcome to FieldOps Pro</div><div style={{fontSize:12,color:B.textMuted,marginBottom:14}}>No users exist yet. You're signed in as:</div><div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:4}}>{authUser.user_metadata?.full_name||"User"}</div><div style={{fontFamily:M,fontSize:12,color:B.textDim,marginBottom:18}}>{authUser.email}</div><button onClick={go} disabled={saving} style={{...BP,width:"100%",padding:12,background:ROLES.admin.grad,opacity:saving?.6:1}}>{saving?"Creating...":"Create My Admin Account"}</button></Card></div></div>);
 }
 
-function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO}){
+function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh}){
   const[theme,setThemeState]=useState(_theme);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);setThemeState(t);};
-  // Keyboard shortcuts
-  useEffect(()=>{const handler=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT")return;if(e.key>="1"&&e.key<="9"){const idx=parseInt(e.key)-1;if(tabs[idx])setTab(tabs[idx].key);}if(e.key==="t"&&!e.ctrlKey)toggleTheme();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[tabs,theme]);
-  // Pull to refresh — requires intentional slow pull past threshold
+  // Keyboard shortcuts — Alt+T for theme, number keys for tabs
+  useEffect(()=>{const handler=(e)=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT"||e.target.isContentEditable)return;if(e.key>="1"&&e.key<="9"){const idx=parseInt(e.key)-1;if(tabs[idx])setTab(tabs[idx].key);}if(e.key==="t"&&e.altKey)toggleTheme();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[tabs,theme]);
+  // Pull to refresh — requires intentional slow vertical pull, ignores taps on interactive elements
   const contentRef=useRef(null);
   const pullIndicatorRef=useRef(null);
-  useEffect(()=>{const el=contentRef.current;if(!el)return;let startY=0,pulling=false,ready=false;const THRESHOLD=140;
-    // Create pull indicator element
+  useEffect(()=>{const el=contentRef.current;if(!el)return;let startY=0,startX=0,startTime=0,pulling=false,ready=false,aborted=false;const THRESHOLD=140;const MIN_HOLD_MS=300;
     const indicator=document.createElement("div");
     indicator.style.cssText="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;padding:6px 18px;border-radius:0 0 12px 12px;font-size:12px;font-weight:600;font-family:Barlow,sans-serif;opacity:0;transition:opacity .15s;pointer-events:none;text-align:center;";
     document.body.appendChild(indicator);
     pullIndicatorRef.current=indicator;
-    const ts=(e)=>{if(el.scrollTop===0){startY=e.touches[0].clientY;ready=false;}};
-    const tm=(e)=>{if(!startY||el.scrollTop>0)return;const dy=e.touches[0].clientY-startY;if(dy<0){startY=0;indicator.style.opacity="0";return;}
+    const isInteractive=(t)=>{let n=t;while(n&&n!==el){const tag=n.tagName;if(tag==="BUTTON"||tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT"||tag==="A"||tag==="CANVAS"||n.isContentEditable)return true;n=n.parentElement;}return false;};
+    const ts=(e)=>{if(el.scrollTop===0&&!isInteractive(e.target)){startY=e.touches[0].clientY;startX=e.touches[0].clientX;startTime=Date.now();ready=false;aborted=false;}else{startY=0;}};
+    const tm=(e)=>{if(!startY||el.scrollTop>0||aborted)return;const dy=e.touches[0].clientY-startY;const dx=Math.abs(e.touches[0].clientX-startX);if(dx>dy*0.5){aborted=true;indicator.style.opacity="0";return;}if(dy<0){startY=0;indicator.style.opacity="0";return;}const held=Date.now()-startTime>=MIN_HOLD_MS;
       if(dy>40&&dy<=THRESHOLD){indicator.textContent="↓ Pull to refresh";indicator.style.background=B.surface;indicator.style.color=B.textDim;indicator.style.border="1px solid "+B.border;indicator.style.opacity="0.9";ready=false;}
-      else if(dy>THRESHOLD){indicator.textContent="↻ Release to refresh";indicator.style.background=B.cyan;indicator.style.color="#fff";indicator.style.border="none";indicator.style.opacity="1";ready=true;}
+      else if(dy>THRESHOLD&&held){indicator.textContent="↻ Release to refresh";indicator.style.background=B.cyan;indicator.style.color="#fff";indicator.style.border="none";indicator.style.opacity="1";ready=true;}
       else{indicator.style.opacity="0";ready=false;}};
-    const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>window.location.reload(),200);}else{indicator.style.opacity="0";}startY=0;ready=false;pulling=false;};
-    el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[]);
+    const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>{if(onRefresh)onRefresh();indicator.style.opacity="0";pulling=false;},200);}else{indicator.style.opacity="0";}startY=0;startX=0;startTime=0;ready=false;aborted=false;pulling=false;};
+    el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[onRefresh]);
   return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column"}}>
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
@@ -197,7 +200,7 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
       </div>
     </div>
     <div style={{background:B.surface,padding:"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}</div>
-    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:"20px 14px",overflowY:"auto",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
+    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:"20px 14px",overflowY:"auto",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
   </div>);
 }
 
@@ -212,10 +215,11 @@ function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole}){
   return(<Modal title="Purchase Order" onClose={onClose} wide>
     {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div><label style={LS}>Parts/Materials</label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Amount ($)</label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div></div>
-      <div><label style={LS}>Notes</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Vendor, shipping, etc." style={IS}/></div>
-      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Request New PO"}</button></div>
+      <div><label style={LS}>Parts/Materials <span style={{color:B.red}}>*</span></label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Estimated Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div></div>
+      <div><label style={LS}>Vendor / Where to get it</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Johnstone Supply, Home Depot, etc." style={IS}/></div>
+      {!isMgr&&<div style={{fontSize:10,color:B.textDim,background:B.bg,padding:"8px 12px",borderRadius:6,border:"1px solid "+B.border}}>💡 Don't know the exact price? Leave the amount blank — your manager will fill it in before approving.</div>}
+      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Request PO"}</button></div>
     </div></Modal>);
 }
 
@@ -231,11 +235,139 @@ function POEditForm({po,onSave,onClose}){
   </div>);
 }
 
-function POMgmt({pos,onUpdatePO,wos}){
-  const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState("");
+// ═══════════════════════════════════════════
+// PO PDF GENERATION
+// ═══════════════════════════════════════════
+let _logoB64Cache=null;
+async function fetchLogoBase64(){
+  if(_logoB64Cache)return _logoB64Cache;
+  try{const resp=await fetch("https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png");
+    const blob=await resp.blob();return new Promise((res)=>{const r=new FileReader();r.onload=()=>{_logoB64Cache=r.result;res(r.result);};r.readAsDataURL(blob);});
+  }catch(e){console.warn("Logo fetch failed:",e);return null;}
+}
+
+async function generatePOPdf(po,wo){
+  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const pw=215.9,lm=20,rm=20,cw=pw-lm-rm;
+  const cyan=[0,229,255],dark=[30,34,42],mid=[120,130,150],light=[240,243,248];
+  let y=20;
+
+  // Helper functions
+  const drawLine=(y1,color)=>{doc.setDrawColor(...color);doc.setLineWidth(0.3);doc.line(lm,y1,pw-rm,y1);};
+  const drawRect=(x,y1,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,y1,w,h,"F");};
+
+  // Logo
+  const logo=await fetchLogoBase64();
+  if(logo)doc.addImage(logo,"PNG",lm,y,40,14);
+
+  // Company info — right aligned
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  doc.text("3C Refrigeration LLC",pw-rm,y+4,{align:"right"});
+  doc.text("service@3crefrigeration.com",pw-rm,y+8,{align:"right"});
+  doc.text("www.3crefrigeration.com",pw-rm,y+12,{align:"right"});
+  y+=20;
+
+  // Accent bar
+  drawRect(lm,y,cw,1.5,cyan);
+  y+=8;
+
+  // PURCHASE ORDER title + PO number on same line, properly spaced
+  doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(...dark);
+  doc.text("PURCHASE ORDER",lm,y);
+  doc.setFont("helvetica","bold");doc.setFontSize(18);doc.setTextColor(...dark);
+  doc.text("PO #"+po.po_id,pw-rm,y,{align:"right"});
+  y+=10;
+
+  // Info grid — light background
+  drawRect(lm,y,cw,32,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(lm,y,lm,y+32);
+
+  const col1=lm+6,col2=lm+cw/2+4;
+  const labelStyle=()=>{doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);};
+  const valueStyle=()=>{doc.setFont("helvetica","normal");doc.setFontSize(11);doc.setTextColor(...dark);};
+
+  labelStyle();doc.text("DATE",col1,y+7);
+  valueStyle();doc.text(po.created_at?new Date(po.created_at).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}):"—",col1,y+13);
+
+  labelStyle();doc.text("STATUS",col2,y+7);
+  valueStyle();doc.text((po.status||"pending").toUpperCase(),col2,y+13);
+
+  labelStyle();doc.text("REQUESTED BY",col1,y+22);
+  valueStyle();doc.text(po.requested_by||"—",col1,y+28);
+
+  labelStyle();doc.text("WORK ORDER",col2,y+22);
+  valueStyle();doc.text(wo?wo.wo_id+(wo.title?" — "+wo.title:""):"—",col2,y+28);
+  y+=40;
+
+  // Line items header
+  drawRect(lm,y,cw,9,[30,34,42]);
+  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(255,255,255);
+  doc.text("DESCRIPTION",lm+6,y+6.5);
+  doc.text("AMOUNT",pw-rm-6,y+6.5,{align:"right"});
+  y+=9;
+
+  // Line item row
+  drawRect(lm,y,cw,14,[255,255,255]);
+  doc.setDrawColor(220,225,230);doc.setLineWidth(0.2);doc.rect(lm,y,cw,14);
+  doc.setFont("helvetica","normal");doc.setFontSize(11);doc.setTextColor(...dark);
+  const descText=doc.splitTextToSize(po.description||"—",cw-50);
+  doc.text(descText,lm+6,y+9);
+  doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...dark);
+  doc.text("$"+(parseFloat(po.amount)||0).toFixed(2),pw-rm-6,y+9,{align:"right"});
+  y+=14;
+
+  // Notes row if present
+  if(po.notes){
+    drawRect(lm,y,cw,12,[250,251,253]);
+    doc.setDrawColor(220,225,230);doc.setLineWidth(0.2);doc.rect(lm,y,cw,12);
+    doc.setFont("helvetica","italic");doc.setFontSize(9);doc.setTextColor(...mid);
+    doc.text("Note: "+po.notes,lm+6,y+8);
+    y+=12;
+  }
+
+  // Total bar
+  y+=2;
+  drawRect(lm,y,cw,14,cyan);
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(255,255,255);
+  doc.text("TOTAL",lm+6,y+9.5);
+  doc.setFontSize(14);
+  doc.text("$"+(parseFloat(po.amount)||0).toFixed(2),pw-rm-6,y+10,{align:"right"});
+  y+=24;
+
+  // Payment instructions box
+  drawRect(lm,y,cw,30,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(lm,y,lm,y+30);
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...dark);
+  doc.text("Payment Instructions",lm+6,y+8);
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...mid);
+  doc.text("Please email all invoices for this purchase order to:",lm+6,y+16);
+  doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...cyan);
+  doc.text("service@3crefrigeration.com",lm+6,y+24);
+  y+=38;
+
+  // Authorization line
+  drawLine(y,light);y+=8;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  doc.text("This purchase order is authorized by 3C Refrigeration LLC.",lm,y);
+  y+=5;
+  doc.text("Reference this PO number ("+po.po_id+") on all correspondence and invoices.",lm,y);
+
+  // Footer — bottom of page
+  const fy=269;
+  drawLine(fy-4,[220,225,230]);
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...mid);
+  doc.text("3C Refrigeration LLC  |  service@3crefrigeration.com",pw/2,fy,{align:"center"});
+  doc.text("Generated "+new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}),pw/2,fy+4,{align:"center"});
+
+  doc.save("PO-"+po.po_id+".pdf");
+}
+
+function POMgmt({pos,onUpdatePO,onDeletePO,wos}){
+  const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState(""),[confirmDelete,setConfirmDelete]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
-  const approve=async(po)=>{await onUpdatePO({...po,status:"approved"});msg("PO "+po.po_id+" approved");};
+  const approve=async(po)=>{if(!parseFloat(po.amount)){msg("⚠️ Set an amount before approving — click Edit first");return;}await onUpdatePO({...po,status:"approved"});msg("PO "+po.po_id+" approved");};
   const reject=async(po)=>{await onUpdatePO({...po,status:"rejected"});msg("PO "+po.po_id+" rejected");};
+  const deletePO=async(po)=>{await onDeletePO(po);setConfirmDelete(null);msg("PO "+po.po_id+" deleted");};
   const approved=pos.filter(p=>p.status==="approved");const approvedAmt=approved.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}><StatCard label="Total POs" value={pos.length} icon="📄" color={B.cyan}/><StatCard label="Pending" value={pc} icon="⏳" color={B.orange}/><StatCard label="Approved" value={approved.length} icon="✓" color={B.green}/><StatCard label="Approved $" value={"$"+approvedAmt.toLocaleString()} icon="💰" color={B.purple}/></div>
@@ -249,16 +381,27 @@ function POMgmt({pos,onUpdatePO,wos}){
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:800,fontSize:15,color:B.text}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{wo&&<span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span>}</div>
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}</div>
-              <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · <span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount||0).toFixed(2)}</span>{wo&&<span> · {wo.title}</span>}</div>
+              <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · {parseFloat(po.amount)?<span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount).toFixed(2)}</span>:<span style={{fontFamily:M,fontWeight:700,color:B.orange}}>$ —  needs amount</span>}{wo&&<span> · {wo.title}</span>}</div>
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
             </div>
             <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <button onClick={()=>generatePOPdf(po,wo)} style={{...BS,padding:"5px 10px",fontSize:11}}>📄 PO Form</button>
               <button onClick={()=>setEditing(po)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>
               {po.status==="pending"&&<><button onClick={()=>approve(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.red}}>Reject</button></>}
               {po.status==="rejected"&&<button onClick={()=>approve(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Re-approve</button>}
+              <button onClick={()=>setConfirmDelete(po)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
             </div></div></Card>);})}
     </div>
     {editing&&<Modal title={"Edit PO "+editing.po_id} onClose={()=>setEditing(null)}><POEditForm po={editing} onSave={async u=>{await onUpdatePO(u);setEditing(null);msg("PO "+u.po_id+" updated");}} onClose={()=>setEditing(null)}/></Modal>}
+    {confirmDelete&&<Modal title="Delete PO?" onClose={()=>setConfirmDelete(null)}>
+      <div style={{textAlign:"center",padding:"10px 0"}}>
+        <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:4}}>Delete PO {confirmDelete.po_id}?</div>
+        <div style={{fontSize:12,color:B.textMuted,marginBottom:4}}>{confirmDelete.description}</div>
+        <div style={{fontSize:12,color:B.textDim,marginBottom:16}}>This cannot be undone.</div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setConfirmDelete(null)} style={{...BS,flex:1}}>Cancel</button><button onClick={()=>deletePO(confirmDelete)} style={{...BP,flex:1,background:B.red}}>Delete PO</button></div>
+      </div>
+    </Modal>}
   </div>);
 }
 
@@ -266,9 +409,9 @@ function POMgmt({pos,onUpdatePO,wos}){
 // WORK ORDER DETAIL — Redesigned for field use
 // ═══════════════════════════════════════════
 function ActivityLog({woId}){
-  const[log,setLog]=useState([]),[show,setShow]=useState(false);
-  const load=async()=>{const{data}=await sb().from("wo_activity").select("*").eq("wo_id",woId).order("created_at",{ascending:false}).limit(20);setLog(data||[]);};
-  useEffect(()=>{if(show&&log.length===0)load();},[show]);
+  const[log,setLog]=useState([]),[show,setShow]=useState(false),[loaded,setLoaded]=useState(false);
+  const load=async()=>{const{data}=await sb().from("wo_activity").select("*").eq("wo_id",woId).order("created_at",{ascending:false}).limit(20);setLog(data||[]);setLoaded(true);};
+  useEffect(()=>{if(show&&!loaded)load();},[show,woId]);
   return(<div style={{marginBottom:16}}>
     <button onClick={()=>setShow(!show)} style={{width:"100%",padding:"10px 14px",background:B.bg,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
       <span style={{fontSize:12,fontWeight:600,color:B.textDim}}>📝 Activity Log</span><span style={{color:B.textDim,fontSize:12}}>{show?"▾":"▸"}</span>
@@ -344,8 +487,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <button onClick={openCompleteFlow} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
     </div>}
 
-    {/* Camera (hidden trigger, activated by Photo button above) */}
-    {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData}/></div>}
+    {/* Camera — hidden input triggered by Photo button, visible button below */}
+    {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData} inputId="cam-upload"/></div>}
     {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData}/></div>}
 
     {/* FIELD NOTES — always visible, quick add */}
@@ -444,7 +587,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         <textarea value={fuNotes} onChange={e=>setFuNotes(e.target.value)} rows={3} placeholder="Describe what needs to happen next..." style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:14}}/>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowFollowUp(false)} style={{...SEC}}>No Follow-up Needed</button>
-          <button onClick={createFollowUp} disabled={saving||!fuNotes.trim()} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving||!fuNotes.trim()?.5:1}}>{saving?"Creating...":"Create Follow-up WO"}</button>
+          <button onClick={createFollowUp} disabled={saving||!fuNotes.trim()} style={{...BIG,background:B.cyan,color:B.bg,opacity:(saving||!fuNotes.trim())?.5:1}}>{saving?"Creating...":"Create Follow-up WO"}</button>
         </div>
       </div>
     </Modal>}
@@ -935,7 +1078,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
         {(!emailTemplates||emailTemplates.length===0)&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:12}}>No templates yet. Click above to create one.</div></Card>}
         {(emailTemplates||[]).map(t=><Card key={t.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.purple}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>Subject: {t.subject}</div><div style={{fontSize:11,color:B.textDim,marginTop:2,maxHeight:40,overflow:"hidden"}} dangerouslySetInnerHTML={{__html:t.body}}/></div>
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>Subject: {t.subject}</div><div style={{fontSize:11,color:B.textDim,marginTop:2,maxHeight:40,overflow:"hidden"}} dangerouslySetInnerHTML={{__html:sanitizeHTML(t.body)}}/></div>
             <div style={{display:"flex",gap:6,flexShrink:0}}><button onClick={()=>openEdit(t)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button><button onClick={()=>del(t)} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button></div>
           </div></Card>)}
       </div>
@@ -944,7 +1087,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
           <div><label style={LS}>Template Name</label><input value={tName} onChange={e=>setTName(e.target.value)} placeholder="e.g. Monthly Timesheet, Invoice Follow-up" style={IS}/></div>
           <div><label style={LS}>Email Subject</label><input value={tSubject} onChange={e=>setTSubject(e.target.value)} placeholder="3C Refrigeration — Timesheet" style={IS}/></div>
           <div><label style={LS}>Email Body <span style={{color:B.textDim,fontWeight:400}}>(timesheet table and your signature are added automatically below)</span></label><textarea value={tBody} onChange={e=>setTBody(e.target.value)} rows={6} placeholder="<p>Hi,</p><p>Please find attached...</p>" style={{...IS,resize:"vertical",lineHeight:1.5,fontFamily:M,fontSize:12}}/></div>
-          <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border}}><span style={{fontSize:10,color:B.textDim}}>Preview:</span><div style={{marginTop:6,fontSize:12,color:B.textMuted}} dangerouslySetInnerHTML={{__html:tBody||"<em>Empty</em>"}}/></div>
+          <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border}}><span style={{fontSize:10,color:B.textDim}}>Preview:</span><div style={{marginTop:6,fontSize:12,color:B.textMuted}} dangerouslySetInnerHTML={{__html:sanitizeHTML(tBody||"<em>Empty</em>")}}/></div>
           <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Create Template")}</button></div>
         </div>
       </Modal>}
@@ -1329,7 +1472,7 @@ function TechDash({user,onLogout,D,A,syncing}){
   const recentWOs=[...my].sort((a,b)=>{const aT=D.time.filter(t=>t.wo_id===a.id).sort((x,y)=>(y.logged_date||"").localeCompare(x.logged_date||""))[0];const bT=D.time.filter(t=>t.wo_id===b.id).sort((x,y)=>(y.logged_date||"").localeCompare(x.logged_date||""))[0];return((bT?.logged_date||b.created_at)||"").localeCompare((aT?.logged_date||a.created_at)||"");}).slice(0,5);
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
   const submitQuickLog=async()=>{if(!qlWO||!qlH||qlSaving)return;if(cleanText(qlD,"Description")===null)return;setQlSaving(true);const h=parseFloat(qlH)||0;await A.addTime({wo_id:qlWO,hours:h,description:qlD.trim()||"Work performed",logged_date:qlDate});const wo=D.wos.find(w=>w.id===qlWO);if(wo)await A.updateWO({...wo,hours_total:parseFloat(wo.hours_total||0)+h});setQlSaving(false);setQuickLog(false);setQlWO("");setQlH("");setQlD("");};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="today"&&<>
       {myActive.filter(o=>{if(o.status!=="in_progress")return false;const lastTime=D.time.filter(t=>t.wo_id===o.id).sort((a,b)=>(b.logged_date||"").localeCompare(a.logged_date||""))[0];if(!lastTime)return true;const last=new Date(lastTime.logged_date);const hrs=(Date.now()-last.getTime())/3600000;return hrs>8;}).map(wo=><div key={wo.id+"reminder"} style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontSize:18}}>⏰</span>
@@ -1367,7 +1510,7 @@ function TechDash({user,onLogout,D,A,syncing}){
             <div><label style={LS}>Date</label><input value={qlDate} onChange={e=>setQlDate(e.target.value)} type="date" style={{...IS,padding:14}}/></div>
           </div>
           <div><label style={LS}>What was done?</label><input value={qlD} onChange={e=>setQlD(e.target.value)} placeholder="Describe work..." style={{...IS,padding:14}}/></div>
-          <button onClick={submitQuickLog} disabled={qlSaving||!qlWO||!qlH} style={{...BP,width:"100%",padding:14,opacity:qlSaving||!qlWO||!qlH?.6:1}}>{qlSaving?"Logging...":"Log Time"}</button>
+          <button onClick={submitQuickLog} disabled={qlSaving||!qlWO||!qlH} style={{...BP,width:"100%",padding:14,opacity:(qlSaving||!qlWO||!qlH)?.6:1}}>{qlSaving?"Logging...":"Log Time"}</button>
         </div>
       </Modal>}
     </>}
@@ -1382,11 +1525,11 @@ function MgrDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+parseFloat(o.hours_total||0),0).toFixed(1)}h</div></div><Badge color={B.green}>On Duty</Badge></div></Card>);})}</div>}
@@ -1401,11 +1544,11 @@ function AdminDash({user,onLogout,D,A,syncing}){
   const[tab,setTab]=useState("overview");
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,userName:user.name,userRole:user.role,loadData:A.loadData};
-  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
+  return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={()=>setTab("orders")} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
     {tab==="overview"&&<><DashAnalytics wos={D.wos} time={D.time} pos={D.pos}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📬</span><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:800,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} wos={D.wos}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="invoices"&&<InvoiceGenerator wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers}/>}
@@ -1444,12 +1587,7 @@ function CustomerPortal({customerSlug}){
   </div>);
 }
 
-export default function App(){
-  // Check for customer portal route
-  const hash=window.location.hash;
-  const portalMatch=hash.match(/#\/portal\/(.+)/);
-  if(portalMatch)return <CustomerPortal customerSlug={portalMatch[1]}/>;
-
+function App(){
   const[authUser,setAuthUser]=useState(null);const[appUser,setAppUser]=useState(null);
   const[data,setData]=useState(null);const[loading,setLoading]=useState(true);const[syncing,setSyncing]=useState(false);
 
@@ -1459,7 +1597,7 @@ export default function App(){
     return()=>subscription.unsubscribe();
   },[]);
 
-  const loadData=useCallback(async()=>{const client=sb();if(!client)return;
+  const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
     const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
@@ -1474,8 +1612,10 @@ export default function App(){
       client.from("projects").select("*").order("created_at",{ascending:false}),
       client.from("wo_drafts").select("*").order("created_at",{ascending:false}),
     ]);
+    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
     setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[]});
     setLoading(false);
+  }catch(err){console.error("loadData failed:",err);}
   },[]);
   const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false}};
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
@@ -1487,7 +1627,8 @@ export default function App(){
 
   useEffect(()=>{if(!authUser)return;const client=sb();
     const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>reloadTable("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>reloadTable("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>reloadTable("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>reloadTable("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>reloadTable("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>reloadTable("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>reloadTable("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>reloadTable("wo_drafts")).subscribe();
-    const poll=setInterval(()=>loadData(),30000);
+    const poll=setInterval(()=>loadData(),300000);
+    const onVis=()=>{if(document.visibilityState==="visible")loadData();};document.addEventListener("visibilitychange",onVis);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
     const checkRecurringPMs=async()=>{
       const{data:tpls}=await client.from("recurring_templates").select("*").eq("active",true);
@@ -1515,7 +1656,7 @@ export default function App(){
       }
     };
     checkRecurringPMs();
-    return()=>{client.removeChannel(chan);clearInterval(poll);};
+    return()=>{client.removeChannel(chan);clearInterval(poll);document.removeEventListener("visibilitychange",onVis);};
   },[authUser,loadData]);
 
   const withSync=fn=>async(...args)=>{setSyncing(true);try{await fn(...args);await loadData();}finally{setSyncing(false);}};
@@ -1530,6 +1671,7 @@ export default function App(){
     deleteWO:withTableSync("work_orders",async(id)=>{const{error}=await sb().from("work_orders").delete().eq("id",id);if(error)console.error("deleteWO error:",error);}),
     createPO:withSync(async(po)=>{const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genPO(all||[]);await sb().from("purchase_orders").insert({...po,po_id:id,requested_by:appUser.name,status:"pending"});await notify("po_requested","PO Requested",id+" — $"+po.amount+" by "+appUser.name,"manager");}),
     updatePO:withTableSync("purchase_orders",async(po)=>{const{id,...rest}=po;await sb().from("purchase_orders").update(rest).eq("id",id);}),
+    deletePO:withTableSync("purchase_orders",async(po)=>{await sb().from("purchase_orders").delete().eq("id",po.id);}),
     addTime:withTableSync("time_entries",async(te)=>{await sb().from("time_entries").insert({...te,technician:appUser.name,logged_date:te.logged_date||new Date().toISOString().slice(0,10)});}),
     updateTime:withTableSync("time_entries",async(te)=>{const{id,...rest}=te;await sb().from("time_entries").update(rest).eq("id",id);}),
     deleteTime:withTableSync("time_entries",async(id)=>{await sb().from("time_entries").delete().eq("id",id);}),
@@ -1570,4 +1712,11 @@ export default function App(){
   if(appUser.role==="admin")return <AdminDash {...p}/>;
   if(appUser.role==="manager")return <MgrDash {...p}/>;
   return <TechDash {...p}/>;
+}
+
+export default function AppRouter(){
+  const hash=window.location.hash;
+  const portalMatch=hash.match(/#\/portal\/(.+)/);
+  if(portalMatch)return <CustomerPortal customerSlug={portalMatch[1]}/>;
+  return <App/>;
 }
