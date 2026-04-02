@@ -46,6 +46,7 @@ function genPO(list){const n=new Date(),pfx=String(n.getFullYear()).slice(2)+Str
 
 // ── Global CSS Animations ────────────────────────
 const GlobalStyles=()=><style>{`
+html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -57,7 +58,11 @@ const GlobalStyles=()=><style>{`
 .card-hover{transition:border-color .2s,box-shadow .2s,transform .15s}
 .card-hover:hover{box-shadow:0 2px 12px rgba(0,0,0,0.15)}
 .card-hover:active{transform:scale(0.985)}
-.tab-content{animation:fadeIn .2s ease-out}
+.tab-content{animation:fadeIn .2s ease-out;-webkit-overflow-scrolling:touch}
+.tab-content::-webkit-scrollbar{width:6px}
+.tab-content::-webkit-scrollbar-track{background:transparent}
+.tab-content::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.3);border-radius:3px}
+.tab-content::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.5)}
 `}</style>;
 
 function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
@@ -198,7 +203,7 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
       else{indicator.style.opacity="0";ready=false;}};
     const te=()=>{if(ready&&!pulling){pulling=true;haptic(50);indicator.textContent="Refreshing...";setTimeout(()=>{if(onRefresh)onRefresh();indicator.style.opacity="0";pulling=false;},200);}else{indicator.style.opacity="0";}startY=0;startX=0;startTime=0;ready=false;aborted=false;pulling=false;};
     el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[onRefresh]);
-  return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column"}}>
+  return(<div style={{height:"100vh",background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
@@ -214,7 +219,7 @@ function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onM
     </div>
     {!isMobile&&<div style={{background:B.surface,padding:"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}</div>}
     {isMobile&&<div style={{background:B.surface,padding:"0 8px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100}}>{tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"8px 10px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:9,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",letterSpacing:0.1}}>{t.icon} {t.label}</button>)}</div>}
-    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?74:20,overflowY:"auto",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>{children}</div>
+    <div ref={contentRef} className="tab-content" key={tab} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?74:20,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box",minHeight:0}}>{children}</div>
     {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"4px 0",paddingBottom:"max(4px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48,transition:"color .15s"}}><span>{t.icon}</span><span style={{fontSize:10,fontWeight:tab===t.key?700:500,fontFamily:F}}>{t.label}</span></button>)}<button onClick={()=>setShowMoreTabs(!showMoreTabs)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:showMoreTabs?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48}}><span>•••</span><span style={{fontSize:10,fontWeight:500,fontFamily:F}}>More</span></button></div>}
     {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:8,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.icon} {t.label}</button>)}</div>}
   </div>);
