@@ -4,6 +4,7 @@ import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyStat
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
+import { POReqModal } from "./PurchaseOrders";
 import { EquipmentPicker, EQ_LABELS } from "./Equipment";
 
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,equipment}){
