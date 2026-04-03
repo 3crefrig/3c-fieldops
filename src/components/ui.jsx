@@ -39,3 +39,15 @@ export function Spinner(){return <div style={{display:"flex",alignItems:"center"
 export function SkeletonCard(){return <div style={{background:B.surface,borderRadius:10,padding:18,border:"1px solid "+B.border,boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}><div style={{height:10,width:"40%",borderRadius:4,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:18,width:"70%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:10,width:"55%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /></div>;}
 export function SkeletonLoader({count}){return <div style={{display:"flex",flexDirection:"column",gap:10,animation:"fadeIn .3s ease-out"}}>{Array.from({length:count||3}).map((_,i)=><SkeletonCard key={i}/>)}</div>;}
 export function EmptyState({icon,title,subtitle}){return <div style={{textAlign:"center",padding:"48px 24px",animation:"fadeIn .3s ease-out"}}><div style={{fontSize:40,marginBottom:12,opacity:0.8}}>{icon||"📭"}</div><div style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:6}}>{title||"Nothing here yet"}</div><div style={{fontSize:12,color:B.textDim,lineHeight:1.5,maxWidth:260,margin:"0 auto"}}>{subtitle||""}</div></div>;}
+export function VoiceInput({onResult,style}){
+  const[listening,setListening]=useState(false);
+  const start=()=>{
+    if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){alert("Voice input not supported in this browser.");return;}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const rec=new SR();rec.continuous=false;rec.interimResults=false;rec.lang="en-US";
+    rec.onresult=(e)=>{const t=e.results[0][0].transcript;if(onResult)onResult(t);setListening(false);};
+    rec.onerror=()=>setListening(false);rec.onend=()=>setListening(false);
+    rec.start();setListening(true);
+  };
+  return<button onClick={start} type="button" title={listening?"Listening...":"Voice input"} style={{background:listening?B.cyan+"22":"transparent",border:"1px solid "+(listening?B.cyan:B.border),borderRadius:8,padding:"8px 10px",cursor:"pointer",fontSize:16,color:listening?B.cyan:B.textDim,transition:"all .15s",minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",...(style||{})}}>{listening?"🔴":"🎤"}</button>;
+}
