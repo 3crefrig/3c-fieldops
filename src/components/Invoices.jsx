@@ -317,8 +317,10 @@ async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
 }
 
 function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers}){
-  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null);
+  const PAGE_SIZE=50;
+  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+  useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
   const today=new Date();
   const daysOut=(d)=>{if(!d)return 0;return Math.floor((today-new Date(d))/86400000);};
   const agingColor=(days)=>days>30?B.red:days>15?B.orange:B.green;
@@ -363,7 +365,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
     {view==="tracker"&&<div>
       {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📝</div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {invoices.map(inv=>{const st=getStatus(inv);const days=daysOut(inv.date_issued);const ac=agingColor(days);return(
+        {invoices.slice(0,visibleCount).map(inv=>{const st=getStatus(inv);const days=daysOut(inv.date_issued);const ac=agingColor(days);return(
           <Card key={inv.id} style={{padding:"14px 16px",borderLeft:"3px solid "+(ISC[st]||B.border)}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
               <div style={{flex:1,minWidth:0}}>
@@ -392,6 +394,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
               </div>
             </div>
           </Card>);})}
+        {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
     </div>}
     {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice}/>}

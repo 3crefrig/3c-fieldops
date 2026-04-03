@@ -40,7 +40,7 @@ function App(){
       client.from("feedback").select("*").order("submitted_at",{ascending:false}),
     ]);
     [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
-    setData({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[]});
+    setData(prev=>({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],onlineUsers:prev?.onlineUsers||[]}));
     setLoading(false);
   }catch(err){console.error("loadData failed:",err);}
   },[]);
@@ -48,7 +48,7 @@ function App(){
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
-  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[],emailTemplates:[],projects:[],woDrafts:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
+  useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[],emailTemplates:[],projects:[],woDrafts:[],onlineUsers:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
 
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
 
@@ -56,7 +56,8 @@ function App(){
   useEffect(()=>{if(!authUser)return;const client=sb();
     const _reloadTimers={};
     const debouncedReload=(table)=>{if(_reloadTimers[table])clearTimeout(_reloadTimers[table]);_reloadTimers[table]=setTimeout(()=>reloadTable(table),500);};
-    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>debouncedReload("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>debouncedReload("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>debouncedReload("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>debouncedReload("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>debouncedReload("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>debouncedReload("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>debouncedReload("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>debouncedReload("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>debouncedReload("invoices")).subscribe();
+    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>debouncedReload("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>debouncedReload("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>debouncedReload("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>debouncedReload("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>debouncedReload("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>debouncedReload("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>debouncedReload("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>debouncedReload("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>debouncedReload("invoices")).on('presence',{event:'sync'},()=>{const state=chan.presenceState();const online=Object.values(state).flat().map(p=>p.name);setData(prev=>prev?{...prev,onlineUsers:online}:prev);}).subscribe();
+    chan.track({name:appUser?.name,role:appUser?.role});
     const poll=setInterval(()=>loadData(),300000);
     const onVis=()=>{if(document.visibilityState==="visible")loadData();};document.addEventListener("visibilitychange",onVis);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
