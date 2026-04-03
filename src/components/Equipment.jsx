@@ -156,7 +156,8 @@ function EquipmentForm({initial,customers,onSave,onClose}){
 }
 
 // ─── Equipment Detail ─────────────────────────────────
-function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos,canEdit,loadData,userName}){
+function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos,canEdit,loadData,userName,userRole}){
+  const isMgr=userRole==="admin"||userRole==="manager";
   const[editing,setEditing]=useState(false);const[toast,setToast]=useState("");const[confirmDel,setConfirmDel]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const linkedWOs=wos.filter(w=>w.equipment_id===eq.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
@@ -200,7 +201,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
       <StatCard label="Warranty" value={warrantyDays===null?"N/A":warrantyDays<=0?"Expired":warrantyDays+"d left"} icon="🛡" color={warrantyColor}/>
       <StatCard label="Service Visits" value={linkedWOs.length} icon="🔧" color={B.cyan}/>
       <StatCard label="Total Hours" value={totalHours.toFixed(1)} icon="⏱" color={B.orange}/>
-      <StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="💰" color={B.green}/>
+      {isMgr&&<StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="💰" color={B.green}/>}
     </div>
 
     {/* Location */}
@@ -294,7 +295,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
 
   if(selected){const eq=equipment.find(e=>e.id===selected);
     if(!eq)return<div style={{padding:20,color:B.textDim}}>Equipment not found. <button onClick={()=>setSelected(null)} style={{color:B.cyan,background:"none",border:"none",cursor:"pointer"}}>Go back</button></div>;
-    return<EquipmentDetail eq={eq} onBack={()=>setSelected(null)} onUpdate={A.updateEquipment} onDelete={A.deleteEquipment} wos={D.wos} pos={D.pos} timeEntries={D.time} photos={D.photos} canEdit={canEdit} loadData={A.loadData} userName={userName}/>;
+    return<EquipmentDetail eq={eq} onBack={()=>setSelected(null)} onUpdate={A.updateEquipment} onDelete={A.deleteEquipment} wos={D.wos} pos={D.pos} timeEntries={D.time} photos={D.photos} canEdit={canEdit} loadData={A.loadData} userName={userName} userRole={userRole}/>;
   }
 
   const handleScan=(tag)=>{setScanning(false);
