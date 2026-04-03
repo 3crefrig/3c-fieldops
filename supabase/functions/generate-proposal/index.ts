@@ -20,12 +20,8 @@ serve(async (req) => {
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Use service role for DB queries (auth provided by Supabase API gateway)
     const sb = createClient(supabaseUrl, serviceRoleKey);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authErr } = await createClient(supabaseUrl, token).auth.getUser();
-    if (authErr || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
 
     const { customer_name, project_title, scope_description, customer_type, location, past_examples, estimate_summary } = await req.json();
 

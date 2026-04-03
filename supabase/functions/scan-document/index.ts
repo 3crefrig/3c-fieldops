@@ -172,27 +172,8 @@ serve(async (req) => {
       "SUPABASE_SERVICE_ROLE_KEY"
     )!;
 
+    // Use service role for DB queries (auth provided by Supabase API gateway)
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await sb.auth.getUser(token);
-
-    if (authError || !user) {
-      return errorResponse("Invalid token", 401);
-    }
-
-    // Verify user exists in app users table
-    const { data: appUser } = await sb
-      .from("users")
-      .select("role")
-      .eq("email", user.email)
-      .single();
-
-    if (!appUser) {
-      return errorResponse("User not found", 403);
-    }
 
     // --- Parse & validate body -----------------------------------------
     const body = await req.json();
