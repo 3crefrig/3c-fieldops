@@ -52,7 +52,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       // Group tabs into sections for cleaner navigation (6+ tabs triggers grouping)
       const TAB_GROUPS=[
         {label:"Operations",icon:"⚡",keys:["overview","inbox","orders","calendar"]},
-        {label:"Finance",icon:"💰",keys:["billing","invoices","proposals","feedback","reports"]},
+        {label:"Finance",icon:"💰",keys:["billing","invoices","proposals","agreements","feedback","reports"]},
         {label:"Management",icon:"👥",keys:["pos","customers","equipment","users","recurring","team","projects"]},
         {label:"System",icon:"⚙️",keys:["settings","kb"]},
       ];

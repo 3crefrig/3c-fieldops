@@ -7,31 +7,78 @@ function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="http
 function genProposalNum(existing){const n=new Date(),pfx="PROP-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(p=>p.proposal_num&&p.proposal_num.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.proposal_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
 function genEstimateNum(existing){const n=new Date(),pfx="EST-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(e=>e.estimate_num&&e.estimate_num.startsWith(pfx)).reduce((m,e)=>{const s=parseInt(e.estimate_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
 
-function EstimateBuilder({customers,users,onSave,onCancel,initial}){
-  const[cust,setCust]=useState(initial?.customer_name||"");
-  const[tiers,setTiers]=useState(initial?.tier_data||[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
-  const[parts,setParts]=useState(initial?.parts_data||[]);const[desc,setDesc]=useState(initial?.job_description||"");
-  const[notes,setNotes]=useState(initial?.notes||"");const[validUntil,setValidUntil]=useState(initial?.valid_until||"");
-  const[terms,setTerms]=useState(initial?.payment_terms||"Net 30");const[saving,setSaving]=useState(false);
-
+function OptionPanel({tiers,setTiers,parts,setParts,label,setLabel,optDesc,setOptDesc}){
   const addTier=()=>setTiers([...tiers,{name:"",rate:0,hours:0}]);
   const updateTier=(i,k,v)=>{const t=[...tiers];t[i]={...t[i],[k]:k==="name"?v:parseFloat(v)||0};setTiers(t);};
   const removeTier=(i)=>setTiers(tiers.filter((_,j)=>j!==i));
   const addPart=()=>setParts([...parts,{description:"",quantity:1,unit_cost:0,markup_pct:35}]);
   const updatePart=(i,k,v)=>{const p=[...parts];p[i]={...p[i],[k]:k==="description"?v:parseFloat(v)||0};setParts(p);};
   const removePart=(i)=>setParts(parts.filter((_,j)=>j!==i));
+  const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
+  const partsTotal=parts.reduce((s,p)=>s+p.quantity*p.unit_cost*(1+p.markup_pct/100),0);
+  return(<div>
+    {label!==undefined&&<div style={{marginBottom:12}}><label style={LS}>Option Label</label><input value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. Option A: Repair" style={IS}/></div>}
+    {optDesc!==undefined&&<div style={{marginBottom:12}}><label style={LS}>Description</label><textarea value={optDesc} onChange={e=>setOptDesc(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Describe this option..."/></div>}
+    <div style={{marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{...LS,marginBottom:0}}>Labor Tiers</span><button onClick={addTier} style={{...BS,padding:"3px 8px",fontSize:10}}>+ Tier</button></div>
+      {tiers.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:6,marginBottom:4,alignItems:"center"}}>
+        <input value={t.name} onChange={e=>updateTier(i,"name",e.target.value)} placeholder="Tier name" style={{...IS,padding:7,fontSize:11}}/>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:10,color:B.textDim}}>$</span><input value={t.rate||""} onChange={e=>updateTier(i,"rate",e.target.value)} type="number" placeholder="Rate" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={t.hours||""} onChange={e=>updateTier(i,"hours",e.target.value)} type="number" step="0.25" placeholder="Hrs" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
+        <button onClick={()=>removeTier(i)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:2}}>×</button>
+      </div>)}
+      <div style={{textAlign:"right",fontSize:11,fontFamily:M,color:B.cyan,fontWeight:700}}>Labor: ${laborTotal.toFixed(2)}</div>
+    </div>
+    <div style={{marginBottom:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{...LS,marginBottom:0}}>Parts</span><button onClick={addPart} style={{...BS,padding:"3px 8px",fontSize:10}}>+ Part</button></div>
+      {parts.map((p,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 0.5fr 1fr 0.6fr auto",gap:4,marginBottom:4,alignItems:"center"}}>
+        <input value={p.description} onChange={e=>updatePart(i,"description",e.target.value)} placeholder="Part" style={{...IS,padding:7,fontSize:11}}/>
+        <input value={p.quantity||""} onChange={e=>updatePart(i,"quantity",e.target.value)} type="number" placeholder="Qty" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:10,color:B.textDim}}>$</span><input value={p.unit_cost||""} onChange={e=>updatePart(i,"unit_cost",e.target.value)} type="number" placeholder="Cost" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:7,fontSize:11,fontFamily:M,width:40}}/><span style={{fontSize:9,color:B.textDim}}>%</span></div>
+        <button onClick={()=>removePart(i)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:2}}>×</button>
+      </div>)}
+      {parts.length>0&&<div style={{textAlign:"right",fontSize:11,fontFamily:M,color:B.orange,fontWeight:700}}>Parts: ${partsTotal.toFixed(2)}</div>}
+    </div>
+    <div style={{textAlign:"right",fontSize:13,fontFamily:M,fontWeight:800,color:B.green}}>Total: ${(laborTotal+partsTotal).toFixed(2)}</div>
+  </div>);
+}
+
+function EstimateBuilder({customers,users,onSave,onCancel,initial}){
+  const[cust,setCust]=useState(initial?.customer_name||"");
+  const[estimateType,setEstimateType]=useState(initial?.estimate_type||"standard");
+  const[tiers,setTiers]=useState(initial?.tier_data||[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
+  const[parts,setParts]=useState(initial?.parts_data||[]);const[desc,setDesc]=useState(initial?.job_description||"");
+  const[notes,setNotes]=useState(initial?.notes||"");const[validUntil,setValidUntil]=useState(initial?.valid_until||"");
+  const[terms,setTerms]=useState(initial?.payment_terms||"Net 30");const[saving,setSaving]=useState(false);
+  // Multi-option state
+  const[options,setOptions]=useState(initial?.options||[
+    {label:"Option A: Repair",description:"",tier_data:[{name:"Senior Technician",rate:120,hours:0}],parts_data:[]},
+    {label:"Option B: Replace",description:"",tier_data:[{name:"Senior Technician",rate:120,hours:0}],parts_data:[]},
+  ]);
+  const[activeOpt,setActiveOpt]=useState(0);
 
   const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
   const partsTotal=parts.reduce((s,p)=>s+p.quantity*p.unit_cost*(1+p.markup_pct/100),0);
   const grandTotal=laborTotal+partsTotal;
 
   // Load customer tiers if available
-  useEffect(()=>{if(cust&&!initial){const c=customers.find(x=>x.name===cust);if(c?.labor_tiers&&Array.isArray(c.labor_tiers)&&c.labor_tiers.length>0){setTiers(c.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0})));}}
+  useEffect(()=>{if(cust&&!initial){const c=customers.find(x=>x.name===cust);if(c?.labor_tiers&&Array.isArray(c.labor_tiers)&&c.labor_tiers.length>0){const ct=c.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));setTiers(ct);setOptions(opts=>opts.map(o=>({...o,tier_data:ct.map(t=>({...t}))})));}}
   },[cust]);
 
+  const updateOption=(idx,key,val)=>{setOptions(opts=>{const n=[...opts];n[idx]={...n[idx],[key]:val};return n;});};
+  const addOption=()=>setOptions([...options,{label:"Option "+(options.length+1),description:"",tier_data:[{name:"Senior Technician",rate:120,hours:0}],parts_data:[]}]);
+  const removeOption=(idx)=>{if(options.length<=2)return;setOptions(options.filter((_,i)=>i!==idx));if(activeOpt>=options.length-1)setActiveOpt(0);};
+  const calcOptTotal=(opt)=>{const l=(opt.tier_data||[]).reduce((s,t)=>s+t.rate*t.hours,0);const p=(opt.parts_data||[]).reduce((s,pp)=>s+pp.quantity*pp.unit_cost*(1+pp.markup_pct/100),0);return{labor:l,parts:p,total:l+p};};
+
   const save=async()=>{if(!cust||saving)return;setSaving(true);
-    const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,tier_data:tiers,parts_data:parts,labor_total:laborTotal,parts_total:Math.round(partsTotal*100)/100,grand_total:Math.round(grandTotal*100)/100,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
-    await onSave(data);setSaving(false);};
+    if(estimateType==="multi_option"){
+      const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"multi_option",options:options.map(o=>{const t=calcOptTotal(o);return{...o,labor_total:t.labor,parts_total:Math.round(t.parts*100)/100,grand_total:Math.round(t.total*100)/100};}),tier_data:[],parts_data:[],labor_total:0,parts_total:0,grand_total:0,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
+      await onSave(data);
+    }else{
+      const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"standard",tier_data:tiers,parts_data:parts,labor_total:laborTotal,parts_total:Math.round(partsTotal*100)/100,grand_total:Math.round(grandTotal*100)/100,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
+      await onSave(data);
+    }setSaving(false);};
 
   return(<div>
     <div style={{marginBottom:16}}>
@@ -40,49 +87,51 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
     </div>
     <div style={{marginBottom:16}}><label style={LS}>Job Description</label><textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Describe the work..."/></div>
 
-    {/* Labor Tiers */}
-    <div style={{marginBottom:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-        <span style={{...LS,marginBottom:0}}>Labor Tiers</span>
-        <button onClick={addTier} style={{...BS,padding:"4px 10px",fontSize:10}}>+ Add Tier</button>
-      </div>
-      {tiers.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:6,alignItems:"center"}}>
-        <input value={t.name} onChange={e=>updateTier(i,"name",e.target.value)} placeholder="Tier name" style={{...IS,padding:8,fontSize:12}}/>
-        <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate||""} onChange={e=>updateTier(i,"rate",e.target.value)} type="number" placeholder="Rate" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/><span style={{fontSize:10,color:B.textDim}}>/hr</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}><input value={t.hours||""} onChange={e=>updateTier(i,"hours",e.target.value)} type="number" step="0.25" placeholder="Hrs" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/><span style={{fontSize:10,color:B.textDim}}>hrs</span></div>
-        <button onClick={()=>removeTier(i)} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:4}}>×</button>
-      </div>)}
-      <div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.cyan,fontWeight:700}}>Labor: ${laborTotal.toFixed(2)}</div>
+    {/* Estimate Type Toggle */}
+    <div style={{display:"flex",gap:0,marginBottom:16,border:"1px solid "+B.border,borderRadius:8,overflow:"hidden"}}>
+      <button onClick={()=>setEstimateType("standard")} style={{flex:1,padding:"10px 16px",border:"none",background:estimateType==="standard"?B.cyanGlow:"transparent",color:estimateType==="standard"?B.cyan:B.textDim,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:F}}>Single Estimate</button>
+      <button onClick={()=>setEstimateType("multi_option")} style={{flex:1,padding:"10px 16px",border:"none",borderLeft:"1px solid "+B.border,background:estimateType==="multi_option"?B.cyanGlow:"transparent",color:estimateType==="multi_option"?B.cyan:B.textDim,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:F}}>Multi-Option (Repair/Replace/Upgrade)</button>
     </div>
 
-    {/* Parts */}
-    <div style={{marginBottom:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-        <span style={{...LS,marginBottom:0}}>Parts & Materials</span>
-        <button onClick={addPart} style={{...BS,padding:"4px 10px",fontSize:10}}>+ Add Part</button>
+    {estimateType==="standard"?<>
+      <OptionPanel tiers={tiers} setTiers={setTiers} parts={parts} setParts={setParts}/>
+      <Card style={{padding:16,marginBottom:16,marginTop:16,borderLeft:"3px solid "+B.green,textAlign:"center"}}>
+        <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:4}}>Estimated Total</div>
+        <div style={{fontSize:28,fontWeight:900,fontFamily:M,color:B.green}}>${grandTotal.toFixed(2)}</div>
+        <div style={{fontSize:11,color:B.textMuted,marginTop:4}}>Labor: ${laborTotal.toFixed(2)} + Parts: ${partsTotal.toFixed(2)}</div>
+      </Card>
+    </>:<>
+      {/* Multi-option tabs */}
+      <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"2px solid "+B.border}}>
+        {options.map((o,i)=><div key={i} style={{display:"flex",alignItems:"center"}}>
+          <button onClick={()=>setActiveOpt(i)} style={{padding:"8px 14px",border:"none",background:"transparent",borderBottom:activeOpt===i?"2px solid "+B.cyan:"2px solid transparent",color:activeOpt===i?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,marginBottom:-2}}>{o.label||"Option "+(i+1)}</button>
+          {options.length>2&&<button onClick={()=>removeOption(i)} style={{background:"none",border:"none",color:B.red,fontSize:10,cursor:"pointer",padding:"0 4px"}}>×</button>}
+        </div>)}
+        <button onClick={addOption} style={{padding:"8px 12px",border:"none",background:"transparent",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Option</button>
       </div>
-      {parts.map((p,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 0.5fr 1fr 0.7fr auto",gap:6,marginBottom:6,alignItems:"center"}}>
-        <input value={p.description} onChange={e=>updatePart(i,"description",e.target.value)} placeholder="Part description" style={{...IS,padding:8,fontSize:12}}/>
-        <input value={p.quantity||""} onChange={e=>updatePart(i,"quantity",e.target.value)} type="number" placeholder="Qty" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/>
-        <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={p.unit_cost||""} onChange={e=>updatePart(i,"unit_cost",e.target.value)} type="number" placeholder="Cost" style={{...IS,padding:8,fontSize:12,fontFamily:M}}/></div>
-        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:8,fontSize:12,fontFamily:M,width:50}}/><span style={{fontSize:10,color:B.textDim}}>%</span></div>
-        <button onClick={()=>removePart(i)} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:4}}>×</button>
-      </div>)}
-      {parts.length>0&&<div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.orange,fontWeight:700}}>Parts: ${partsTotal.toFixed(2)}</div>}
-    </div>
+      {options[activeOpt]&&<Card style={{padding:16,marginBottom:12}}>
+        <OptionPanel
+          tiers={options[activeOpt].tier_data||[]} setTiers={t=>updateOption(activeOpt,"tier_data",t)}
+          parts={options[activeOpt].parts_data||[]} setParts={p=>updateOption(activeOpt,"parts_data",p)}
+          label={options[activeOpt].label} setLabel={v=>updateOption(activeOpt,"label",v)}
+          optDesc={options[activeOpt].description} setOptDesc={v=>updateOption(activeOpt,"description",v)}
+        />
+      </Card>}
+      {/* Summary of all options */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:16}}>
+        {options.map((o,i)=>{const t=calcOptTotal(o);return<Card key={i} style={{padding:12,textAlign:"center",borderLeft:"3px solid "+(i===0?B.green:i===1?B.cyan:B.purple)}}>
+          <div style={{fontSize:11,fontWeight:700,color:B.textMuted,marginBottom:4}}>{o.label||"Option "+(i+1)}</div>
+          <div style={{fontSize:20,fontWeight:900,fontFamily:M,color:i===0?B.green:i===1?B.cyan:B.purple}}>${t.total.toFixed(2)}</div>
+          <div style={{fontSize:10,color:B.textDim}}>L: ${t.labor.toFixed(0)} + P: ${t.parts.toFixed(0)}</div>
+        </Card>;})}
+      </div>
+    </>}
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
       <div><label style={LS}>Valid Until</label><input value={validUntil} onChange={e=>setValidUntil(e.target.value)} type="date" style={IS}/></div>
       <div><label style={LS}>Payment Terms</label><input value={terms} onChange={e=>setTerms(e.target.value)} style={IS}/></div>
     </div>
     <div style={{marginBottom:16}}><label style={LS}>Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Additional notes..."/></div>
-
-    {/* Total */}
-    <Card style={{padding:16,marginBottom:16,borderLeft:"3px solid "+B.green,textAlign:"center"}}>
-      <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:4}}>Estimated Total</div>
-      <div style={{fontSize:28,fontWeight:900,fontFamily:M,color:B.green}}>${grandTotal.toFixed(2)}</div>
-      <div style={{fontSize:11,color:B.textMuted,marginTop:4}}>Labor: ${laborTotal.toFixed(2)} + Parts: ${partsTotal.toFixed(2)}</div>
-    </Card>
 
     <div style={{display:"flex",gap:8}}>
       <button onClick={save} disabled={!cust||saving} style={{...BP,flex:1,opacity:(!cust||saving)?.6:1}}>{saving?"Saving...":"Save Estimate"}</button>
@@ -258,7 +307,7 @@ function ProposalDashboard({D,userName}){
 
 function ProposalPortal({token}){
   const[loading,setLoading]=useState(true);const[prop,setProp]=useState(null);const[est,setEst]=useState(null);const[error,setError]=useState(null);
-  const[rejReason,setRejReason]=useState("");const[showReject,setShowReject]=useState(false);const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(null);
+  const[rejReason,setRejReason]=useState("");const[showReject,setShowReject]=useState(false);const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(null);const[selectedOpt,setSelectedOpt]=useState(null);
 
   useEffect(()=>{(async()=>{const{data,error:e}=await sb().from("proposals").select("*").eq("approval_token",token).single();
     if(e||!data){setError("This proposal link is invalid or has expired.");setLoading(false);return;}
@@ -268,9 +317,10 @@ function ProposalPortal({token}){
 
   const approve=async()=>{if(submitting)return;setSubmitting(true);
     await sb().from("proposals").update({status:"approved",approved_at:new Date().toISOString(),approved_by:"Customer"}).eq("id",prop.id);
-    // If estimate exists, mark it approved too
-    if(est){await sb().from("estimates").update({status:"approved",approved_at:new Date().toISOString()}).eq("id",est.id);}
-    await sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name,for_role:"admin"});
+    // If estimate exists, mark it approved + save selected option
+    if(est){const upd={status:"approved",approved_at:new Date().toISOString()};if(selectedOpt!==null)upd.selected_option=selectedOpt;await sb().from("estimates").update(upd).eq("id",est.id);}
+    const optLabel=est?.estimate_type==="multi_option"&&selectedOpt!==null?(est.options||[])[selectedOpt]?.label:"";
+    await sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name+(optLabel?" — "+optLabel:""),for_role:"admin"});
     setDone("approved");setSubmitting(false);};
 
   const reject=async()=>{if(submitting)return;setSubmitting(true);
@@ -298,8 +348,29 @@ function ProposalPortal({token}){
         <div style={{fontSize:14,color:B.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{prop.user_edits||prop.ai_generated_content||prop.scope_of_work}</div>
       </Card>
 
-      {/* Estimate */}
-      {est&&<Card style={{padding:20,marginBottom:16,borderLeft:"3px solid "+B.green}}>
+      {/* Estimate — standard or multi-option */}
+      {est&&est.estimate_type==="multi_option"&&est.options&&est.options.length>0?<div style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Options</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {est.options.map((opt,i)=>{const optColors=[B.green,B.cyan,B.purple,B.orange];const c=optColors[i%optColors.length];
+            return<Card key={i} onClick={()=>!alreadyActioned&&!isExpired&&setSelectedOpt(i)} style={{padding:16,borderLeft:"3px solid "+c,cursor:alreadyActioned||isExpired?"default":"pointer",border:selectedOpt===i?"2px solid "+c:"1px solid "+B.border}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:800,color:B.text}}>{opt.label||"Option "+(i+1)}</div>
+                  {opt.description&&<div style={{fontSize:12,color:B.textMuted,marginTop:4}}>{opt.description}</div>}
+                  {(opt.tier_data||[]).length>0&&<div style={{marginTop:8}}>{opt.tier_data.map((t,ti)=><div key={ti} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{t.name}</span><span style={{fontFamily:M}}>{t.hours}h × ${t.rate}/hr</span></div>)}</div>}
+                  {(opt.parts_data||[]).length>0&&<div style={{marginTop:6}}>{opt.parts_data.map((p,pi)=><div key={pi} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{p.description} ×{p.quantity}</span><span style={{fontFamily:M}}>${(p.quantity*p.unit_cost*(1+p.markup_pct/100)).toFixed(2)}</span></div>)}</div>}
+                </div>
+                <div style={{textAlign:"right",marginLeft:16}}>
+                  <div style={{fontSize:22,fontWeight:900,fontFamily:M,color:c}}>${(opt.grand_total||0).toFixed(2)}</div>
+                  {selectedOpt===i&&<div style={{fontSize:10,color:c,fontWeight:700,marginTop:4}}>SELECTED</div>}
+                </div>
+              </div>
+            </Card>;})}
+        </div>
+        {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:8}}>Valid until {new Date(est.valid_until).toLocaleDateString()}</div>}
+        {est.payment_terms&&<div style={{fontSize:11,color:B.textDim}}>Payment terms: {est.payment_terms}</div>}
+      </div>:est&&<Card style={{padding:20,marginBottom:16,borderLeft:"3px solid "+B.green}}>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Cost Estimate</div>
         {est.tier_data&&est.tier_data.length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:6}}>Labor</div>
           {est.tier_data.map((t,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
@@ -318,8 +389,8 @@ function ProposalPortal({token}){
 
       {/* Actions */}
       {!alreadyActioned&&!isExpired&&<div style={{display:"flex",gap:10,marginTop:20}}>
-        <button onClick={approve} disabled={submitting} style={{...BP,flex:1,padding:16,fontSize:15,background:B.green,opacity:submitting?.6:1}}>
-          {submitting?"Processing...":"✓ Approve Proposal"}
+        <button onClick={approve} disabled={submitting||(est?.estimate_type==="multi_option"&&selectedOpt===null)} style={{...BP,flex:1,padding:16,fontSize:15,background:B.green,opacity:(submitting||(est?.estimate_type==="multi_option"&&selectedOpt===null))?.6:1}}>
+          {submitting?"Processing...":(est?.estimate_type==="multi_option"&&selectedOpt!==null?"✓ Approve "+((est.options||[])[selectedOpt]?.label||"Option"):"✓ Approve Proposal")}
         </button>
         <button onClick={()=>setShowReject(!showReject)} style={{...BS,flex:1,padding:16,fontSize:15,color:B.red,borderColor:B.red+"40"}}>
           Decline

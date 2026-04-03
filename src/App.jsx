@@ -7,6 +7,7 @@ import { CustomerPortal } from "./components/CustomerPortal";
 import { FeedbackForm } from "./components/Feedback";
 import { ProposalPortal } from "./components/Proposals";
 import { cacheData, getCachedData, getQueuedMutations, clearMutation, getQueueCount } from "./offlineStore";
+import { genAgreementNum } from "./components/ServiceAgreements";
 
 /*
  * 3C Refrigeration FieldOps Pro — Modular Edition
@@ -25,7 +26,7 @@ function App(){
   },[]);
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
-    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData]=await Promise.all([
+    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
@@ -41,16 +42,18 @@ function App(){
       client.from("invoices").select("*").order("created_at",{ascending:false}),
       client.from("feedback").select("*").order("submitted_at",{ascending:false}),
       client.from("equipment").select("*").order("customer_name"),
+      client.from("service_agreements").select("*").order("created_at",{ascending:false}),
+      client.from("agreement_tiers").select("*").order("name"),
     ]);
-    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
-    const freshData={wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],equipment:equipmentData.data||[]};
+    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
+    const freshData={wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],equipment:equipmentData.data||[],agreements:agreementsData.data||[],agreementTiers:agreementTiersData.data||[]};
     setData(prev=>({...freshData,onlineUsers:prev?.onlineUsers||[]}));
     setOfflineMode(false);setLoading(false);
     try{await cacheData('appData',freshData);}catch(e){console.warn("IndexedDB cache write failed:",e);}
   }catch(err){console.error("loadData failed:",err);
     try{const cached=await getCachedData('appData');if(cached){setData(prev=>({...cached,onlineUsers:prev?.onlineUsers||[]}));setOfflineMode(true);setLoading(false);console.log("Loaded from offline cache");}}catch(e){console.warn("Offline cache read failed:",e);}
   }},[]);
-  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false},feedback:{key:"feedback",order:"submitted_at",asc:false},equipment:{key:"equipment",order:"customer_name",asc:true}};
+  const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false},feedback:{key:"feedback",order:"submitted_at",asc:false},equipment:{key:"equipment",order:"customer_name",asc:true},service_agreements:{key:"agreements",order:"created_at",asc:false},agreement_tiers:{key:"agreementTiers",order:"name",asc:true}};
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
@@ -64,7 +67,7 @@ function App(){
   useEffect(()=>{if(!authUser)return;const client=sb();
     const _reloadTimers={};
     const debouncedReload=(table)=>{if(_reloadTimers[table])clearTimeout(_reloadTimers[table]);_reloadTimers[table]=setTimeout(()=>reloadTable(table),500);};
-    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>debouncedReload("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>debouncedReload("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>debouncedReload("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>debouncedReload("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>debouncedReload("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>debouncedReload("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>debouncedReload("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>debouncedReload("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>debouncedReload("invoices")).on("postgres_changes",{event:"*",schema:"public",table:"equipment"},()=>debouncedReload("equipment")).on('presence',{event:'sync'},()=>{const state=chan.presenceState();const online=Object.values(state).flat().map(p=>p.name);setData(prev=>prev?{...prev,onlineUsers:online}:prev);}).subscribe();
+    const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>debouncedReload("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>debouncedReload("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>debouncedReload("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>debouncedReload("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>debouncedReload("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>debouncedReload("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>debouncedReload("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>debouncedReload("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>debouncedReload("invoices")).on("postgres_changes",{event:"*",schema:"public",table:"equipment"},()=>debouncedReload("equipment")).on("postgres_changes",{event:"*",schema:"public",table:"service_agreements"},()=>debouncedReload("service_agreements")).on("postgres_changes",{event:"*",schema:"public",table:"agreement_tiers"},()=>debouncedReload("agreement_tiers")).on('presence',{event:'sync'},()=>{const state=chan.presenceState();const online=Object.values(state).flat().map(p=>p.name);setData(prev=>prev?{...prev,onlineUsers:online}:prev);}).subscribe();
     chan.track({name:appUser?.name,role:appUser?.role});
     const poll=setInterval(()=>loadData(),300000);
     // Replay offline queue when back online
@@ -110,6 +113,9 @@ function App(){
     // Check equipment warranties expiring within 30 days
     const checkWarranties=async()=>{const today=new Date().toISOString().slice(0,10);const thirtyDays=new Date(Date.now()+30*86400000).toISOString().slice(0,10);const{data:expiring}=await client.from("equipment").select("id,model,serial_number,customer_name,warranty_expiration").eq("status","active").gte("warranty_expiration",today).lte("warranty_expiration",thirtyDays);if(expiring&&expiring.length>0){for(const eq of expiring){const{data:existing}=await client.from("notifications").select("id").eq("type","warranty_expiring").ilike("message","%"+eq.serial_number+"%").gte("created_at",today);if(!existing||existing.length===0){await client.from("notifications").insert({type:"warranty_expiring",title:"Warranty Expiring Soon",message:(eq.model||"Equipment")+" (SN: "+(eq.serial_number||"N/A")+") at "+eq.customer_name+" — warranty expires "+eq.warranty_expiration,for_role:"manager"});evaluateTriggers("warranty_expiring",eq);}}}};
     checkWarranties();
+    // Check agreement renewals (expiring within 30 days)
+    const checkAgreementRenewals=async()=>{const today=new Date().toISOString().slice(0,10);const thirtyDays=new Date(Date.now()+30*86400000).toISOString().slice(0,10);const{data:expiring}=await client.from("service_agreements").select("id,agreement_num,customer_name,end_date").eq("status","active").eq("renewal_reminder_sent",false).gte("end_date",today).lte("end_date",thirtyDays);if(expiring&&expiring.length>0){for(const a of expiring){await client.from("notifications").insert({type:"agreement_expiring",title:"Agreement Expiring",message:a.agreement_num+" for "+a.customer_name+" expires "+a.end_date,for_role:"manager"});await client.from("service_agreements").update({renewal_reminder_sent:true}).eq("id",a.id);}}};
+    checkAgreementRenewals();
     // Check overdue WOs (pending > 48h)
     const checkOverdueWOs=async()=>{const twoDaysAgo=new Date(Date.now()-48*3600000).toISOString();const{data:overdue}=await client.from("work_orders").select("id,wo_id,title,assignee,created_at").eq("status","pending").lte("created_at",twoDaysAgo);if(overdue&&overdue.length>0){for(const w of overdue){const{data:existing}=await client.from("notifications").select("id").eq("type","wo_overdue").ilike("message","%"+w.wo_id+"%").gte("created_at",new Date().toISOString().slice(0,10));if(!existing||existing.length===0){evaluateTriggers("wo_overdue",w);}}}};
     checkOverdueWOs();
@@ -225,6 +231,12 @@ function App(){
     addEquipment:withTableSync("equipment",async(eq)=>{if(eq.notes)eq.notes=autoCorrect(eq.notes);await sb().from("equipment").insert(eq);}),
     updateEquipment:withTableSync("equipment",async(eq)=>{if(eq.notes)eq.notes=autoCorrect(eq.notes);const{id,...rest}=eq;rest.updated_at=new Date().toISOString();await sb().from("equipment").update(rest).eq("id",id);}),
     deleteEquipment:withTableSync("equipment",async(id)=>{await sb().from("equipment").delete().eq("id",id);}),
+    addAgreement:withSync(async(agr)=>{const{data:existing}=await sb().from("service_agreements").select("agreement_num");const num=genAgreementNum(existing||[]);await sb().from("service_agreements").insert({...agr,agreement_num:num,created_by:appUser.name});}),
+    updateAgreement:withTableSync("service_agreements",async(agr)=>{const{id,...rest}=agr;rest.updated_at=new Date().toISOString();await sb().from("service_agreements").update(rest).eq("id",id);}),
+    deleteAgreement:withTableSync("service_agreements",async(id)=>{await sb().from("service_agreements").delete().eq("id",id);}),
+    addAgreementTier:withTableSync("agreement_tiers",async(t)=>{await sb().from("agreement_tiers").insert(t);}),
+    updateAgreementTier:withTableSync("agreement_tiers",async(t)=>{const{id,...rest}=t;await sb().from("agreement_tiers").update(rest).eq("id",id);}),
+    deleteAgreementTier:withTableSync("agreement_tiers",async(id)=>{await sb().from("agreement_tiers").delete().eq("id",id);}),
     rejectDraft:withSync(async(draftId,reason)=>{
       await sb().from("wo_drafts").update({status:"rejected",reviewed_by:appUser.id,reviewed_at:new Date().toISOString(),reject_reason:reason||null}).eq("id",draftId);
     }),
