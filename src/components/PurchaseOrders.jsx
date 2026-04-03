@@ -3,6 +3,8 @@ import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL,
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Logo } from "./ui";
 import { jsPDF } from "jspdf";
 
+let _logoB64Cache=null;
+
 async function fetchLogoBase64(){
   if(_logoB64Cache)return _logoB64Cache;
   try{const resp=await fetch("https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png");
