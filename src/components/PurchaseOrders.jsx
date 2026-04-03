@@ -44,13 +44,15 @@ async function generatePOPdf(po,wo){
   doc.text("PO #"+po.po_id,pw-rm,y,{align:"right"});
   y+=10;
 
-  // Info grid — light background
-  drawRect(lm,y,cw,32,light);
-  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(lm,y,lm,y+32);
-
+  // Info grid — measure WO text first to size the box
   const col1=lm+6,col2=lm+cw/2+4;
   const labelStyle=()=>{doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);};
   const valueStyle=()=>{doc.setFont("helvetica","normal");doc.setFontSize(11);doc.setTextColor(...dark);};
+  valueStyle();const woText=wo?wo.wo_id+(wo.title?" — "+wo.title:""):"—";const woLines=doc.splitTextToSize(woText,cw/2-10);
+  const gridH=Math.max(32,28+woLines.length*5);
+
+  drawRect(lm,y,cw,gridH,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(lm,y,lm,y+gridH);
 
   labelStyle();doc.text("DATE",col1,y+7);
   valueStyle();doc.text(po.created_at?new Date(po.created_at).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}):"—",col1,y+13);
@@ -62,8 +64,8 @@ async function generatePOPdf(po,wo){
   valueStyle();doc.text(po.requested_by||"—",col1,y+28);
 
   labelStyle();doc.text("WORK ORDER",col2,y+22);
-  valueStyle();doc.text(wo?wo.wo_id+(wo.title?" — "+wo.title:""):"—",col2,y+28);
-  y+=40;
+  valueStyle();doc.text(woLines,col2,y+28);
+  y+=gridH+8;
 
   // Line items header
   drawRect(lm,y,cw,9,[30,34,42]);
