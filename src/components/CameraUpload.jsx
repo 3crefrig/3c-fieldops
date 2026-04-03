@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb } from "../shared";
 
-export function CameraUpload({woId,woName,onUploaded,userName,inputId}){
+const PHOTO_STAGES=[{key:"before",label:"Before",icon:"📸",color:"#FFA040"},{key:"during",label:"During",icon:"🔧",color:"#00D4F5"},{key:"after",label:"After",icon:"✅",color:"#26D9A2"},{key:"general",label:"General",icon:"📷",color:"#8B929A"}];
+
+export function CameraUpload({woId,woName,onUploaded,userName,inputId,equipmentId,showStageSelector}){
   const fileRef=useRef(null);
   const[uploading,setUploading]=useState(false);
+  const[stage,setStage]=useState("general");
   const handleFile=async(e)=>{
     const file=e.target.files?.[0];if(!file||uploading)return;
     setUploading(true);
     try{
-      // Convert to base64
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-      // Compress if image is large (>1MB)
       let finalB64=b64;let finalMime=file.type;
       if(file.size>1024*1024&&file.type.startsWith("image/")){
         const img=new Image();const url=URL.createObjectURL(file);
@@ -21,10 +22,14 @@ export function CameraUpload({woId,woName,onUploaded,userName,inputId}){
         finalB64=canvas.toDataURL("image/jpeg",0.8).split(",")[1];finalMime="image/jpeg";
         URL.revokeObjectURL(url);
       }
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:finalB64,fileName:Date.now()+"_"+file.name,mimeType:finalMime,folderPath:"3C FieldOps/Work Orders/"+(woName||woId)})});
+      const folderPath=equipmentId?"3C FieldOps/Equipment":"3C FieldOps/Work Orders/"+(woName||woId);
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:finalB64,fileName:Date.now()+"_"+file.name,mimeType:finalMime,folderPath})});
       const result=await resp.json();
       if(result.success){
-        await sb().from("photos").insert({wo_id:woId,filename:file.name,photo_url:result.thumbnailUrl,uploaded_by:userName,drive_synced:true});
+        const record={filename:file.name,photo_url:result.thumbnailUrl,uploaded_by:userName,drive_synced:true,photo_stage:stage};
+        if(woId)record.wo_id=woId;
+        if(equipmentId)record.equipment_id=equipmentId;
+        await sb().from("photos").insert(record);
         if(onUploaded)onUploaded();
       }else{console.error("Drive upload error:",result.error);}
     }catch(err){console.error("Upload error:",err);}
@@ -32,11 +37,36 @@ export function CameraUpload({woId,woName,onUploaded,userName,inputId}){
     if(fileRef.current)fileRef.current.value="";
   };
   return(<div>
+    {showStageSelector&&<div style={{display:"flex",gap:4,marginBottom:8}}>
+      {PHOTO_STAGES.map(s=><button key={s.key} onClick={()=>setStage(s.key)} style={{flex:1,padding:"6px 4px",borderRadius:4,border:"1px solid "+(stage===s.key?s.color:B.border),background:stage===s.key?s.color+"18":"transparent",color:stage===s.key?s.color:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"'Barlow',sans-serif",textAlign:"center"}}>{s.icon} {s.label}</button>)}
+    </div>}
     <input ref={fileRef} id={inputId} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
     <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{...BS,width:"100%",padding:14,opacity:uploading?.6:1}}>
       <div style={{fontSize:24,marginBottom:4}}>📷</div>
-      <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":"Tap to Take Photo or Choose from Gallery"}</div>
+      <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":(showStageSelector?"Take "+PHOTO_STAGES.find(s=>s.key===stage)?.label+" Photo":"Tap to Take Photo or Choose from Gallery")}</div>
     </button>
+  </div>);
+}
+
+// Photo Timeline component for WO detail
+export function PhotoTimeline({photos}){
+  if(!photos||photos.length===0)return null;
+  const stages=["before","during","after","general"];
+  const grouped={};stages.forEach(s=>{grouped[s]=photos.filter(p=>(p.photo_stage||"general")===s);});
+  const hasStaged=grouped.before.length>0||grouped.during.length>0||grouped.after.length>0;
+  if(!hasStaged)return null; // Don't show timeline if no staged photos
+  const stageInfo={before:{label:"Before",color:"#FFA040",icon:"📸"},during:{label:"During",color:"#00D4F5",icon:"🔧"},after:{label:"After",color:"#26D9A2",icon:"✅"}};
+  return(<div style={{marginTop:8}}>
+    <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:8}}>Photo Timeline</div>
+    {["before","during","after"].map(s=>{const items=grouped[s];if(items.length===0)return null;const info=stageInfo[s];
+      return<div key={s} style={{marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12}}>{info.icon}</span><span style={{fontSize:11,fontWeight:700,color:info.color}}>{info.label}</span><div style={{flex:1,height:1,background:info.color+"33"}}/></div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingLeft:20}}>
+          {items.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:6,overflow:"hidden",border:"2px solid "+info.color+"44"}}>
+            {p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:80,height:80,objectFit:"cover",display:"block"}}/>:<div style={{width:80,height:80,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:10,color:B.textDim}}>{p.filename}</div>}
+          </a>)}
+        </div>
+      </div>;})}
   </div>);
 }
 

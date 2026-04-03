@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, genPO, genProjectPO } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput } from "./ui";
 import { SignaturePad } from "./SignaturePad";
-import { CameraUpload } from "./CameraUpload";
+import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
 import { POReqModal } from "./PurchaseOrders";
 import { EquipmentPicker, EQ_LABELS } from "./Equipment";
@@ -10,6 +10,8 @@ import { EquipmentPicker, EQ_LABELS } from "./Equipment";
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,equipment}){
   const D_equipment=equipment||[];
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false);
+  const[jobIntel,setJobIntel]=useState(null),[intelLoading,setIntelLoading]=useState(false),[intelOpen,setIntelOpen]=useState(false);
+  const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
   const[showFollowUp,setShowFollowUp]=useState(false),[fuNotes,setFuNotes]=useState("");
   const[showEdit,setShowEdit]=useState(false),[editWO,setEditWO]=useState({});
@@ -97,9 +99,67 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <button onClick={()=>setShowTroubleshoot(true)} style={{...SEC,width:"100%",color:B.purple,borderColor:B.purple+"44"}}>AI Diagnose</button>
     </div>
 
+    {/* Job Intelligence Card */}
+    {wo.customer&&<div style={{maxWidth:640,marginBottom:12}}>
+      <Card style={{borderLeft:"3px solid "+B.cyan,cursor:"pointer"}} onClick={async()=>{
+        if(jobIntel){setIntelOpen(!intelOpen);return;}
+        setIntelOpen(true);setIntelLoading(true);
+        try{const resp=await fetch(SUPABASE_URL+"/functions/v1/job-intelligence",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({customer_name:wo.customer,location:wo.location||"",building:wo.building||"",equipment_id:wo.equipment_id||null,wo_title:wo.title})});
+          const data=await resp.json();if(data.success)setJobIntel(data.result);else console.warn("Intel error:",data.error);
+        }catch(e){console.error("Intel fetch error:",e);}setIntelLoading(false);
+      }}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🧠</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>AI Job Brief</span></div>
+          <span style={{fontSize:11,color:B.textDim}}>{intelOpen?"▼":"▶"} {intelLoading?"Loading...":jobIntel?"Tap to "+(intelOpen?"collapse":"expand"):"Tap to generate"}</span>
+        </div>
+        {intelOpen&&jobIntel&&<div style={{marginTop:12,borderTop:"1px solid "+B.border,paddingTop:12}}>
+          <div style={{fontSize:12,color:B.textMuted,marginBottom:8}}>{jobIntel.summary}</div>
+          {jobIntel.common_issues&&jobIntel.common_issues.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Common Issues</span>{jobIntel.common_issues.map((issue,i)=><div key={i} style={{fontSize:11,color:B.orange,marginTop:2}}>• {issue}</div>)}</div>}
+          {jobIntel.parts_used_previously&&jobIntel.parts_used_previously.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Parts Used Before</span>{jobIntel.parts_used_previously.map((p,i)=><div key={i} style={{fontSize:11,color:B.text,marginTop:2}}>• {p.name}{p.frequency>1?" (×"+p.frequency+")":""}</div>)}</div>}
+          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>⏱ Avg duration: {jobIntel.avg_duration_hours.toFixed(1)}h</div>}
+          {jobIntel.suggested_approach&&<div style={{fontSize:11,color:B.green,fontStyle:"italic"}}>💡 {jobIntel.suggested_approach}</div>}
+          {jobIntel.customer_notes&&<div style={{fontSize:11,color:B.purple,marginTop:4}}>📝 {jobIntel.customer_notes}</div>}
+        </div>}
+        {intelOpen&&intelLoading&&<div style={{marginTop:12,textAlign:"center",padding:12}}><span style={{fontSize:12,color:B.cyan}}>Analyzing customer history...</span></div>}
+      </Card>
+    </div>}
+
+    {/* Smart Parts Prediction */}
+    {wo.title&&<div style={{maxWidth:640,marginBottom:12}}>
+      {!partsPred&&!partsLoading?<button onClick={async()=>{
+        setPartsLoading(true);
+        try{const eq=wo.equipment_id&&(D_equipment||[]).find(e=>e.id===wo.equipment_id);
+          const resp=await fetch(SUPABASE_URL+"/functions/v1/predict-parts",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""})});
+          const data=await resp.json();if(data.success)setPartsPred(data.result);
+        }catch(e){console.error("Parts predict error:",e);}setPartsLoading(false);
+      }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>🔮 Suggest Parts</button>
+      :partsLoading?<Card style={{textAlign:"center",padding:14}}><span style={{fontSize:12,color:B.orange}}>Predicting parts needed...</span></Card>
+      :partsPred&&<Card style={{borderLeft:"3px solid "+B.orange}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:13,fontWeight:700,color:B.text}}>🔮 Predicted Parts</span>
+          <button onClick={()=>setPartsPred(null)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer"}}>Clear</button>
+        </div>
+        {partsPred.reasoning&&<div style={{fontSize:11,color:B.textMuted,marginBottom:10,fontStyle:"italic"}}>{partsPred.reasoning}</div>}
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {(partsPred.predicted_parts||[]).map((p,i)=>{const confColor=p.confidence>=0.8?B.green:p.confidence>=0.5?B.orange:B.red;
+            return<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:600,color:B.text}}>{p.name}</div>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                  <div style={{width:60,height:4,background:B.border,borderRadius:2,overflow:"hidden"}}><div style={{width:(p.confidence*100)+"%",height:"100%",background:confColor,borderRadius:2}}/></div>
+                  <span style={{fontSize:10,color:confColor,fontWeight:700}}>{Math.round(p.confidence*100)}%</span>
+                  {p.estimated_cost>0&&<span style={{fontSize:10,color:B.textDim,fontFamily:M}}>~${p.estimated_cost.toFixed(0)}</span>}
+                </div>
+              </div>
+              <button onClick={(e)=>{e.stopPropagation();setShowPO(true);}} style={{...BS,padding:"5px 10px",fontSize:10,whiteSpace:"nowrap"}}>+ PO</button>
+            </div>;})}
+        </div>
+      </Card>}
+    </div>}
+
     {/* Camera — hidden input triggered by Photo button, visible button below */}
     {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData} inputId="cam-upload"/></div>}
-    {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData}/></div>}
+    {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData} showStageSelector/></div>}
 
     {/* FIELD NOTES — always visible, quick add */}
     <Card style={{maxWidth:640,marginBottom:12}}>
@@ -124,7 +184,10 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
 
       <Toggle label="Photos" count={woPhotos.length} open={showPhotos} setOpen={setShowPhotos}/>
       {showPhotos&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woPhotos.length===0?<div style={{color:B.textDim,fontSize:12}}>No photos yet</div>:<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{woPhotos.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,display:"block"}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>📷 {p.filename}</div>}</a>)}</div>}
+        {woPhotos.length===0?<div style={{color:B.textDim,fontSize:12}}>No photos yet</div>:<>
+          <PhotoTimeline photos={woPhotos}/>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{woPhotos.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,display:"block"}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>📷 {p.filename}</div>}</a>)}</div>
+        </>}
       </Card>}
 
       <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
