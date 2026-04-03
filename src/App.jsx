@@ -24,7 +24,7 @@ function App(){
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
     const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData]=await Promise.all([
-      client.from("work_orders").select("id,wo_id,title,description,status,priority,wo_type,customer,customer_wo,location,building,notes,field_notes,assignee,crew,due_date,date_completed,work_performed,invoiced,invoice_id,tms_entered,created_at,updated_at").order("created_at",{ascending:false}),
+      client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
       client.from("photos").select("*").order("uploaded_at",{ascending:false}),
