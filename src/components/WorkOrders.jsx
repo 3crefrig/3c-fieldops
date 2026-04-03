@@ -411,6 +411,12 @@ function WOOverview({orders,wlp,pos,time}){
   </div>);
 }
 
+// Troubleshooting cache — avoids redundant Claude calls for similar symptoms
+const _diagCache={};
+function getDiagCacheKey(equipType,symptoms){return(equipType||"").toLowerCase().trim()+"|"+(symptoms||"").toLowerCase().trim().replace(/\s+/g," ").slice(0,100);}
+function getCachedDiag(key){if(_diagCache[key])return _diagCache[key];try{const stored=localStorage.getItem("diag_cache_"+key);if(stored){const parsed=JSON.parse(stored);if(Date.now()-parsed.ts<7*86400000){_diagCache[key]=parsed.result;return parsed.result;}}}catch(e){}return null;}
+function setCachedDiag(key,result){_diagCache[key]=result;try{localStorage.setItem("diag_cache_"+key,JSON.stringify({result,ts:Date.now()}));}catch(e){}}
+
 function TroubleshootAssistant({wo,onClose}){
   const[symptoms,setSymptoms]=useState("");
   const[equipType,setEquipType]=useState("");
@@ -420,6 +426,7 @@ function TroubleshootAssistant({wo,onClose}){
   const[loading,setLoading]=useState(false);
   const[result,setResult]=useState(null);
   const[error,setError]=useState("");
+  const[fromCache,setFromCache]=useState(false);
   const fileRef=useRef(null);
 
   const EQUIP_TYPES=["walk-in cooler","reach-in freezer","blast chiller","ice machine","environmental chamber","condenser unit","other"];
@@ -438,7 +445,13 @@ function TroubleshootAssistant({wo,onClose}){
 
   const diagnose=async()=>{
     if(!symptoms.trim()&&!imageB64){setError("Describe the symptoms or attach a photo.");return;}
-    setError("");setLoading(true);setResult(null);
+    setError("");setLoading(true);setResult(null);setFromCache(false);
+    // Check cache first (only for text-based queries, not photos)
+    if(!imageB64&&symptoms.trim()){
+      const cacheKey=getDiagCacheKey(equipType,symptoms);
+      const cached=getCachedDiag(cacheKey);
+      if(cached){setResult(cached);setFromCache(true);setLoading(false);return;}
+    }
     try{
       const{data:{session}}=await sb().auth.getSession();
       const authToken=session?.access_token||SUPABASE_ANON_KEY;
@@ -461,8 +474,10 @@ function TroubleshootAssistant({wo,onClose}){
         body:JSON.stringify(body),
       });
       const data=await resp.json();
-      if(data.success){setResult(data.result);}
-      else{setError(data.error||"Diagnosis failed. Try again.");}
+      if(data.success){setResult(data.result);
+        // Cache text-based results for 7 days
+        if(!imageB64&&symptoms.trim()){const cacheKey=getDiagCacheKey(equipType,symptoms);setCachedDiag(cacheKey,data.result);}
+      }else{setError(data.error||"Diagnosis failed. Try again.");}
     }catch(err){setError("Error: "+err.message);}
     setLoading(false);
   };

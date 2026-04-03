@@ -20,7 +20,9 @@ function base64url(buf: ArrayBuffer): string {
 }
 
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const b64 = pem
+  // Handle escaped \n from Supabase secrets storage
+  const cleanPem = pem.replace(/\\n/g, "\n");
+  const b64 = cleanPem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
     .replace(/\s/g, "");
