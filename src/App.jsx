@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, GlobalStyles, setProfanityHandler } from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
@@ -6,6 +6,7 @@ import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
 import { CustomerPortal } from "./components/CustomerPortal";
 import { FeedbackForm } from "./components/Feedback";
 import { ProposalPortal } from "./components/Proposals";
+import { cacheData, getCachedData, getQueuedMutations, clearMutation, getQueueCount } from "./offlineStore";
 
 /*
  * 3C Refrigeration FieldOps Pro — Modular Edition
@@ -15,6 +16,7 @@ import { ProposalPortal } from "./components/Proposals";
 function App(){
   const[authUser,setAuthUser]=useState(null);const[appUser,setAppUser]=useState(null);
   const[data,setData]=useState(null);const[loading,setLoading]=useState(true);const[syncing,setSyncing]=useState(false);
+  const[offlineMode,setOfflineMode]=useState(false);const[offlineQueueCount,setOfflineQueueCount]=useState(0);const syncingRef=useRef(false);
 
   useEffect(()=>{const client=sb();if(!client)return;
     client.auth.getSession().then(({data:{session}})=>{setAuthUser(session?.user||null);});
@@ -40,14 +42,19 @@ function App(){
       client.from("feedback").select("*").order("submitted_at",{ascending:false}),
     ]);
     [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
-    setData(prev=>({wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],onlineUsers:prev?.onlineUsers||[]}));
-    setLoading(false);
-  }catch(err){console.error("loadData failed:",err);}
-  },[]);
+    const freshData={wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[]};
+    setData(prev=>({...freshData,onlineUsers:prev?.onlineUsers||[]}));
+    setOfflineMode(false);setLoading(false);
+    try{await cacheData('appData',freshData);}catch(e){console.warn("IndexedDB cache write failed:",e);}
+  }catch(err){console.error("loadData failed:",err);
+    try{const cached=await getCachedData('appData');if(cached){setData(prev=>({...cached,onlineUsers:prev?.onlineUsers||[]}));setOfflineMode(true);setLoading(false);console.log("Loaded from offline cache");}}catch(e){console.warn("Offline cache read failed:",e);}
+  }},[]);
   const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false},feedback:{key:"feedback",order:"submitted_at",asc:false}};
   const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(table).select("*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);const{data:d}=await q;setData(prev=>({...prev,[m.key]:d||[]}));},[]);
 
   useEffect(()=>{if(authUser)loadData();},[authUser,loadData]);
+  // Keep offline queue count in sync
+  useEffect(()=>{const updateCount=()=>getQueueCount().then(c=>setOfflineQueueCount(c)).catch(()=>{});updateCount();const iv=setInterval(updateCount,5000);return()=>clearInterval(iv);},[]);
   useEffect(()=>{if(!authUser){sb().from("users").select("*").then(({data:u})=>{setData(d=>({...(d||{wos:[],pos:[],time:[],photos:[],schedule:[],templates:[],notifs:[],customers:[],emailTemplates:[],projects:[],woDrafts:[],onlineUsers:[]}),users:u||[]}));setLoading(false);});}},[authUser]);
 
   useEffect(()=>{if(!authUser||!data?.users)return;const match=data.users.find(u=>u.email?.toLowerCase()===authUser.email?.toLowerCase()&&u.active!==false);setAppUser(match||null);},[authUser,data?.users]);
@@ -59,7 +66,20 @@ function App(){
     const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>debouncedReload("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>debouncedReload("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>debouncedReload("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>debouncedReload("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>debouncedReload("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>debouncedReload("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>debouncedReload("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>debouncedReload("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>debouncedReload("invoices")).on('presence',{event:'sync'},()=>{const state=chan.presenceState();const online=Object.values(state).flat().map(p=>p.name);setData(prev=>prev?{...prev,onlineUsers:online}:prev);}).subscribe();
     chan.track({name:appUser?.name,role:appUser?.role});
     const poll=setInterval(()=>loadData(),300000);
-    const onVis=()=>{if(document.visibilityState==="visible")loadData();};document.addEventListener("visibilitychange",onVis);
+    // Replay offline queue when back online
+    const replayOfflineQueue=async()=>{if(syncingRef.current)return;syncingRef.current=true;
+      try{const queued=await getQueuedMutations();if(queued.length===0){syncingRef.current=false;return;}
+        setSyncing(true);for(const m of queued){try{
+          if(m.action==="insert")await client.from(m.table).insert(m.data);
+          else if(m.action==="update"){const{id,...rest}=m.data;await client.from(m.table).update(rest).eq("id",id);}
+          else if(m.action==="delete")await client.from(m.table).delete().eq("id",m.data.id);
+          await clearMutation(m.id);
+        }catch(e){console.error("Sync failed for mutation:",m,e);break;}}
+        const remaining=await getQueueCount();setOfflineQueueCount(remaining);
+        if(remaining===0){setOfflineMode(false);await loadData();}
+      }catch(e){console.error("replayOfflineQueue error:",e);}finally{setSyncing(false);syncingRef.current=false;}};
+    const onOnline=()=>{replayOfflineQueue();};window.addEventListener("online",onOnline);
+    const onVis=()=>{if(document.visibilityState==="visible"){if(navigator.onLine)replayOfflineQueue();loadData();}};document.addEventListener("visibilitychange",onVis);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
     const checkRecurringPMs=async()=>{
       const{data:tpls}=await client.from("recurring_templates").select("*").eq("active",true);
@@ -86,7 +106,7 @@ function App(){
     checkRecurringPMs();
     const checkDeadlines=async()=>{const twoDays=new Date(Date.now()+2*86400000).toISOString().slice(0,10);const today=new Date().toISOString().slice(0,10);const{data:due}=await client.from("work_orders").select("wo_id,title,due_date,assignee").neq("status","completed").gte("due_date",today).lte("due_date",twoDays);if(due&&due.length>0){for(const w of due){const{data:existing}=await client.from("notifications").select("id").eq("type","deadline_warning").ilike("message","%"+w.wo_id+"%").gte("created_at",today);if(!existing||existing.length===0)await client.from("notifications").insert({type:"deadline_warning",title:"Deadline Approaching",message:w.wo_id+" — "+w.title+" is due "+w.due_date,for_role:null});}}};
     checkDeadlines();
-    return()=>{client.removeChannel(chan);clearInterval(poll);document.removeEventListener("visibilitychange",onVis);};
+    return()=>{client.removeChannel(chan);clearInterval(poll);document.removeEventListener("visibilitychange",onVis);window.removeEventListener("online",onOnline);};
   },[authUser,loadData]);
 
   const withSync=fn=>async(...args)=>{setSyncing(true);try{await fn(...args);await loadData();}finally{setSyncing(false);}};
@@ -203,7 +223,7 @@ function App(){
   if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,animation:"fadeIn .4s ease-out"}}><GlobalStyles/><Logo size="large"/><div style={{marginTop:24}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:12,fontWeight:500,letterSpacing:0.3}}>Connecting...</div></div>);
   if(authUser&&data?.users?.length===0)return <FirstSetup authUser={authUser} onDone={loadData}/>;
   if(!appUser)return <LoginScreen authUser={authUser} loading={false}/>;
-  const p={user:appUser,onLogout:async()=>{await sb().auth.signOut();setAppUser(null);setAuthUser(null);},D:data,A:actions,syncing};
+  const p={user:appUser,onLogout:async()=>{await sb().auth.signOut();setAppUser(null);setAuthUser(null);},D:data,A:actions,syncing,offlineMode,offlineQueueCount};
   if(appUser.role==="admin")return <AdminDash {...p}/>;
   if(appUser.role==="manager")return <MgrDash {...p}/>;
   return <TechDash {...p}/>;

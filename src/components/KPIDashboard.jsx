@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { B, F, M, IS, LS } from "../shared";
 import { Card, Badge, StatCard, Modal } from "./ui";
 
@@ -23,7 +23,16 @@ function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
 function KPIDashboard({D,A,userRole,userName}){
   const isAdmin=userRole==="admin";const isMgr=userRole==="admin"||userRole==="manager";
   const[range,setRange]=useState("month");const[drillDown,setDrillDown]=useState(null);
+  const[isMobile,setIsMobile]=useState(window.innerWidth<768);
+  const[hovered,setHovered]=useState(null);
   const now=new Date();
+
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth<768);
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
+
   const getRangeStart=()=>{const d=new Date(now);if(range==="week"){d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);}else if(range==="month"){d.setDate(1);d.setHours(0,0,0,0);}else if(range==="quarter"){d.setMonth(d.getMonth()-3);d.setHours(0,0,0,0);}else if(range==="year"){d.setMonth(0,1);d.setHours(0,0,0,0);}else{d.setFullYear(2000);}return d;};
   const rangeStart=getRangeStart();
   const inRange=(dateStr)=>{if(!dateStr)return false;return new Date(dateStr)>=rangeStart;};
@@ -85,78 +94,148 @@ function KPIDashboard({D,A,userRole,userName}){
 
   const ranges=[["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
 
+  // ── Bento tile style helper ──
+  const bentoTile=(color,idx,extra={})=>({
+    background:`${B.surface}CC`,
+    backdropFilter:"blur(12px)",
+    WebkitBackdropFilter:"blur(12px)",
+    border:`1px solid ${B.border}40`,
+    borderRadius:14,
+    borderLeft:`3px solid ${color}`,
+    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.1)",
+    padding:"16px 18px",
+    animation:"slideUp 0.3s ease-out both",
+    animationDelay:`${idx*0.05}s`,
+    transition:"transform 0.2s ease, box-shadow 0.2s ease",
+    ...(hovered===`tile-${idx}`?{transform:"translateY(-2px)",boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 20px rgba(0,0,0,0.15)"}:{}),
+    ...extra,
+  });
+
+  // ── Keyframes injection ──
+  const keyframes=`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
+
+  // Build KPI tile data
+  let tileIdx=0;
+  const kpiTiles=[
+    {key:"ftfr",label:"First-Time Fix",value:ftfr+"%",icon:"🎯",color:ftfr>=85?B.green:ftfr>=70?B.orange:B.red,click:()=>setDrillDown("completed")},
+    {key:"util",label:"Tech Utilization",value:techUtil+"%",icon:"⚡",color:techUtil>=80?B.green:techUtil>=60?B.orange:B.red},
+    {key:"comp",label:"WOs Completed",value:completedWOs.length,icon:"✓",color:B.green},
+    {key:"hrs",label:"Hours Logged",value:totalHours.toFixed(0)+"h",icon:"⏱",color:B.cyan},
+  ];
+  // Financial tiles (admin/manager)
+  const finTiles=[];
+  if(isMgr){
+    if(isAdmin)finTiles.push({key:"rev",label:"Revenue/Tech",value:"$"+revPerTech.toLocaleString(),icon:"💰",color:B.green,wide:true});
+    finTiles.push({key:"pay",label:"Avg Days to Pay",value:avgPayDays+"d",icon:"📊",color:avgPayDays<=15?B.green:avgPayDays<=30?B.orange:B.red});
+    finTiles.push({key:"ar",label:"Outstanding AR",value:"$"+totalAR.toLocaleString(undefined,{minimumFractionDigits:0}),icon:"📋",color:B.cyan,click:()=>setDrillDown("outstanding")});
+    finTiles.push({key:"over",label:"Overdue ("+overdueInv.length+")",value:"$"+overdueAmt.toLocaleString(undefined,{minimumFractionDigits:0}),icon:"⚠️",color:B.red,click:overdueInv.length>0?()=>setDrillDown("overdue"):null});
+  }
+
+  const allTiles=[...kpiTiles,...finTiles];
+
   return(<div>
+    <style>{keyframes}</style>
+
     {/* Date Range Pills */}
-    <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-      {ranges.map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{padding:"6px 14px",borderRadius:6,border:"1px solid "+(range===k?B.cyan:B.border),background:range===k?B.cyanGlow:"transparent",color:range===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
+    <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
+      {ranges.map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{
+        padding:"8px 18px",borderRadius:20,
+        border:"1px solid "+(range===k?B.cyan:B.border),
+        background:range===k?B.cyanGlow:"transparent",
+        color:range===k?B.cyan:B.textDim,
+        fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F,
+        transition:"all 0.2s ease",
+        boxShadow:range===k?"0 0 12px "+B.cyan+"25":"none",
+      }}>{l}</button>)}
     </div>
 
-    {/* Primary KPI Cards Row 1 */}
-    <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
-      <div style={{flex:"1 1 130px",minWidth:130,cursor:"pointer"}} onClick={()=>setDrillDown("completed")}>
-        <StatCard label="First-Time Fix" value={ftfr+"%"} icon="🎯" color={ftfr>=85?B.green:ftfr>=70?B.orange:B.red}/>
-      </div>
-      <StatCard label="Tech Utilization" value={techUtil+"%"} icon="⚡" color={techUtil>=80?B.green:techUtil>=60?B.orange:B.red}/>
-      <StatCard label="WOs Completed" value={completedWOs.length} icon="✓" color={B.green}/>
-      <StatCard label="Hours Logged" value={totalHours.toFixed(0)+"h"} icon="⏱" color={B.cyan}/>
+    {/* ── Bento Grid: KPI Tiles ── */}
+    <div style={{
+      display:"grid",
+      gridTemplateColumns:isMobile?"repeat(2, 1fr)":"repeat(4, 1fr)",
+      gap:10,
+      marginBottom:16,
+    }}>
+      {allTiles.map((t,i)=>{
+        const idx=i;
+        const gridStyle=t.wide&&!isMobile?{gridColumn:"span 2"}:{};
+        return(
+          <div key={t.key}
+            style={{...bentoTile(t.color,idx,gridStyle),cursor:t.click?"pointer":"default",position:"relative",overflow:"hidden"}}
+            onClick={t.click||undefined}
+            onMouseEnter={()=>setHovered(`tile-${idx}`)}
+            onMouseLeave={()=>setHovered(null)}
+          >
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div>
+                <div style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>{t.label}</div>
+                <div style={{fontFamily:M,fontSize:22,fontWeight:900,color:B.text,letterSpacing:-0.5,animation:"fadeIn 0.4s ease-out both",animationDelay:`${idx*0.05+0.15}s`}}>{t.value}</div>
+              </div>
+              <span style={{fontSize:20,opacity:0.7,lineHeight:1}}>{t.icon}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
 
-    {/* Primary KPI Cards Row 2 — Financial (admin/manager) */}
-    {isMgr&&<div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      {isAdmin&&<StatCard label="Revenue/Tech" value={"$"+revPerTech.toLocaleString()} icon="💰" color={B.green}/>}
-      <StatCard label="Avg Days to Pay" value={avgPayDays+"d"} icon="📊" color={avgPayDays<=15?B.green:avgPayDays<=30?B.orange:B.red}/>
-      <div style={{flex:"1 1 130px",minWidth:130,cursor:"pointer"}} onClick={()=>setDrillDown("outstanding")}>
-        <StatCard label="Outstanding AR" value={"$"+totalAR.toLocaleString(undefined,{minimumFractionDigits:0})} icon="📋" color={B.cyan}/>
-      </div>
-      <div style={{flex:"1 1 130px",minWidth:130,cursor:overdueInv.length>0?"pointer":"default"}} onClick={()=>overdueInv.length>0&&setDrillDown("overdue")}>
-        <StatCard label={"Overdue ("+overdueInv.length+")"} value={"$"+overdueAmt.toLocaleString(undefined,{minimumFractionDigits:0})} icon="⚠️" color={B.red}/>
-      </div>
-    </div>}
-
-    {/* Sparkline Trend Widgets */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10,marginBottom:16}}>
-      <Card style={{padding:"14px 16px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>Hours (8 wk)</span>
-          <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.cyan}}>{sparkWeeks[sparkWeeks.length-1].hrs.toFixed(0)}h</span>
+    {/* ── Sparkline Trend Widgets (Bento Wide Tiles) ── */}
+    <div style={{
+      display:"grid",
+      gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit, minmax(260px, 1fr))",
+      gap:10,
+      marginBottom:16,
+    }}>
+      {[
+        {label:"Hours (8 wk)",val:sparkWeeks[sparkWeeks.length-1].hrs.toFixed(0)+"h",data:sparkWeeks.map(w=>w.hrs),color:B.cyan,idx:allTiles.length},
+        {label:"Completions (8 wk)",val:sparkWeeks[sparkWeeks.length-1].comp,data:sparkWeeks.map(w=>w.comp),color:B.green,idx:allTiles.length+1},
+        ...(isAdmin?[{label:"Revenue (8 wk)",val:"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString(),data:sparkWeeks.map(w=>w.rev),color:B.purple,idx:allTiles.length+2}]:[]),
+      ].map(sp=>(
+        <div key={sp.label}
+          style={bentoTile(sp.color,sp.idx,{gridColumn:isMobile?"span 2":"auto"})}
+          onMouseEnter={()=>setHovered(`tile-${sp.idx}`)}
+          onMouseLeave={()=>setHovered(null)}
+        >
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>{sp.label}</span>
+            <span style={{fontFamily:M,fontSize:13,fontWeight:700,color:sp.color}}>{sp.val}</span>
+          </div>
+          <Sparkline data={sp.data} color={sp.color} width={isMobile?260:220} height={44}/>
         </div>
-        <Sparkline data={sparkWeeks.map(w=>w.hrs)} color={B.cyan} width={200} height={40}/>
-      </Card>
-      <Card style={{padding:"14px 16px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>Completions (8 wk)</span>
-          <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.green}}>{sparkWeeks[sparkWeeks.length-1].comp}</span>
-        </div>
-        <Sparkline data={sparkWeeks.map(w=>w.comp)} color={B.green} width={200} height={40}/>
-      </Card>
-      {isAdmin&&<Card style={{padding:"14px 16px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>Revenue (8 wk)</span>
-          <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.purple}}>{"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString()}</span>
-        </div>
-        <Sparkline data={sparkWeeks.map(w=>w.rev)} color={B.purple} width={200} height={40}/>
-      </Card>}
+      ))}
     </div>
 
-    {/* Customer Breakdown */}
-    {isMgr&&custStats.length>0&&<Card style={{padding:"16px 18px",marginBottom:16}}>
-      <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Top Accounts</div>
-      <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {custStats.map(([name,s])=>{const pct=s.total>0?Math.round((s.done/s.total)*100):0;return(
+    {/* ── Customer Breakdown (Glassmorphism) ── */}
+    {isMgr&&custStats.length>0&&<div style={{
+      background:`${B.surface}CC`,
+      backdropFilter:"blur(12px)",
+      WebkitBackdropFilter:"blur(12px)",
+      border:`1px solid ${B.border}40`,
+      borderRadius:14,
+      boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.1)",
+      padding:"18px 20px",
+      marginBottom:16,
+      animation:"slideUp 0.3s ease-out both",
+      animationDelay:`${(allTiles.length+3)*0.05}s`,
+    }}>
+      <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:14}}>Top Accounts</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {custStats.map(([name,s])=>{const pct=s.total>0?Math.round((s.done/s.total)*100):0;
+          const barColor=pct>=80?B.green:pct>=50?B.cyan:B.orange;
+          return(
           <div key={name} style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <span style={{fontSize:12,fontWeight:600,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
                 <span style={{fontSize:10,fontFamily:M,color:B.textDim,flexShrink:0}}>{s.done}/{s.total} WOs · {s.hours.toFixed(0)}h</span>
               </div>
-              <div style={{height:4,borderRadius:2,background:B.border,overflow:"hidden"}}>
-                <div style={{width:pct+"%",height:"100%",borderRadius:2,background:pct>=80?B.green:pct>=50?B.cyan:B.orange,transition:"width .4s ease-out"}}/>
+              <div style={{height:5,borderRadius:3,background:B.border,overflow:"hidden"}}>
+                <div style={{width:pct+"%",height:"100%",borderRadius:3,background:`linear-gradient(90deg, ${barColor}90, ${barColor})`,transition:"width .4s ease-out",boxShadow:`0 0 6px ${barColor}30`}}/>
               </div>
             </div>
-            <span style={{fontSize:11,fontFamily:M,fontWeight:700,color:pct>=80?B.green:pct>=50?B.cyan:B.orange,width:36,textAlign:"right"}}>{pct}%</span>
+            <span style={{fontSize:11,fontFamily:M,fontWeight:700,color:barColor,width:36,textAlign:"right"}}>{pct}%</span>
           </div>);})}
       </div>
-    </Card>}
+    </div>}
 
     {/* Drill-Down Modal */}
     {drillDown&&drillContent&&<Modal title={drillDown==="overdue"?"Overdue Invoices":drillDown==="outstanding"?"Outstanding Invoices":"Completed Work Orders"} onClose={()=>setDrillDown(null)} wide>

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, genPO, genProjectPO } from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput } from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
 
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData}){
-  const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false);
+  const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
   const[showFollowUp,setShowFollowUp]=useState(false),[fuNotes,setFuNotes]=useState("");
   const[showEdit,setShowEdit]=useState(false),[editWO,setEditWO]=useState({});
@@ -70,6 +70,11 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>📷 Photo</button>
       <button onClick={openCompleteFlow} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
     </div>}
+
+    {/* AI Diagnose button — always available */}
+    <div style={{maxWidth:640,marginBottom:12}}>
+      <button onClick={()=>setShowTroubleshoot(true)} style={{...SEC,width:"100%",color:B.purple,borderColor:B.purple+"44"}}>AI Diagnose</button>
+    </div>
 
     {/* Camera — hidden input triggered by Photo button, visible button below */}
     {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData} inputId="cam-upload"/></div>}
@@ -220,6 +225,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         </div>
       </div>
     </Modal>}
+    {showTroubleshoot&&<TroubleshootAssistant wo={wo} onClose={()=>setShowTroubleshoot(false)}/>}
     {showEdit&&isManager&&<Modal title="Edit Work Order" onClose={()=>setShowEdit(false)} wide>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Title</label><input value={editWO.title} onChange={e=>setEditWO({...editWO,title:e.target.value})} style={IS}/></div>
@@ -405,4 +411,165 @@ function WOOverview({orders,wlp,pos,time}){
   </div>);
 }
 
-export { WODetail, CreateWO, SwipeCard, WOList, WOOverview };
+function TroubleshootAssistant({wo,onClose}){
+  const[symptoms,setSymptoms]=useState("");
+  const[equipType,setEquipType]=useState("");
+  const[imageB64,setImageB64]=useState(null);
+  const[imageMime,setImageMime]=useState("image/jpeg");
+  const[imagePreview,setImagePreview]=useState(null);
+  const[loading,setLoading]=useState(false);
+  const[result,setResult]=useState(null);
+  const[error,setError]=useState("");
+  const fileRef=useRef(null);
+
+  const EQUIP_TYPES=["walk-in cooler","reach-in freezer","blast chiller","ice machine","environmental chamber","condenser unit","other"];
+
+  const handleImage=async(e)=>{
+    const file=e.target.files?.[0];if(!file)return;
+    setImageMime(file.type||"image/jpeg");
+    const reader=new FileReader();
+    reader.onload=()=>{
+      setImagePreview(reader.result);
+      setImageB64(reader.result.split(",")[1]);
+    };
+    reader.readAsDataURL(file);
+    if(fileRef.current)fileRef.current.value="";
+  };
+
+  const diagnose=async()=>{
+    if(!symptoms.trim()&&!imageB64){setError("Describe the symptoms or attach a photo.");return;}
+    setError("");setLoading(true);setResult(null);
+    try{
+      const{data:{session}}=await sb().auth.getSession();
+      const authToken=session?.access_token||SUPABASE_ANON_KEY;
+      // Gather recent WO titles for this customer/location as context
+      const woHistory=[];
+      if(wo.customer||wo.location){
+        // We don't have full WO list here, so we pass what we know from the current WO
+        if(wo.title)woHistory.push(wo.title);
+      }
+      const body={
+        symptoms:symptoms.trim(),
+        equipment_type:equipType||undefined,
+        customer:wo.customer||undefined,
+        wo_history:woHistory.length?woHistory:undefined,
+      };
+      if(imageB64){body.image=imageB64;body.mimeType=imageMime;}
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/ai-troubleshoot",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+authToken},
+        body:JSON.stringify(body),
+      });
+      const data=await resp.json();
+      if(data.success){setResult(data.result);}
+      else{setError(data.error||"Diagnosis failed. Try again.");}
+    }catch(err){setError("Error: "+err.message);}
+    setLoading(false);
+  };
+
+  const urgencyColors={critical:B.red,high:B.orange,medium:B.cyan,low:B.green};
+  const confidenceLabel=(c)=>c>=0.8?"High":c>=0.5?"Medium":"Low";
+
+  return(<Modal title={"AI Troubleshooting — "+(wo.wo_id||"Diagnostics")} onClose={onClose} wide>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Equipment type */}
+      <div>
+        <label style={LS}>Equipment Type</label>
+        <select value={equipType} onChange={e=>setEquipType(e.target.value)} style={{...IS,cursor:"pointer"}}>
+          <option value="">-- Select --</option>
+          {EQUIP_TYPES.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+        </select>
+      </div>
+
+      {/* Symptoms */}
+      <div>
+        <label style={LS}>Describe Symptoms</label>
+        <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+          <textarea value={symptoms} onChange={e=>setSymptoms(e.target.value)} rows={3} placeholder="e.g. Unit not cooling, compressor running but warm air, ice buildup on evaporator coil..." style={{...IS,resize:"vertical",lineHeight:1.5,flex:1}}/>
+          <VoiceInput onResult={t=>setSymptoms(prev=>prev?(prev+" "+t):t)} style={{minHeight:44,alignSelf:"flex-end"}}/>
+        </div>
+      </div>
+
+      {/* Photo input */}
+      <div>
+        <label style={LS}>Photo (optional)</label>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleImage} style={{display:"none"}} id="troubleshoot-photo"/>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={()=>fileRef.current?.click()} type="button" style={{...BS,padding:"10px 16px",fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+            {imagePreview?"Change Photo":"Add Photo"}
+          </button>
+          {imagePreview&&<img src={imagePreview} alt="Preview" style={{width:48,height:48,objectFit:"cover",borderRadius:6,border:"1px solid "+B.border}}/>}
+          {imagePreview&&<button onClick={()=>{setImageB64(null);setImagePreview(null);setImageMime("image/jpeg");}} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer"}}>Remove</button>}
+        </div>
+      </div>
+
+      {/* Context info from WO */}
+      {(wo.customer||wo.location)&&<div style={{padding:"8px 12px",background:B.bg,borderRadius:6,fontSize:11,color:B.textDim}}>
+        Context: {wo.customer&&<span style={{color:B.purple}}>{wo.customer}</span>}{wo.customer&&wo.location&&" | "}{wo.location&&<span>{wo.location}{wo.building&&" Bldg "+wo.building}</span>}
+      </div>}
+
+      {error&&<div style={{color:B.red,fontSize:13,fontWeight:600,padding:"8px 12px",background:B.red+"11",borderRadius:6}}>{error}</div>}
+
+      {/* Diagnose button */}
+      {!result&&<button onClick={diagnose} disabled={loading} style={{...BP,width:"100%",padding:16,fontSize:15,opacity:loading?.6:1}}>
+        {loading?"Analyzing with AI...":"Diagnose"}
+      </button>}
+      {loading&&<div style={{textAlign:"center",fontSize:11,color:B.textDim}}>This may take a few seconds...</div>}
+
+      {/* RESULTS */}
+      {result&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {/* Diagnosis header */}
+        <div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim}}>Diagnosis</span>
+            <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:4,background:(urgencyColors[result.urgency]||B.cyan)+"22",color:urgencyColors[result.urgency]||B.cyan,textTransform:"uppercase"}}>{result.urgency} urgency</span>
+          </div>
+          <div style={{fontSize:15,fontWeight:700,color:B.text,lineHeight:1.4}}>{result.diagnosis}</div>
+          <div style={{marginTop:6,display:"flex",alignItems:"center",gap:6}}>
+            <div style={{width:60,height:6,borderRadius:3,background:B.border,overflow:"hidden"}}>
+              <div style={{width:(result.confidence*100)+"%",height:"100%",borderRadius:3,background:result.confidence>=0.7?B.green:result.confidence>=0.4?B.orange:B.red}}/>
+            </div>
+            <span style={{fontSize:10,color:B.textDim,fontFamily:M}}>{Math.round(result.confidence*100)}% — {confidenceLabel(result.confidence)} confidence</span>
+          </div>
+        </div>
+
+        {/* Possible causes */}
+        {result.possible_causes?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Possible Causes</span>
+          {result.possible_causes.map((c,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",fontSize:13,color:B.text}}>
+            <span style={{color:B.cyan,fontFamily:M,fontWeight:700,minWidth:18}}>{i+1}.</span>{c}
+          </div>)}
+        </div>}
+
+        {/* Recommended actions */}
+        {result.recommended_actions?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Recommended Actions</span>
+          {result.recommended_actions.map((a,i)=><div key={i} style={{display:"flex",gap:8,padding:"5px 0",fontSize:13,color:B.text,borderBottom:i<result.recommended_actions.length-1?"1px solid "+B.border+"44":"none"}}>
+            <span style={{color:B.green,fontSize:14,minWidth:20}}>{"[ ]"}</span><span style={{lineHeight:1.4}}>{a}</span>
+          </div>)}
+        </div>}
+
+        {/* Parts likely needed */}
+        {result.parts_likely_needed?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Parts Likely Needed</span>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {result.parts_likely_needed.map((p,i)=><span key={i} style={{padding:"5px 10px",borderRadius:6,background:B.cyan+"18",color:B.cyan,fontSize:12,fontWeight:600}}>{p}</span>)}
+          </div>
+        </div>}
+
+        {/* Safety warnings */}
+        {result.safety_warnings?.length>0&&<div style={{background:B.red+"11",border:"2px solid "+B.red+"44",borderRadius:10,padding:"14px 16px"}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.red,display:"block",marginBottom:8}}>Safety Warnings</span>
+          {result.safety_warnings.map((w,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",fontSize:13,color:B.red,fontWeight:600}}>
+            <span>{"!!!"}</span>{w}
+          </div>)}
+        </div>}
+
+        {/* Run again */}
+        <button onClick={()=>{setResult(null);setError("");}} style={{...BS,width:"100%",padding:12}}>Run Another Diagnosis</button>
+      </div>}
+    </div>
+  </Modal>);
+}
+
+export { WODetail, CreateWO, SwipeCard, WOList, WOOverview, TroubleshootAssistant };

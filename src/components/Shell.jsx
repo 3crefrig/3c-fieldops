@@ -5,7 +5,7 @@ import { NotifBell } from "./CameraUpload";
 
 let _ROLES = ROLES;
 
-export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh}){
+export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQueueCount,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh}){
   const[theme,setThemeState]=useState(getTheme());
   const[isMobile,setIsMobile]=useState(window.innerWidth<768);
   const[offline,setOffline]=useState(!navigator.onLine);
@@ -40,8 +40,8 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,notificati
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
-        {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline</span>}
-        {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600,animation:"pulseGlow 2s infinite"}}>syncing...</span>}
+        {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline{offlineQueueCount>0?" ("+offlineQueueCount+" queued)":""}</span>}
+        {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600,animation:"pulseGlow 2s infinite"}}>syncing{offlineQueueCount>0?" ("+offlineQueueCount+")":""}...</span>}
         <NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/>
         <Badge color={_ROLES[user.role]?_ROLES[user.role].color:B.textDim}>{user.role}</Badge>
         <span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>
