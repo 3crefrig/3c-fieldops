@@ -104,7 +104,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <Card style={{borderLeft:"3px solid "+B.cyan,cursor:"pointer"}} onClick={async()=>{
         if(jobIntel){setIntelOpen(!intelOpen);return;}
         setIntelOpen(true);setIntelLoading(true);
-        try{const resp=await fetch(SUPABASE_URL+"/functions/v1/job-intelligence",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({customer_name:wo.customer,location:wo.location||"",building:wo.building||"",equipment_id:wo.equipment_id||null,wo_title:wo.title})});
+        try{const{data:{session:_s}}=await sb().auth.getSession();const _tk=_s?.access_token||SUPABASE_ANON_KEY;
+          const resp=await fetch(SUPABASE_URL+"/functions/v1/job-intelligence",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+_tk},body:JSON.stringify({customer_name:wo.customer,location:wo.location||"",building:wo.building||"",equipment_id:wo.equipment_id||null,wo_title:wo.title})});
           const data=await resp.json();if(data.success)setJobIntel(data.result);else console.warn("Intel error:",data.error);
         }catch(e){console.error("Intel fetch error:",e);}setIntelLoading(false);
       }}>
@@ -129,7 +130,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       {!partsPred&&!partsLoading?<button onClick={async()=>{
         setPartsLoading(true);
         try{const eq=wo.equipment_id&&(D_equipment||[]).find(e=>e.id===wo.equipment_id);
-          const resp=await fetch(SUPABASE_URL+"/functions/v1/predict-parts",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""})});
+          const{data:{session:_s2}}=await sb().auth.getSession();const _tk2=_s2?.access_token||SUPABASE_ANON_KEY;
+          const resp=await fetch(SUPABASE_URL+"/functions/v1/predict-parts",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+_tk2},body:JSON.stringify({wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""})});
           const data=await resp.json();if(data.success)setPartsPred(data.result);
         }catch(e){console.error("Parts predict error:",e);}setPartsLoading(false);
       }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>🔮 Suggest Parts</button>
