@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { B, F, M, IS, LS, BP, BS } from "../shared";
-import { Card, Badge, Modal, Toast } from "./ui";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS } from "../shared";
+import { Card, Badge, Modal, Toast, StatCard } from "./ui";
 
 function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
@@ -18,7 +18,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
       {(customers||[]).length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No customers yet</div>}
       {(customers||[]).map(c=>{const st=getCustStats(c.name);return<Card key={c.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.purple}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{c.name}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>{[c.contact_name,c.phone,c.email].filter(Boolean).join(" · ")||"No contact info"}</div>
+          <div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14,fontWeight:700,color:B.text}}>{c.name}</span>{c.health_score!=null&&<span style={{fontSize:10,fontWeight:800,fontFamily:M,padding:"2px 6px",borderRadius:4,background:(c.health_score>=80?B.green:c.health_score>=60?B.orange:B.red)+"18",color:c.health_score>=80?B.green:c.health_score>=60?B.orange:B.red}}>{c.health_score}</span>}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>{[c.contact_name,c.phone,c.email].filter(Boolean).join(" · ")||"No contact info"}</div>
             {st.totalWOs>0&&<div style={{display:"flex",gap:10,marginTop:6}}><span style={{fontSize:10,fontFamily:M,color:B.cyan}}>{st.totalWOs} WOs</span>{st.activeWOs>0&&<span style={{fontSize:10,fontFamily:M,color:B.orange}}>{st.activeWOs} active</span>}<span style={{fontSize:10,fontFamily:M,color:B.green}}>{st.hours.toFixed(1)}h</span>{st.spend>0&&<span style={{fontSize:10,fontFamily:M,color:B.purple}}>{"$"+st.spend.toLocaleString()+" POs"}</span>}</div>}
           </div>
           <div style={{display:"flex",gap:6}}><button onClick={()=>openEdit(c)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer"}}>Edit</button><button onClick={()=>del(c)} style={{background:"none",border:"none",color:B.red,fontSize:11,cursor:"pointer"}}>×</button></div>
