@@ -201,7 +201,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
       <StatCard label="Warranty" value={warrantyDays===null?"N/A":warrantyDays<=0?"Expired":warrantyDays+"d left"} icon="🛡" color={warrantyColor}/>
       <StatCard label="Service Visits" value={linkedWOs.length} icon="🔧" color={B.cyan}/>
       <StatCard label="Total Hours" value={totalHours.toFixed(1)} icon="⏱" color={B.orange}/>
-      {isMgr&&<StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="💰" color={B.green}/>}
+      <StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="💰" color={B.green}/>
     </div>
 
     {/* Location */}
