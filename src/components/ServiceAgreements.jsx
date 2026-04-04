@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, haptic } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
+import { jsPDF } from "jspdf";
+import { fetchLogoBase64 } from "./PurchaseOrders";
 
 const FREQ_LABELS={weekly:"Weekly",biweekly:"Every 2 Weeks",monthly:"Monthly",quarterly:"Quarterly",biannual:"Every 6 Months",annual:"Annual"};
 const FREQ_VISITS={weekly:52,biweekly:26,monthly:12,quarterly:4,biannual:2,annual:1};
@@ -185,9 +187,234 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
   </Modal>);
 }
 
+// ─── Agreement PDF Generation (SOW format, zero AI tokens) ─────
+async function generateAgreementPDF(a, coveredEquipment, customerObj) {
+  const doc = new jsPDF({ unit: "mm", format: "letter" });
+  const pw = 215.9, ph = 279.4, lm = 20, rm = 20, cw = pw - lm - rm;
+  const cyan = [0, 212, 245], dark = [16, 18, 20], mid = [100, 110, 125], light = [240, 243, 248];
+  let y = 0;
+
+  const drawLine = (y1, color) => { doc.setDrawColor(...color); doc.setLineWidth(0.3); doc.line(lm, y1, pw - rm, y1); };
+  const drawRect = (x, y1, w, h, fill) => { doc.setFillColor(...fill); doc.rect(x, y1, w, h, "F"); };
+  const checkPage = (need) => { if (y + need > ph - 25) { doc.addPage(); y = 20; } };
+  const sectionTitle = (num, title) => { checkPage(20); doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...dark); doc.text(num + ". " + title, lm, y); y += 3; drawRect(lm, y, cw, 0.8, cyan); y += 8; };
+  const bodyText = (text, indent) => {
+    const ix = indent || 0;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...dark);
+    const lines = doc.splitTextToSize(text, cw - ix);
+    lines.forEach(line => { checkPage(5); doc.text(line, lm + ix, y); y += 4.5; });
+    y += 2;
+  };
+
+  // ── COVER PAGE ──────────��───────────────────────────────
+  const logo = await fetchLogoBase64();
+
+  // Centered logo
+  if (logo) doc.addImage(logo, "PNG", (pw - 60) / 2, 30, 60, 21);
+  y = 65;
+
+  // Title
+  drawRect(lm, y, cw, 1.5, cyan); y += 10;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(28); doc.setTextColor(...dark);
+  doc.text("SERVICE AGREEMENT", pw / 2, y, { align: "center" }); y += 14;
+  drawRect(lm, y, cw, 1.5, cyan); y += 20;
+
+  // Customer info block
+  const custName = a.customer_name || "";
+  const custContact = customerObj?.contact_name || "";
+  const custEmail = customerObj?.email || customerObj?.feedback_email || "";
+  const custPhone = customerObj?.phone || "";
+  const custAddr = customerObj?.address || "";
+
+  doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(...mid);
+  doc.text("Prepared For:", lm, y); y += 6;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...dark);
+  doc.text(custName, lm, y); y += 6;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...mid);
+  if (custContact) { doc.text(custContact, lm, y); y += 5; }
+  if (custEmail) { doc.text(custEmail, lm, y); y += 5; }
+  if (custPhone) { doc.text(custPhone, lm, y); y += 5; }
+  if (custAddr) { doc.text(custAddr, lm, y); y += 5; }
+  y += 15;
+
+  doc.text("Prepared By:", lm, y); y += 6;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...dark);
+  doc.text("Alex Clapp, Owner/Operator", lm, y); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...mid);
+  doc.text("3C Refrigeration LLC", lm, y); y += 5;
+  doc.text("(336) 264-0935 | aclapp@3crefrigeration.com", lm, y); y += 5;
+  doc.text("3065 Gwyn Rd., Elon, NC 27244", lm, y); y += 15;
+
+  // Agreement number + date
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...dark);
+  doc.text("Agreement #: " + (a.agreement_num || ""), lm, y); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...mid);
+  doc.text("Date: " + new Date().toLocaleDateString(), lm, y); y += 5;
+  if (a.tier_name) { doc.text("Service Level: " + a.tier_name, lm, y); y += 5; }
+
+  // ── PAGE 2+ CONTENT ──────────────────────────��──────────
+  doc.addPage(); y = 20;
+
+  // Table of Contents
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...dark);
+  doc.text("Table of Contents", lm, y); y += 3; drawRect(lm, y, cw, 0.8, cyan); y += 10;
+  const tocItems = ["Agreement Summary", "Scope of Services", "Service Schedule", "Pricing & Billing", "Covered Equipment", "Terms & Conditions", "Signatures"];
+  doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(...mid);
+  tocItems.forEach((item, i) => { doc.text((i + 1) + ".  " + item, lm + 5, y); y += 6; });
+  y += 10;
+
+  // 1. Agreement Summary
+  sectionTitle("1", "Agreement Summary");
+  const summaryText = `3C Refrigeration LLC ("Provider") shall provide scheduled preventative maintenance and corrective maintenance services for ${custName} ("Client") as outlined in this agreement. This service agreement covers ${(a.included_services || []).length} service categories across ${(coveredEquipment || []).length} piece(s) of equipment, with ${FREQ_LABELS[a.visit_frequency] || a.visit_frequency} scheduled visits. The Provider shall ensure all work is performed in accordance with applicable safety standards and manufacturer specifications, with the goal of maintaining optimal equipment performance and protecting the Client's operations.`;
+  bodyText(summaryText);
+  y += 4;
+
+  // 2. Scope of Services
+  sectionTitle("2", "Scope of Services");
+  const services = a.included_services || [];
+  if (services.length > 0) {
+    const letters = "abcdefghijklmnopqrstuvwxyz";
+    services.forEach((svc, i) => {
+      checkPage(12);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...dark);
+      doc.text(letters[i] + ")  " + svc, lm + 4, y); y += 5;
+      // Add standard description for known services
+      const descriptions = {
+        "PM Inspection": "Conduct comprehensive preventative maintenance inspections of all covered equipment, including visual assessment, operational testing, and documentation of current condition.",
+        "Filter Replacement": "Replace air and refrigerant filters per manufacturer specifications to maintain proper airflow and system efficiency.",
+        "Coil Cleaning": "Clean condenser and evaporator coils to remove debris, dirt, and biological growth that impair heat transfer and system performance.",
+        "Refrigerant Check": "Verify refrigerant charge levels, check for leaks using approved detection methods, and ensure compliance with EPA regulations.",
+        "Electrical Check": "Inspect electrical connections, contactors, relays, and wiring for signs of wear, overheating, or damage. Verify proper voltage and amperage readings.",
+        "Belt Inspection": "Inspect drive belts for wear, cracking, or misalignment. Adjust tension or replace as needed.",
+        "Thermostat Calibration": "Verify and calibrate temperature control systems to ensure accurate setpoints and proper cycling.",
+        "Drain Line Clearing": "Clear condensate drain lines to prevent blockages, water damage, and microbial growth.",
+      };
+      if (descriptions[svc]) {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...mid);
+        const descLines = doc.splitTextToSize(descriptions[svc], cw - 12);
+        descLines.forEach(line => { checkPage(4.5); doc.text(line, lm + 10, y); y += 4; });
+      }
+      y += 3;
+    });
+  } else {
+    bodyText("Services to be determined per individual work orders and service requests.");
+  }
+
+  // 3. Service Schedule
+  sectionTitle("3", "Service Schedule");
+  const scheduleRows = [
+    ["Agreement Period", a.start_date + " to " + a.end_date],
+    ["Visit Frequency", FREQ_LABELS[a.visit_frequency] || a.visit_frequency],
+    ["Visits Per Year", String(a.visits_per_year || "")],
+    ["Response Time", (a.response_time_hours || 24) + " hours"],
+    ["Priority Level", (a.priority_level || "medium").charAt(0).toUpperCase() + (a.priority_level || "medium").slice(1)],
+    ["Auto-Renew", a.auto_renew ? "Yes" : "No"],
+  ];
+  drawRect(lm, y - 1, cw, 7, light);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...dark);
+  doc.text("Item", lm + 3, y + 3.5); doc.text("Detail", lm + 60, y + 3.5); y += 8;
+  scheduleRows.forEach(([label, val]) => {
+    checkPage(7);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...mid);
+    doc.text(label, lm + 3, y + 3); doc.setTextColor(...dark); doc.text(val, lm + 60, y + 3);
+    drawLine(y + 5, [220, 225, 230]); y += 7;
+  });
+  y += 6;
+
+  // 4. Pricing & Billing
+  sectionTitle("4", "Pricing & Billing");
+  const pricingRows = [
+    ["Monthly Rate", "$" + parseFloat(a.monthly_rate || 0).toFixed(2)],
+    ["Annual Value", "$" + parseFloat(a.annual_value || 0).toFixed(2)],
+  ];
+  if (a.discount_pct > 0) pricingRows.push(["Discount", a.discount_pct + "%"]);
+  pricingRows.push(["Payment Terms", "Net 30"]);
+
+  drawRect(lm, y - 1, cw, 7, light);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...dark);
+  doc.text("Item", lm + 3, y + 3.5); doc.text("Amount", lm + 100, y + 3.5); y += 8;
+  pricingRows.forEach(([label, val]) => {
+    checkPage(7);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...mid);
+    doc.text(label, lm + 3, y + 3); doc.setFont("helvetica", "bold"); doc.setTextColor(...dark); doc.text(val, lm + 100, y + 3);
+    drawLine(y + 5, [220, 225, 230]); y += 7;
+  });
+  y += 2;
+  bodyText("Invoicing shall be conducted monthly. Additional services beyond the scope of this agreement shall be billed at standard time-and-materials rates: Licensed Technician $135.00/hr, Senior Technician $120.00/hr. Emergency rates apply outside normal operating hours (7:30 AM – 4:00 PM).");
+  y += 4;
+
+  // 5. Covered Equipment
+  sectionTitle("5", "Covered Equipment");
+  if (coveredEquipment && coveredEquipment.length > 0) {
+    // Table header
+    drawRect(lm, y - 1, cw, 7, light);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...dark);
+    doc.text("Model / Type", lm + 3, y + 3.5);
+    doc.text("Serial / Asset", lm + 70, y + 3.5);
+    doc.text("Location", lm + 120, y + 3.5);
+    y += 8;
+
+    coveredEquipment.forEach(eq => {
+      checkPage(7);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...dark);
+      doc.text((eq.model || eq.equipment_type || "Unknown").slice(0, 35), lm + 3, y + 3);
+      doc.setTextColor(...mid);
+      doc.text((eq.serial_number || eq.asset_tag || "N/A").slice(0, 25), lm + 70, y + 3);
+      doc.text((eq.location || "").slice(0, 25), lm + 120, y + 3);
+      drawLine(y + 5, [220, 225, 230]); y += 7;
+    });
+  } else {
+    bodyText("Equipment to be specified upon agreement execution.");
+  }
+  y += 6;
+
+  // 6. Terms & Conditions
+  sectionTitle("6", "Terms & Conditions");
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...dark);
+  doc.text("a)  Disclaimer", lm + 4, y); y += 5;
+  bodyText("This agreement is prepared for informational purposes and is intended to outline the scope and pricing for the services described herein. All terms are subject to negotiation and mutual agreement. Either party may terminate this agreement with 30 days written notice.", 10);
+  y += 2;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...dark);
+  doc.text("b)  Agreement Validity", lm + 4, y); y += 5;
+  bodyText("This agreement is valid for the period specified above. " + (a.auto_renew ? "This agreement will automatically renew for successive terms of equal duration unless either party provides written notice of non-renewal at least 30 days prior to the expiration date." : "This agreement will expire at the end of the specified term unless renewed by mutual written agreement."), 10);
+  y += 6;
+
+  // 7. Signatures
+  sectionTitle("7", "Signatures");
+  checkPage(60);
+  const sigY = y;
+
+  // Provider signature
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...dark);
+  doc.text("3C Refrigeration LLC", lm, sigY);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...mid);
+  drawLine(sigY + 20, dark); doc.text("Signature", lm, sigY + 24);
+  drawLine(sigY + 35, dark); doc.text("Printed Name: Alex Clapp", lm, sigY + 39);
+  drawLine(sigY + 50, dark); doc.text("Date", lm, sigY + 54);
+
+  // Client signature
+  const rx = lm + cw / 2 + 5;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...dark);
+  doc.text(custName, rx, sigY);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...mid);
+  doc.line(rx, sigY + 20, pw - rm, sigY + 20); doc.text("Signature", rx, sigY + 24);
+  doc.line(rx, sigY + 35, pw - rm, sigY + 35); doc.text("Printed Name", rx, sigY + 39);
+  doc.line(rx, sigY + 50, pw - rm, sigY + 50); doc.text("Date", rx, sigY + 54);
+
+  // Footer on each page
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...mid);
+    doc.text("3C Refrigeration LLC | " + (a.agreement_num || "") + " | Page " + i + " of " + totalPages, pw / 2, ph - 10, { align: "center" });
+  }
+
+  return doc;
+}
+
 // ─── Agreement Detail ─────────────────────────────────
-function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipment}){
-  const[editing,setEditing]=useState(false);const[toast,setToast]=useState("");
+function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipment,customers}){
+  const[editing,setEditing]=useState(false);const[toast,setToast]=useState("");const[generatingPdf,setGeneratingPdf]=useState(false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const a=agreement;
   const linkedWOs=wos.filter(w=>w.agreement_id===a.id);
@@ -195,6 +422,17 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
   const totalCost=linkedWOs.reduce((s,w)=>pos.filter(p=>p.wo_id===w.id&&p.status==="approved").reduce((ss,p)=>ss+parseFloat(p.amount||0),0)+s,0);
   const coveredEquipment=(equipment||[]).filter(e=>(a.equipment_ids||[]).includes(e.id));
   const daysRemaining=Math.ceil((new Date(a.end_date)-new Date())/86400000);
+
+  const handleGeneratePDF=async()=>{
+    setGeneratingPdf(true);
+    try{
+      const customerObj=(customers||[]).find(c=>c.id===a.customer_id||c.name===a.customer_name);
+      const doc=await generateAgreementPDF(a,coveredEquipment,customerObj);
+      doc.save((a.agreement_num||"agreement")+".pdf");
+      msg("PDF downloaded");
+    }catch(e){console.error(e);msg("PDF generation failed");}
+    setGeneratingPdf(false);
+  };
 
   return(<div style={{animation:"fadeIn .2s ease-out"}}>
     <Toast msg={toast}/>
@@ -207,7 +445,10 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
           <div style={{fontSize:14,fontWeight:600,color:B.textMuted,marginTop:4}}>{a.customer_name}</div>
           {a.tier_name&&<div style={{fontSize:11,color:B.purple,marginTop:2}}>Tier: {a.tier_name} (internal)</div>}
         </div>
-        <button onClick={()=>setEditing(true)} style={{...BS,padding:"6px 12px",fontSize:11}}>Edit</button>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={handleGeneratePDF} disabled={generatingPdf} style={{...BP,padding:"6px 12px",fontSize:11,opacity:generatingPdf?.6:1}}>{generatingPdf?"Generating...":"PDF"}</button>
+          <button onClick={()=>setEditing(true)} style={{...BS,padding:"6px 12px",fontSize:11}}>Edit</button>
+        </div>
       </div>
     </Card>
 
@@ -287,7 +528,7 @@ function AgreementDashboard({D,A,userRole,userName}){
 
   if(selected){const agr=agreements.find(a=>a.id===selected);
     if(!agr)return<div style={{padding:20,color:B.textDim}}>Agreement not found. <button onClick={()=>setSelected(null)} style={{color:B.cyan,background:"none",border:"none",cursor:"pointer"}}>Go back</button></div>;
-    return<AgreementDetail agreement={agr} onBack={()=>setSelected(null)} onUpdate={A.updateAgreement} wos={D.wos} pos={D.pos} timeEntries={D.time} equipment={D.equipment||[]}/>;
+    return<AgreementDetail agreement={agr} onBack={()=>setSelected(null)} onUpdate={A.updateAgreement} wos={D.wos} pos={D.pos} timeEntries={D.time} equipment={D.equipment||[]} customers={D.customers}/>;
   }
 
   if(manageTiers)return<div><button onClick={()=>setManageTiers(false)} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F,marginBottom:10}}>← Back to Agreements</button><AgreementTierManager tiers={tiers} onAdd={A.addAgreementTier} onUpdate={A.updateAgreementTier} onDelete={A.deleteAgreementTier}/></div>;
@@ -344,4 +585,4 @@ function AgreementDashboard({D,A,userRole,userName}){
   </div>);
 }
 
-export { AgreementDashboard, AgreementTierManager, AgreementForm, AgreementDetail, genAgreementNum };
+export { AgreementDashboard, AgreementTierManager, AgreementForm, AgreementDetail, genAgreementNum, generateAgreementPDF };

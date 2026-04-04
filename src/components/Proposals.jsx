@@ -1,6 +1,105 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
+
+// ── Email Picker for "Start from Email" ──────────────────────
+function EmailPicker({onSelect,onClose}){
+  const[emails,setEmails]=useState([]);const[loading,setLoading]=useState(false);const[extracting,setExtracting]=useState(null);
+  const[error,setError]=useState("");const[cooldownUntil,setCooldownUntil]=useState(null);
+
+  const fetchEmails=useCallback(async()=>{
+    setLoading(true);setError("");
+    try{
+      const user=await sb().auth.getUser();
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/email-to-proposal",{method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
+        body:JSON.stringify({action:"list",user_id:user?.data?.user?.id||null})});
+      const result=await resp.json();
+      if(result.success){setEmails(result.emails||[]);}
+      else if(result.error==="cooldown"){
+        setCooldownUntil(new Date(result.next_refresh_at));
+        setError("Refresh available "+new Date(result.next_refresh_at).toLocaleTimeString());
+      }else setError(result.error||"Failed to load emails");
+    }catch(e){setError("Network error");}
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{fetchEmails();},[fetchEmails]);
+
+  const extract=async(emailId)=>{
+    setExtracting(emailId);
+    try{
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/email-to-proposal",{method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
+        body:JSON.stringify({action:"extract",messageId:emailId})});
+      const result=await resp.json();
+      if(result.success)onSelect(result.extraction,result.matched_customer,result.email_subject);
+      else setError("Extraction failed");
+    }catch(e){setError("Network error");}
+    setExtracting(null);
+  };
+
+  const canRefresh=!cooldownUntil||new Date()>=cooldownUntil;
+
+  return(<Modal title="Select Email for Proposal" onClose={onClose} wide>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{fontSize:11,color:B.textDim}}>Service-related emails from inbox</div>
+      <button onClick={fetchEmails} disabled={loading||!canRefresh} style={{...BS,padding:"5px 12px",fontSize:11,opacity:(loading||!canRefresh)?.5:1}}>
+        {loading?"Loading...":"Refresh"}
+      </button>
+    </div>
+    {error&&<div style={{padding:"8px 12px",background:B.red+"15",borderRadius:6,color:B.red,fontSize:12,marginBottom:10}}>{error}</div>}
+    {loading&&emails.length===0&&<div style={{textAlign:"center",padding:30}}><Spinner/></div>}
+    <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:400,overflowY:"auto"}}>
+      {emails.map(em=><Card key={em.id} className="card-hover" onClick={()=>!extracting&&extract(em.id)}
+        style={{padding:"12px 14px",cursor:extracting?"wait":"pointer",opacity:extracting&&extracting!==em.id?.5:1,
+          borderLeft:"3px solid "+B.cyan}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{em.subject||"(no subject)"}</div>
+            <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>{em.from_name} &lt;{em.from_email}&gt;</div>
+            <div style={{fontSize:11,color:B.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{em.snippet}</div>
+          </div>
+          <div style={{flexShrink:0,marginLeft:8,textAlign:"right"}}>
+            <div style={{fontSize:10,color:B.textDim}}>{em.date?new Date(em.date).toLocaleDateString():""}</div>
+            {extracting===em.id&&<Spinner/>}
+          </div>
+        </div>
+      </Card>)}
+      {!loading&&emails.length===0&&!error&&<div style={{textAlign:"center",padding:20,color:B.textDim,fontSize:13}}>No service emails found</div>}
+    </div>
+  </Modal>);
+}
+
+// ── Scope Snippet Selector ───────────────────────────────────
+function SnippetSelector({onAppend}){
+  const[snippets,setSnippets]=useState([]);const[selected,setSelected]=useState([]);const[loading,setLoading]=useState(true);
+  useEffect(()=>{(async()=>{const{data}=await sb().from("scope_snippets").select("*").order("category");setSnippets(data||[]);setLoading(false);})();},[]);
+
+  const toggle=(snip)=>{
+    if(selected.includes(snip.id)){setSelected(selected.filter(s=>s!==snip.id));}
+    else{setSelected([...selected,snip.id]);onAppend(snip.content);}
+  };
+
+  if(loading||snippets.length===0)return null;
+  const cats=[...new Set(snippets.map(s=>s.category))];
+
+  return(<div style={{marginTop:8}}>
+    <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:6}}>Quick-Add Scope Sections</div>
+    {cats.map(cat=><div key={cat} style={{marginBottom:6}}>
+      <div style={{fontSize:10,color:B.textDim,textTransform:"capitalize",marginBottom:3}}>{cat}</div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+        {snippets.filter(s=>s.category===cat).map(s=><button key={s.id} onClick={()=>toggle(s)}
+          style={{padding:"4px 10px",borderRadius:4,fontSize:11,fontFamily:F,cursor:"pointer",
+            border:"1px solid "+(selected.includes(s.id)?B.cyan:B.border),
+            background:selected.includes(s.id)?B.cyanGlow:"transparent",
+            color:selected.includes(s.id)?B.cyan:B.textDim}}>
+          {selected.includes(s.id)?"✓ ":""}{s.name}
+        </button>)}
+      </div>
+    </div>)}
+  </div>);
+}
 
 function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
@@ -143,21 +242,51 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
 function ProposalBuilder({customers,users,userName,onClose}){
   const[step,setStep]=useState(1);const[cust,setCust]=useState("");const[title,setTitle]=useState("");
   const[scope,setScope]=useState("");const[custType,setCustType]=useState("");const[location,setLocation]=useState("");
-  const[pastExamples,setPastExamples]=useState("");
   const[generating,setGenerating]=useState(false);const[proposal,setProposal]=useState(null);const[editedContent,setEditedContent]=useState("");
   const[includeEstimate,setIncludeEstimate]=useState(false);const[estimate,setEstimate]=useState(null);
   const[expiry,setExpiry]=useState("");const[saving,setSaving]=useState(false);const[toast,setToast]=useState("");
+  const[showEmailPicker,setShowEmailPicker]=useState(false);const[selectedSnippets,setSelectedSnippets]=useState([]);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
 
+  // Handle email extraction pre-fill
+  const handleEmailSelect=(extraction,matchedCustomer,emailSubject)=>{
+    if(extraction.customer_name){
+      const match=customers.find(c=>c.name.toLowerCase().includes(extraction.customer_name.toLowerCase()));
+      if(match)setCust(match.name);else if(matchedCustomer)setCust(matchedCustomer.name);
+    }else if(matchedCustomer)setCust(matchedCustomer.name);
+    if(extraction.project_title)setTitle(extraction.project_title);
+    else if(emailSubject)setTitle(emailSubject);
+    if(extraction.scope_description)setScope(extraction.scope_description);
+    if(extraction.location)setLocation(extraction.location+(extraction.building?" — "+extraction.building:""));
+    if(extraction.customer_type)setCustType(extraction.customer_type);
+    setShowEmailPicker(false);
+    msg("Form pre-filled from email");
+  };
+
   const generate=async()=>{if(!cust||!scope||generating)return;setGenerating(true);
-    try{const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-proposal",{method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
-      body:JSON.stringify({customer_name:cust,project_title:title,scope_description:scope,customer_type:custType,location,past_examples:pastExamples||null,estimate_summary:estimate?`Labor: $${estimate.labor_total}, Parts: $${estimate.parts_total}, Total: $${estimate.grand_total}`:null})});
+    try{
+      // Collect selected snippet content for context
+      const snippetTexts=selectedSnippets.length>0?selectedSnippets:undefined;
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-proposal",{method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
+        body:JSON.stringify({customer_name:cust,project_title:title,scope_description:scope,customer_type:custType,location,scope_snippets:snippetTexts,estimate_summary:estimate?`Labor: $${estimate.labor_total}, Parts: $${estimate.parts_total}, Total: $${estimate.grand_total}`:null})});
       const result=await resp.json();
-      if(result.success&&result.proposal){setProposal(result.proposal);
-        const titles={project_summary:"1. Project Summary",project_objectives:"2. Project Objectives",scope_of_work:"3. Scope of Work",corrective_maintenance:"4. Corrective Maintenance",pricing_and_billing:"Pricing & Billing",terms_and_conditions:"Proposal Terms & Conditions",closing_statement:""};
-        const formatted=Object.entries(result.proposal).filter(([_,v])=>v).map(([k,v])=>{const t=titles[k];return(t?t+"\n\n":"")+v;}).join("\n\n---\n\n");
-        setEditedContent(formatted);setStep(3);
+      if(result.success&&result.ai_sections){
+        const ai=result.ai_sections;const tpl=result.template_sections;
+        setProposal({...ai,...tpl});
+        // Assemble: AI-generated sections + static templates
+        const sections=[];
+        if(ai.project_summary)sections.push("1. Project Summary\n\n"+ai.project_summary);
+        if(ai.project_objectives)sections.push("2. Project Objectives\n\n"+ai.project_objectives);
+        if(ai.scope_of_work)sections.push("3. Scope of Work\n\n"+ai.scope_of_work);
+        if(ai.corrective_maintenance)sections.push("4. Corrective Maintenance\n\n"+ai.corrective_maintenance);
+        if(tpl.pricing_and_billing)sections.push(tpl.pricing_and_billing);
+        if(tpl.terms_and_conditions)sections.push(tpl.terms_and_conditions);
+        if(tpl.closing_statement)sections.push(tpl.closing_statement);
+        setEditedContent(sections.join("\n\n---\n\n"));
+        const usage=result.usage;
+        if(usage)msg(`Generated! (${usage.input_tokens}in + ${usage.output_tokens}out tokens)`);
+        setStep(3);
       }else msg("Generation failed: "+(result.error||"Unknown error"));
     }catch(e){msg("Network error");}setGenerating(false);};
 
@@ -181,12 +310,20 @@ function ProposalBuilder({customers,users,userName,onClose}){
 
     {/* Step 1: Details */}
     {step===1&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Start from Email button */}
+      <button onClick={()=>setShowEmailPicker(true)} style={{...BS,width:"100%",padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,borderStyle:"dashed"}}>
+        <span style={{fontSize:16}}>📧</span>
+        <span style={{fontSize:13,fontWeight:600}}>Start from Email</span>
+        <span style={{fontSize:11,color:B.textDim}}> — auto-fill from a service request</span>
+      </button>
+      {showEmailPicker&&<EmailPicker onSelect={handleEmailSelect} onClose={()=>setShowEmailPicker(false)}/>}
+
       <div><label style={LS}>Customer *</label><CustomSelect value={cust} onChange={setCust} options={customers.map(c=>({value:c.name,label:c.name}))} placeholder="Select customer"/></div>
       <div><label style={LS}>Project Title</label><input value={title} onChange={e=>setTitle(e.target.value)} style={IS} placeholder="e.g., Annual HVAC Maintenance Contract"/></div>
       <div><label style={LS}>Customer Type</label><CustomSelect value={custType} onChange={setCustType} options={[{value:"university",label:"University"},{value:"biotech",label:"Biotech/Pharma"},{value:"healthcare",label:"Healthcare"},{value:"research",label:"Research Facility"},{value:"food_service",label:"Food Service"},{value:"commercial",label:"Commercial"}]} placeholder="Select type"/></div>
       <div><label style={LS}>Location</label><input value={location} onChange={e=>setLocation(e.target.value)} style={IS} placeholder="Building/campus name"/></div>
       <div><label style={LS}>Scope Description *</label><textarea value={scope} onChange={e=>setScope(e.target.value)} rows={4} style={{...IS,resize:"vertical"}} placeholder="Describe the work in detail — what needs to be done, equipment involved, special requirements..."/></div>
-      <div><label style={LS}>Past Proposal Examples (optional)</label><textarea value={pastExamples} onChange={e=>setPastExamples(e.target.value)} rows={3} style={{...IS,resize:"vertical",fontSize:12}} placeholder="Paste sections from previous proposals for the AI to reference..."/></div>
+      <SnippetSelector onAppend={(text)=>{setScope(prev=>prev?(prev+"\n\n"+text):text);setSelectedSnippets(prev=>[...prev,text]);}}/>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:B.bg,borderRadius:8,border:"1px solid "+B.border}}>
         <input type="checkbox" checked={includeEstimate} onChange={e=>setIncludeEstimate(e.target.checked)} style={{width:18,height:18,accentColor:B.cyan}}/>
         <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>Include Cost Estimate</div><div style={{fontSize:11,color:B.textDim}}>Attach a detailed labor & parts estimate to this proposal</div></div>
@@ -407,4 +544,4 @@ function ProposalPortal({token}){
   </div>);
 }
 
-export { genProposalNum, genEstimateNum, EstimateBuilder, ProposalBuilder, ProposalDashboard, ProposalPortal };
+export { genProposalNum, genEstimateNum, EstimateBuilder, ProposalBuilder, ProposalDashboard, ProposalPortal, EmailPicker, SnippetSelector };
