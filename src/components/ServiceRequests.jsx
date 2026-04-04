@@ -97,18 +97,48 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
   const[showReviewed,setShowReviewed]=useState(false);
   const[rejectId,setRejectId]=useState(null);
   const[rejectReason,setRejectReason]=useState("");
+  const[selected,setSelected]=useState([]);
+  const[bulkApproving,setBulkApproving]=useState(false);
 
   const openDraft=(d)=>{setSel(d);setEdits({title:d.title||"",customer_name:d.customer_name||"",customer_wo:d.customer_wo||"",location:d.location||"",building:d.building||"",description:d.description||"",priority:d.priority||"medium",assignee:"Unassigned",due_date:""});};
   const closeDraft=()=>{setSel(null);setEdits({});};
 
-  const confDot=(c)=>c>=0.8?B.green:c>=0.5?B.orange:B.red;
+  const confColor=(c)=>c>=0.8?B.green:c>=0.5?B.orange:B.red;
+  const confLabel=(c)=>(c*100).toFixed(0)+"%";
+
+  const toggleSelect=(id,e)=>{e.stopPropagation();setSelected(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);};
+  const selectAll=()=>{if(selected.length===pending.length)setSelected([]);else setSelected(pending.map(d=>d.id));};
+
+  const bulkApprove=async()=>{
+    if(bulkApproving||selected.length===0)return;
+    setBulkApproving(true);
+    for(const id of selected){
+      const draft=pending.find(d=>d.id===id);
+      if(draft){
+        const defaultEdits={title:draft.title||"",customer_name:draft.customer_name||"",customer_wo:draft.customer_wo||"",location:draft.location||"",building:draft.building||"",description:draft.description||"",priority:draft.priority||"medium",assignee:"Unassigned",due_date:""};
+        await onApprove(draft,defaultEdits);
+      }
+    }
+    setSelected([]);setBulkApproving(false);haptic(50);
+  };
 
   return(<div style={{display:"flex",flexDirection:"column",gap:10}}>
-    {/* Scan Inbox button — replaces the old auto-polling cron */}
+    {/* Scan Inbox button */}
     <Card style={{padding:"12px 16px"}}>
       <ScanInboxButton onComplete={onRefresh}/>
       <div style={{fontSize:10,color:B.textDim,marginTop:6}}>Scans service@3crefrigeration.com for new service requests. 2-hour cooldown between scans.</div>
     </Card>
+
+    {/* Bulk actions bar */}
+    {pending.length>1&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:B.surface,borderRadius:8,border:"1px solid "+B.border}}>
+      <div onClick={selectAll} style={{width:18,height:18,borderRadius:3,border:"2px solid "+(selected.length===pending.length?B.cyan:B.border),background:selected.length===pending.length?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+        {selected.length===pending.length&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+      </div>
+      <span style={{fontSize:12,color:B.textMuted,flex:1}}>{selected.length>0?selected.length+" selected":"Select requests for bulk actions"}</span>
+      {selected.length>0&&<button onClick={bulkApprove} disabled={bulkApproving} style={{...BP,background:B.green,padding:"6px 14px",fontSize:12,opacity:bulkApproving?.5:1}}>
+        {bulkApproving?"Approving...":"Approve "+selected.length}
+      </button>}
+    </div>}
 
     {/* Pending drafts */}
     {pending.length===0&&!showReviewed&&<div style={{textAlign:"center",padding:30,color:B.textDim}}>
@@ -119,14 +149,20 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
 
     {pending.map(d=><Card key={d.id} onClick={()=>openDraft(d)} style={{padding:"14px 18px",borderLeft:"3px solid "+B.orange}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-            <Badge color={PC[d.priority]||B.orange}>{d.priority}</Badge>
-            {d.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.textDim}}>WO# {d.customer_wo}</span>}
-            <span style={{width:6,height:6,borderRadius:"50%",background:confDot(d.ai_confidence),display:"inline-block"}} title={"AI confidence: "+(d.ai_confidence*100).toFixed(0)+"%"}/>
+        <div style={{display:"flex",gap:10,flex:1,minWidth:0}}>
+          {/* Checkbox for bulk select */}
+          {pending.length>1&&<div onClick={(e)=>toggleSelect(d.id,e)} style={{width:18,height:18,borderRadius:3,border:"2px solid "+(selected.includes(d.id)?B.cyan:B.border),background:selected.includes(d.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>
+            {selected.includes(d.id)&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+          </div>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <Badge color={PC[d.priority]||B.orange}>{d.priority}</Badge>
+              {d.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.textDim}}>WO# {d.customer_wo}</span>}
+              <span style={{padding:"1px 6px",borderRadius:3,fontSize:9,fontWeight:700,fontFamily:M,background:confColor(d.ai_confidence)+"20",color:confColor(d.ai_confidence)}}>AI {confLabel(d.ai_confidence)}</span>
+            </div>
+            <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title||d.email_subject}</div>
+            <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>{d.customer_name&&<span>{d.customer_name} · </span>}{d.building&&<span>{d.building} </span>}{d.location&&<span>— {d.location}</span>}</div>
           </div>
-          <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title||d.email_subject}</div>
-          <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>{d.customer_name&&<span>{d.customer_name} · </span>}{d.building&&<span>{d.building} </span>}{d.location&&<span>— {d.location}</span>}</div>
         </div>
         <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
           <div style={{fontSize:10,color:B.textDim}}>{d.email_from_name||d.email_from}</div>
@@ -156,7 +192,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       <div style={{background:B.bg,borderRadius:6,padding:12,marginBottom:16,border:"1px solid "+B.border}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.5}}>Original Email</div>
-          <span style={{width:8,height:8,borderRadius:"50%",background:confDot(sel.ai_confidence)}} title={"AI confidence: "+(sel.ai_confidence*100).toFixed(0)+"%"}/>
+          <span style={{padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:700,fontFamily:M,background:confColor(sel.ai_confidence)+"20",color:confColor(sel.ai_confidence)}}>AI Confidence: {confLabel(sel.ai_confidence)}</span>
         </div>
         <div style={{fontSize:12,color:B.text}}><strong>From:</strong> {sel.email_from_name} &lt;{sel.email_from}&gt;</div>
         <div style={{fontSize:12,color:B.text}}><strong>Subject:</strong> {sel.email_subject}</div>

@@ -163,7 +163,21 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
       </div>
 
       {/* Covered Equipment */}
-      {f.customer_id&&custEquipment.length>0&&<div><label style={LS}>Covered Equipment ({f.equipment_ids.length} selected)</label>
+      {f.customer_id&&custEquipment.length>0&&<div><label style={LS}>Covered Equipment ({f.equipment_ids.length} of {custEquipment.length})</label>
+        {/* Bulk select controls */}
+        <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+          <button onClick={()=>{if(f.equipment_ids.length===custEquipment.length)set("equipment_ids",[]);else set("equipment_ids",custEquipment.map(e=>e.id));}} style={{padding:"4px 10px",borderRadius:4,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F,border:"1px solid "+B.cyan,background:f.equipment_ids.length===custEquipment.length?B.cyanGlow:"transparent",color:B.cyan}}>
+            {f.equipment_ids.length===custEquipment.length?"Deselect All":"Select All ("+custEquipment.length+")"}
+          </button>
+          {/* Group by location buttons */}
+          {[...new Set(custEquipment.map(e=>e.location).filter(Boolean))].map(loc=>{
+            const locIds=custEquipment.filter(e=>e.location===loc).map(e=>e.id);
+            const allSelected=locIds.every(id=>f.equipment_ids.includes(id));
+            return<button key={loc} onClick={()=>{if(allSelected)set("equipment_ids",f.equipment_ids.filter(id=>!locIds.includes(id)));else set("equipment_ids",[...new Set([...f.equipment_ids,...locIds])]);}} style={{padding:"4px 10px",borderRadius:4,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F,border:"1px solid "+(allSelected?B.green:B.border),background:allSelected?B.green+"18":"transparent",color:allSelected?B.green:B.textDim}}>
+              {allSelected?"✓ ":""}{loc} ({locIds.length})
+            </button>;
+          })}
+        </div>
         <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:150,overflowY:"auto"}}>
           {custEquipment.map(eq=><div key={eq.id} onClick={()=>toggleEquipment(eq.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:f.equipment_ids.includes(eq.id)?B.cyanGlow:B.bg,border:"1px solid "+(f.equipment_ids.includes(eq.id)?B.cyan:B.border),borderRadius:6,cursor:"pointer"}}>
             <div style={{width:18,height:18,borderRadius:3,border:"2px solid "+(f.equipment_ids.includes(eq.id)?B.cyan:B.border),background:f.equipment_ids.includes(eq.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{f.equipment_ids.includes(eq.id)&&<span style={{color:"#fff",fontSize:10}}>✓</span>}</div>

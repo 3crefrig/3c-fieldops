@@ -44,117 +44,89 @@ serve(async (req) => {
       });
     }
 
-    // Gather context from the database
-    // 1. Recent WOs at this customer + location
-    let woQuery = sb.from("work_orders").select("wo_id,title,status,assignee,work_performed,date_completed,created_at,wo_type")
+    // Gather context from the database — lean queries, pre-aggregate
+    // 1. Recent WOs — only titles + status + work_performed summary (not full objects)
+    let woQuery = sb.from("work_orders").select("id,wo_id,title,status,work_performed,date_completed,wo_type")
       .eq("customer", customer_name)
       .order("created_at", { ascending: false })
-      .limit(8);
+      .limit(5);
     if (location) woQuery = woQuery.eq("location", location);
     const { data: recentWOs } = await woQuery;
+    const woDbIds = (recentWOs || []).map((w: any) => w.id).filter(Boolean);
 
-    // 2. POs (parts used) for those WOs
-    const woIds = (recentWOs || []).map((w: any) => w.id).filter(Boolean);
-    let recentPOs: any[] = [];
-    if (recentWOs && recentWOs.length > 0) {
-      // Get POs by matching wo_id from work_orders table
-      const { data: wosWithIds } = await sb.from("work_orders")
-        .select("id,wo_id")
-        .eq("customer", customer_name)
-        .order("created_at", { ascending: false })
-        .limit(8);
-      const ids = (wosWithIds || []).map((w: any) => w.id);
-      if (ids.length > 0) {
-        const { data: pos } = await sb.from("purchase_orders")
-          .select("description,amount,status,wo_id")
-          .in("wo_id", ids)
-          .eq("status", "approved");
-        recentPOs = pos || [];
+    // 2. Parts — aggregate by description (name + count), not raw PO list
+    let partsSummary: Array<{ name: string; count: number }> = [];
+    if (woDbIds.length > 0) {
+      const { data: pos } = await sb.from("purchase_orders")
+        .select("description")
+        .in("wo_id", woDbIds)
+        .eq("status", "approved");
+      if (pos && pos.length > 0) {
+        const counts: Record<string, number> = {};
+        pos.forEach((p: any) => { counts[p.description] = (counts[p.description] || 0) + 1; });
+        partsSummary = Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5);
       }
     }
 
-    // 3. Equipment history if linked
+    // 3. Equipment — lean select
     let equipmentInfo = null;
     if (equipment_id) {
       const { data: eq } = await sb.from("equipment")
-        .select("model,serial_number,manufacturer,equipment_type,refrigerant_type,install_date,warranty_expiration,notes")
+        .select("model,manufacturer,equipment_type,refrigerant_type,warranty_expiration,notes")
         .eq("id", equipment_id)
         .single();
       equipmentInfo = eq;
     }
 
-    // 4. Time entries for duration estimation
+    // 4. Avg hours — aggregate in one query
     let avgHours = 0;
-    if (recentWOs && recentWOs.length > 0) {
-      const { data: wosWithIds } = await sb.from("work_orders")
-        .select("id")
-        .eq("customer", customer_name)
-        .eq("status", "completed")
-        .limit(8);
-      const completedIds = (wosWithIds || []).map((w: any) => w.id);
-      if (completedIds.length > 0) {
-        const { data: timeEntries } = await sb.from("time_entries")
-          .select("hours,wo_id")
-          .in("wo_id", completedIds);
-        if (timeEntries && timeEntries.length > 0) {
-          const woHoursMap: Record<string, number> = {};
-          timeEntries.forEach((t: any) => {
-            woHoursMap[t.wo_id] = (woHoursMap[t.wo_id] || 0) + parseFloat(t.hours || 0);
-          });
-          const totals = Object.values(woHoursMap);
-          avgHours = totals.reduce((s: number, h: number) => s + h, 0) / totals.length;
-        }
+    if (woDbIds.length > 0) {
+      const { data: timeEntries } = await sb.from("time_entries")
+        .select("hours,wo_id")
+        .in("wo_id", woDbIds);
+      if (timeEntries && timeEntries.length > 0) {
+        const woHoursMap: Record<string, number> = {};
+        timeEntries.forEach((t: any) => { woHoursMap[t.wo_id] = (woHoursMap[t.wo_id] || 0) + parseFloat(t.hours || 0); });
+        const totals = Object.values(woHoursMap);
+        avgHours = totals.reduce((s: number, h: number) => s + h, 0) / totals.length;
       }
     }
 
-    // 5. Customer feedback
+    // 5. Customer feedback — just avg rating + count, not full text
     const { data: feedback } = await sb.from("feedback")
-      .select("star_rating,private_feedback,testimonial_text")
-      .eq("customer_name", customer_name)
-      .order("submitted_at", { ascending: false })
-      .limit(3);
+      .select("star_rating")
+      .eq("customer_name", customer_name);
+    const avgRating = feedback && feedback.length > 0
+      ? (feedback.reduce((s: number, f: any) => s + (f.star_rating || 0), 0) / feedback.length).toFixed(1)
+      : null;
 
-    // Build context for Claude
-    let context = `Customer: ${customer_name}\n`;
-    if (location) context += `Location: ${location}\n`;
-    if (building) context += `Building: ${building}\n`;
-    if (wo_title) context += `Current WO: ${wo_title}\n`;
+    // Build lean context for Claude — pre-aggregated, minimal tokens
+    let context = `Customer: ${customer_name}`;
+    if (location) context += ` | Location: ${location}`;
+    if (building) context += ` | Building: ${building}`;
+    if (wo_title) context += `\nCurrent WO: ${wo_title}`;
 
     if (equipmentInfo) {
-      context += `\nEquipment: ${equipmentInfo.model || "Unknown"} by ${equipmentInfo.manufacturer || "Unknown"}`;
-      context += `\n  Type: ${equipmentInfo.equipment_type}, Refrigerant: ${equipmentInfo.refrigerant_type || "N/A"}`;
-      if (equipmentInfo.install_date) context += `\n  Installed: ${equipmentInfo.install_date}`;
-      if (equipmentInfo.warranty_expiration) context += `, Warranty expires: ${equipmentInfo.warranty_expiration}`;
-      if (equipmentInfo.notes) context += `\n  Notes: ${equipmentInfo.notes}`;
+      context += `\nEquipment: ${equipmentInfo.model || "Unknown"} (${equipmentInfo.equipment_type || ""}), ${equipmentInfo.refrigerant_type || ""}`;
+      if (equipmentInfo.warranty_expiration) context += `, warranty: ${equipmentInfo.warranty_expiration}`;
+      if (equipmentInfo.notes) context += `\nNotes: ${equipmentInfo.notes.slice(0, 100)}`;
     }
 
     if (recentWOs && recentWOs.length > 0) {
-      context += `\n\nRecent work orders at this customer/location (newest first):\n`;
+      context += `\n\nRecent WOs:\n`;
       recentWOs.forEach((w: any) => {
-        context += `  - ${w.wo_id}: ${w.title} [${w.status}] ${w.date_completed ? "completed " + w.date_completed : ""}\n`;
-        if (w.work_performed) context += `    Work: ${w.work_performed.slice(0, 150)}\n`;
-      });
-    }
-
-    if (recentPOs.length > 0) {
-      context += `\nParts/materials used in recent jobs:\n`;
-      recentPOs.forEach((p: any) => {
-        context += `  - ${p.description} ($${p.amount})\n`;
-      });
-    }
-
-    if (avgHours > 0) {
-      context += `\nAverage job duration at this customer: ${avgHours.toFixed(1)} hours\n`;
-    }
-
-    if (feedback && feedback.length > 0) {
-      context += `\nRecent customer feedback:\n`;
-      feedback.forEach((f: any) => {
-        context += `  - Rating: ${f.star_rating}/5`;
-        if (f.private_feedback) context += ` — "${f.private_feedback.slice(0, 100)}"`;
+        context += `- ${w.wo_id}: ${w.title} [${w.status}]${w.date_completed ? " " + w.date_completed : ""}`;
+        if (w.work_performed) context += ` — ${w.work_performed.slice(0, 80)}`;
         context += `\n`;
       });
     }
+
+    if (partsSummary.length > 0) {
+      context += `\nCommon parts: ${partsSummary.map(p => p.name + " (×" + p.count + ")").join(", ")}\n`;
+    }
+
+    if (avgHours > 0) context += `Avg duration: ${avgHours.toFixed(1)}h\n`;
+    if (avgRating) context += `Customer rating: ${avgRating}/5 (${feedback!.length} reviews)\n`;
 
     // Call Claude
     const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -166,7 +138,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
+        max_tokens: 600,
         system: `You are a job intelligence assistant for 3C Refrigeration field technicians. Given context about a customer, location, and service history, generate a brief that helps the tech prepare for the job.
 
 Respond with ONLY valid JSON (no markdown, no code blocks):

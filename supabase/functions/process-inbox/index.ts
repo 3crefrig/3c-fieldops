@@ -337,28 +337,15 @@ serve(async (req) => {
         const fromName = fromMatch ? fromMatch[1].replace(/"/g, "").trim() : from;
         const fromEmail = fromMatch ? fromMatch[2] : from;
 
-        // 4b2. Quick AI classification — is this actually a service request?
-        // Use a cheap, fast call with minimal tokens to classify before full extraction
-        const classifyResp = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 50,
-            messages: [{
-              role: "user",
-              content: `Is this email a service/maintenance/repair request for a commercial refrigeration or HVAC company? Reply ONLY "yes" or "no".\n\nFrom: ${from}\nSubject: ${subject}\nBody preview: ${(body || "").slice(0, 300)}`
-            }],
-          }),
-        });
-        const classifyResult = await classifyResp.json();
-        const classification = (classifyResult.content?.[0]?.text || "").toLowerCase().trim();
-        if (!classification.includes("yes")) {
-          // Not a service request — label it so we don't check again, but don't create a draft
+        // 4b2. Rule-based classification — skip obvious non-service emails
+        // Gmail keyword filter already pre-filters, so we just check for common
+        // false positives (newsletters, marketing, auto-replies) without an AI call.
+        const subjectLower = (subject || "").toLowerCase();
+        const bodyLower = (body || "").slice(0, 500).toLowerCase();
+        const isAutoReply = subjectLower.includes("out of office") || subjectLower.includes("auto-reply") || subjectLower.includes("automatic reply") || subjectLower.includes("undeliverable");
+        const isNewsletter = subjectLower.includes("unsubscribe") || bodyLower.includes("unsubscribe") || subjectLower.includes("newsletter") || fromEmail.includes("noreply") || fromEmail.includes("no-reply") || fromEmail.includes("mailer-daemon");
+        const isMarketing = subjectLower.includes("special offer") || subjectLower.includes("limited time") || subjectLower.includes("% off");
+        if (isAutoReply || isNewsletter || isMarketing) {
           await applyLabel(msgId, labelId, gmailToken);
           skippedNonService++;
           continue;

@@ -225,7 +225,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 2048,
+        max_tokens: 1200,
         messages: [
           {
             role: "user",
