@@ -1,8 +1,95 @@
-import React, { useState } from "react";
-import { B, F, M, IS, LS, BP, BS, PC, haptic } from "../shared";
-import { Card, Badge, Modal } from "./ui";
+import React, { useState, useEffect, useCallback } from "react";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic } from "../shared";
+import { Card, Badge, Modal, Spinner } from "./ui";
 
-function ServiceRequests({drafts,customers,users,onApprove,onReject}){
+// ── Scan Inbox Button with 2hr cooldown ──────────────────────
+function ScanInboxButton({onComplete}){
+  const[scanning,setScanning]=useState(false);
+  const[result,setResult]=useState(null);
+  const[cooldownUntil,setCooldownUntil]=useState(null);
+  const[checking,setChecking]=useState(true);
+
+  // Check cooldown on mount
+  const checkCooldown=useCallback(async()=>{
+    try{
+      const{data}=await sb().from("email_refresh_log").select("refreshed_at").order("refreshed_at",{ascending:false}).limit(1);
+      if(data&&data.length>0){
+        const lastRefresh=new Date(data[0].refreshed_at);
+        const nextAllowed=new Date(lastRefresh.getTime()+2*60*60*1000);
+        if(new Date()<nextAllowed)setCooldownUntil(nextAllowed);
+        else setCooldownUntil(null);
+      }
+    }catch(e){}
+    setChecking(false);
+  },[]);
+
+  useEffect(()=>{checkCooldown();},[checkCooldown]);
+
+  // Countdown timer
+  useEffect(()=>{
+    if(!cooldownUntil)return;
+    const iv=setInterval(()=>{
+      if(new Date()>=cooldownUntil){setCooldownUntil(null);clearInterval(iv);}
+    },30000);
+    return()=>clearInterval(iv);
+  },[cooldownUntil]);
+
+  const scan=async()=>{
+    if(scanning||cooldownUntil)return;
+    setScanning(true);setResult(null);
+    try{
+      // Log this refresh
+      const{data:{user}}=await sb().auth.getUser();
+      if(user)await sb().from("email_refresh_log").insert({user_id:user.id});
+
+      // Call process-inbox edge function
+      const resp=await fetch(SUPABASE_URL+"/functions/v1/process-inbox",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
+        body:"{}"
+      });
+      const data=await resp.json();
+      if(data.success){
+        setResult({
+          found:data.emails_found||0,
+          created:data.drafts_created||0,
+          skipped:data.skipped_non_service||0
+        });
+        // Set cooldown
+        setCooldownUntil(new Date(Date.now()+2*60*60*1000));
+        if(onComplete)onComplete();
+      }else{
+        setResult({error:data.error||"Scan failed"});
+      }
+    }catch(e){
+      setResult({error:"Network error"});
+    }
+    setScanning(false);
+  };
+
+  const canScan=!scanning&&!cooldownUntil&&!checking;
+  const cooldownText=cooldownUntil?(() => {
+    const diff=cooldownUntil-new Date();
+    const mins=Math.ceil(diff/60000);
+    if(mins>=60)return Math.floor(mins/60)+"h "+((mins%60)||"")+"m";
+    return mins+"m";
+  })():"";
+
+  return(<div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+    <button onClick={scan} disabled={!canScan}
+      style={{...BP,padding:"10px 20px",fontSize:13,display:"flex",alignItems:"center",gap:8,opacity:canScan?1:.5}}>
+      {scanning?<><Spinner/> Scanning...</>:checking?"Checking...":"📬 Scan Inbox"}
+    </button>
+    {cooldownUntil&&<span style={{fontSize:11,color:B.textDim}}>Next scan in {cooldownText}</span>}
+    {result&&!result.error&&<span style={{fontSize:11,color:B.green,fontWeight:600}}>
+      Found {result.found} emails · {result.created} new request{result.created!==1?"s":""}
+      {result.skipped>0&&<span style={{color:B.textDim}}> · {result.skipped} skipped</span>}
+    </span>}
+    {result&&result.error&&<span style={{fontSize:11,color:B.red}}>{result.error}</span>}
+  </div>);
+}
+
+function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
   const[sel,setSel]=useState(null);
   const[edits,setEdits]=useState({});
   const pending=(drafts||[]).filter(d=>d.status==="pending_review");
@@ -16,15 +103,20 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject}){
 
   const confDot=(c)=>c>=0.8?B.green:c>=0.5?B.orange:B.red;
 
-  if(pending.length===0&&!showReviewed)return(<div style={{textAlign:"center",padding:40,color:B.textDim}}>
-    <div style={{fontSize:32,marginBottom:8}}>📬</div>
-    <div style={{fontSize:14,fontWeight:600}}>No pending service requests</div>
-    <div style={{fontSize:12,marginTop:4}}>New emails to service@3crefrigeration.com will appear here</div>
-    {reviewed.length>0&&<button onClick={()=>setShowReviewed(true)} style={{...BS,marginTop:16,fontSize:11}}>View {reviewed.length} reviewed</button>}
-  </div>);
-
   return(<div style={{display:"flex",flexDirection:"column",gap:10}}>
+    {/* Scan Inbox button — replaces the old auto-polling cron */}
+    <Card style={{padding:"12px 16px"}}>
+      <ScanInboxButton onComplete={onRefresh}/>
+      <div style={{fontSize:10,color:B.textDim,marginTop:6}}>Scans service@3crefrigeration.com for new service requests. 2-hour cooldown between scans.</div>
+    </Card>
+
     {/* Pending drafts */}
+    {pending.length===0&&!showReviewed&&<div style={{textAlign:"center",padding:30,color:B.textDim}}>
+      <div style={{fontSize:28,marginBottom:6}}>📬</div>
+      <div style={{fontSize:13,fontWeight:600}}>No pending service requests</div>
+      <div style={{fontSize:11,marginTop:4}}>Use the scan button above to check for new emails</div>
+    </div>}
+
     {pending.map(d=><Card key={d.id} onClick={()=>openDraft(d)} style={{padding:"14px 18px",borderLeft:"3px solid "+B.orange}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
@@ -104,4 +196,4 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject}){
   </div>);
 }
 
-export { ServiceRequests };
+export { ServiceRequests, ScanInboxButton };
