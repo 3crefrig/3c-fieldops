@@ -194,49 +194,38 @@ async function buildInvoicePDF(d){
   // Invoice details box — right side
   y+=18;
   const boxX=pw-rm-62,boxW=62;
-  R(boxX,y,boxW,20,light);
-  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(boxX,y,boxX,y+20);
+  R(boxX,y,boxW,28,light);
+  doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(boxX,y,boxX,y+28);
   doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
-  txt("DATE",boxX+4,y+6);txt("INVOICE #",boxX+4,y+14);
+  txt("DATE",boxX+4,y+6);txt("INVOICE #",boxX+4,y+14);txt("CUSTOMER ID",boxX+4,y+22);
   doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
-  txt(d.date,pw-rm-3,y+6,{align:"right"});txt(d.invoiceNum,pw-rm-3,y+14,{align:"right"});
+  txt(d.date,pw-rm-3,y+6,{align:"right"});txt(d.invoiceNum,pw-rm-3,y+14,{align:"right"});txt(d.customerId||"",pw-rm-3,y+22,{align:"right"});
 
   // Company info — left side
   doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
-  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923",d.vendorNumber?"Vendor Number "+d.vendorNumber:null].filter(Boolean);
+  const ci=["3065 Gwyn Rd., Elon, N.C. 27244","Phone: 336-264-0935  |  FAX: (877) 278-4608","service@3crefrigeration.com","N.C. License 4923","Vendor Number "+(d.vendorNumber||"126337")];
   ci.forEach((t,i)=>{txt(t,lm,y+5+i*4.2);});
-  y+=32;
+  y+=34;
 
-  // ── Bill To + Customer ID ──
-  const billW=cw*0.62,cidW=cw*0.38;
-  // Build address lines — wrap long addresses
+  // ── Bill To ──
   doc.setFont("helvetica","normal");doc.setFontSize(9);
   const addrLines=[];
-  if(d.customerName)addrLines.push(d.customerName);
-  if(d.customerAddress){const wrapped=doc.splitTextToSize(d.customerAddress,billW-12);wrapped.forEach(l=>addrLines.push(l));}
-  if(d.customerAddress2){const wrapped=doc.splitTextToSize(d.customerAddress2,billW-12);wrapped.forEach(l=>addrLines.push(l));}
+  if(d.customerDisplayName)addrLines.push(d.customerDisplayName);
+  if(d.customerName&&d.customerName!==d.customerDisplayName)addrLines.push(d.customerName);
+  if(d.customerAddress){doc.splitTextToSize(d.customerAddress,cw*0.6-12).forEach(l=>addrLines.push(l));}
+  if(d.customerAddress2){doc.splitTextToSize(d.customerAddress2,cw*0.6-12).forEach(l=>addrLines.push(l));}
   const billH=Math.max(24,14+addrLines.length*4.5);
-  R(lm,y,billW,billH,light);
+  R(lm,y,cw*0.62,billH,light);
   doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+billH);
   doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);
   txt("BILL TO",lm+5,y+5.5);
-  doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...dark);
-  txt(d.customerDisplayName||"",lm+5,y+12);
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
-  let by=y+17;
+  let by=y+12;
   addrLines.forEach(l=>{txt(l,lm+5,by);by+=4.5;});
-  // Customer ID / Vendor # on right
-  const cidX=lm+billW+6;
-  if(d.customerId){
-    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...mid);
-    txt("CUSTOMER ID",cidX,y+5.5);
-    doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
-    txt(d.customerId,cidX,y+12);
-  }
   y+=billH+6;
 
   // ── Order info row ──
-  const cols=[{label:"PURCHASE ORDER",val:d.poNumber||"—",w:cw*0.22},{label:"JOB DESCRIPTION",val:d.jobDesc||"Repairs",w:cw*0.38},{label:"PAYMENT TERMS",val:d.paymentTerms||"Net 30",w:cw*0.22},{label:"DUE DATE",val:d.dueDate||"—",w:cw*0.18}];
+  const cols=[{label:"PURCHASE ORDER",val:d.poNumber||"—",w:cw*0.22},{label:"JOB",val:d.jobDesc||"Repairs",w:cw*0.28},{label:"PAYMENT TERMS",val:d.paymentTerms||"Net 30",w:cw*0.28},{label:"DUE DATE",val:d.dueDate||"—",w:cw*0.22}];
   R(lm,y,cw,14,dark);
   let cx=lm;
   doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...cyan);
@@ -247,7 +236,6 @@ async function buildInvoicePDF(d){
   y+=18;
 
   // ── Line items ──
-  // Header
   R(lm,y,cw,7,[0,212,245]);
   doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...white);
   txt("QTY",lm+4,y+5);txt("DESCRIPTION",lm+24,y+5);txt("RATE",pw-rm-34,y+5);txt("AMOUNT",pw-rm-2,y+5,{align:"right"});
@@ -268,19 +256,21 @@ async function buildInvoicePDF(d){
     txt(t.name,lm+24,y+4);
     txt("$"+(t.rate||0).toFixed(2),pw-rm-34,y+4);
     doc.setFont("helvetica","bold");
-    txt("$"+total.toFixed(2),pw-rm-2,y+4,{align:"right"});
+    const totalStr=total>0?"$"+total.toLocaleString("en-US",{minimumFractionDigits:2}):"—";
+    txt(totalStr,pw-rm-2,y+4,{align:"right"});
     y+=8;
   });
   y+=2;L(y,[220,225,235],0.2);y+=4;
 
-  // Description
-  if(d.description){
+  // Description / coverage text
+  const descText=d.breakdownData?.description||d.description;
+  if(descText){
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
     txt("WORK PERFORMED",lm+4,y+4);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+40,y+5.5);
     y+=8;
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
-    const descLines=doc.splitTextToSize(d.description,cw-12);
+    const descLines=doc.splitTextToSize(descText,cw-12);
     descLines.slice(0,15).forEach(line=>{txt(line,lm+6,y+3);y+=4;});
     y+=2;L(y,[220,225,235],0.2);y+=4;
   }
@@ -300,7 +290,7 @@ async function buildInvoicePDF(d){
         doc.setFont("helvetica","normal");doc.setTextColor(...dark);
         txt(item[0].toFixed(2),lm+6,y+4);
         doc.setFont("helvetica","bold");txt(item[2],lm+24,y+4);
-        doc.setFont("helvetica","bold");txt("$"+item[1].toFixed(2),pw-rm-2,y+4,{align:"right"});
+        txt("$"+item[1].toLocaleString("en-US",{minimumFractionDigits:2}),pw-rm-2,y+4,{align:"right"});
         y+=8;
       }
     });
@@ -330,14 +320,14 @@ async function buildInvoicePDF(d){
 
   R(tx,y,tw,9,light);
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
-  txt("Subtotal",tx+4,y+6);doc.setTextColor(...dark);txt("$"+subtotal.toFixed(2),pw-rm-4,y+6,{align:"right"});
+  txt("Subtotal",tx+4,y+6);doc.setTextColor(...dark);txt("$ "+subtotal.toLocaleString("en-US",{minimumFractionDigits:2}),pw-rm-4,y+6,{align:"right"});
   y+=10;
   R(tx,y,tw,9,light);
-  doc.setTextColor(...mid);txt("Sales Tax",tx+4,y+6);doc.setTextColor(...dark);txt("$0.00",pw-rm-4,y+6,{align:"right"});
+  doc.setTextColor(...mid);txt("Sales Tax",tx+4,y+6);doc.setTextColor(...dark);txt("—",pw-rm-4,y+6,{align:"right"});
   y+=11;
   R(tx,y,tw,12,cyan);
   doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...white);
-  txt("TOTAL",tx+5,y+8.5);txt("$"+subtotal.toFixed(2),pw-rm-4,y+8.5,{align:"right"});
+  txt("TOTAL",tx+5,y+8.5);txt("$ "+subtotal.toLocaleString("en-US",{minimumFractionDigits:2}),pw-rm-4,y+8.5,{align:"right"});
   y+=22;
 
   // ── Footer ──
