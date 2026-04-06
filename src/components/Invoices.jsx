@@ -134,13 +134,29 @@ async function buildInvoiceExcel(d){
     r=pEnd+1;
   }else{r+=2;}
 
+  // Custom Line Items section
+  const customItemRows=[];
+  if(d.customItems&&d.customItems.length>0){
+    ws.getCell("B"+r).value="Other Charges:";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true,underline:true};
+    ws.getCell("F"+r).fill=shadeFill;
+    r++;
+    d.customItems.forEach(it=>{
+      ws.getCell("B"+r).value=it.description;ws.getCell("B"+r).font={name:"Palatino Linotype",size:10};
+      ws.getCell("F"+r).value=it.amount;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:10};ws.getCell("F"+r).fill=shadeFill;
+      customItemRows.push(r);
+      r++;
+    });
+    r++;
+  }
+
   // Totals section
   r++;
   const subtotalRow=r;
-  // Build subtotal formula: sum of all tier F cells + parts
+  // Build subtotal formula: sum of all tier F cells + parts + custom items
   const tierFCells=tierRows.filter((_,i)=>i<d.tiers.length).map(tr=>"F"+tr).join("+");
+  const customFCells=customItemRows.map(cr=>"F"+cr).join("+");
   ws.getCell("E"+r).value="Subtotal";ws.getCell("E"+r).font={name:"Palatino Linotype",size:10,bold:true};ws.getCell("E"+r).fill=shadeFill;
-  ws.getCell("F"+r).value={formula:(tierFCells||"0")+"+F"+partsRow};ws.getCell("F"+r).numFmt=acctFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:10,bold:true};ws.getCell("F"+r).fill=shadeFill;
+  ws.getCell("F"+r).value={formula:(tierFCells||"0")+"+F"+partsRow+(customFCells?"+"+customFCells:"")};ws.getCell("F"+r).numFmt=acctFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:10,bold:true};ws.getCell("F"+r).fill=shadeFill;
   ["A","B","C","D"].forEach(c=>{ws.getCell(c+r).fill=shadeFill;});
   ws.getCell("E"+r).border={top:thinBorder,bottom:thinBorder};ws.getCell("F"+r).border={top:thinBorder,bottom:thinBorder};
   r++;
@@ -312,10 +328,28 @@ async function buildInvoicePDF(d){
     y+=2;L(y,[220,225,235],0.2);y+=4;
   }
 
+  // Custom Line Items
+  if(d.customItems&&d.customItems.length>0){
+    doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
+    txt("OTHER CHARGES",lm+4,y+4);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+36,y+5.5);
+    y+=9;
+    doc.setFontSize(9.5);
+    d.customItems.forEach((it,i)=>{
+      if(i%2===0)R(lm,y-1,cw,8,light);
+      doc.setFont("helvetica","normal");doc.setTextColor(...dark);
+      txt(it.description,lm+24,y+4);
+      doc.setFont("helvetica","bold");
+      txt("$"+it.amount.toLocaleString("en-US",{minimumFractionDigits:2}),pw-rm-2,y+4,{align:"right"});
+      y+=8;
+    });
+    y+=2;L(y,[220,225,235],0.2);y+=4;
+  }
+
   // ── Totals ──
   y+=4;
   const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-  const subtotal=laborTotal+(d.partsTotal||0);
+  const subtotal=laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0);
   const tw=70,tx=pw-rm-tw;
 
   R(tx,y,tw,9,light);
@@ -464,6 +498,13 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
+  const[customItems,setCustomItems]=useState([]);
+  const[linkedPOs,setLinkedPOs]=useState([]);
+  const addCustomItem=()=>setCustomItems([...customItems,{description:"",amount:0}]);
+  const updateCustomItem=(i,k,v)=>{const n=[...customItems];n[i]={...n[i],[k]:k==="description"?v:parseFloat(v)||0};setCustomItems(n);};
+  const removeCustomItem=(i)=>setCustomItems(customItems.filter((_,j)=>j!==i));
+  const customTotal=customItems.reduce((s,it)=>s+(it.amount||0),0);
+  const togglePOLink=(poId)=>setLinkedPOs(prev=>prev.includes(poId)?prev.filter(x=>x!==poId):[...prev,poId]);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
   const isDUMC=cust.includes("DUMC")||cust.includes("Duke")||customer?.customer_id_code==="DUMC";
@@ -537,13 +578,15 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       em_hours:breakdown.em.hours,em_total:Math.round(breakdown.em.hours*blendedRate*100)/100,
       description:(dateFrom&&dateTo)?dateFrom.replace(/-/g,"/")+' - '+dateTo.replace(/-/g,"/")+' Coverage for repairs and preventive maintenance':'Coverage for repairs and preventive maintenance'
     }:null;
-    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,isDUMC,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
+    const customItemsData=customItems.filter(it=>it.description&&it.amount>0).map(it=>({description:it.description,amount:Math.round(it.amount*100)/100}));
+    const customItemsTotal=customItemsData.reduce((s,it)=>s+it.amount,0);
+    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,customItems:customItemsData,customItemsTotal,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,isDUMC,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
   const saveInvoiceRecord=async(d)=>{
     if(!onCreateInvoice)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()};
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     filteredWOs.forEach(w=>{sb().from("work_orders").update({invoiced:true}).eq("id",w.id);});
@@ -635,9 +678,24 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <button onClick={()=>{setTiers(tiers.map(t=>({...t,hours:0})));}} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer",fontFamily:F}}>Clear all</button>
         </div>
       </div>
+      {/* Custom Line Items — flat rate charges */}
+      <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid "+B.border}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:12,fontWeight:700,color:B.text}}>Custom Line Items</span>
+          <button onClick={addCustomItem} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Line Item</button>
+        </div>
+        <div style={{fontSize:10,color:B.textDim,marginBottom:8}}>Flat-rate charges: mobilization, equipment rental, permits, etc.</div>
+        {customItems.map((it,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center",padding:"6px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+          <input value={it.description} onChange={e=>updateCustomItem(i,"description",e.target.value)} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}} placeholder="e.g. Mobilization"/>
+          <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={it.amount||""} onChange={e=>updateCustomItem(i,"amount",e.target.value)} type="number" step="0.01" style={{...IS,width:80,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0.00"/></div>
+          <button onClick={()=>removeCustomItem(i)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14}}>×</button>
+        </div>)}
+        {customTotal>0&&<div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.purple,fontWeight:700}}>Line Items: ${customTotal.toFixed(2)}</div>}
+      </div>
+
       <div style={{display:"flex",gap:8,marginTop:14}}>
         <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
-        <button onClick={()=>{if(tiers.every(t=>!t.hours)){msg("Enter hours for at least one tier");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
+        <button onClick={()=>{if(tiers.every(t=>!t.hours)&&customItems.length===0){msg("Enter hours or add a line item");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
       </div>
     </Card>}
 
@@ -648,6 +706,20 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div><label style={LS}>Invoice # (YYMM##)</label><input value={invoiceNum} onChange={e=>setInvoiceNum(e.target.value)} placeholder="250301" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>PO Number</label><input value={poNum} onChange={e=>setPoNum(e.target.value)} placeholder="e.g. 4605021670" style={{...IS,fontFamily:M}}/></div>
         </div>
+        {/* Link POs from system */}
+        {filteredPOs.length>0&&<div>
+          <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Link POs from system:</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {filteredPOs.map(p=>{const isLinked=linkedPOs.includes(p.id);return<button key={p.id} onClick={()=>{
+              togglePOLink(p.id);
+              const pid=p.po_id||p.id.slice(0,8);
+              if(!isLinked){setPoNum(prev=>prev?(prev.includes(pid)?prev:prev+", "+pid):pid);}
+              else{setPoNum(prev=>{const parts=prev.split(",").map(s=>s.trim()).filter(s=>s&&s!==pid);return parts.join(", ");});}
+            }} style={{padding:"4px 10px",borderRadius:4,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F,border:"1px solid "+(isLinked?B.green:B.border),background:isLinked?B.green+"18":"transparent",color:isLinked?B.green:B.textDim}}>
+              {isLinked?"✓ ":""}{p.po_id||"PO"} — ${parseFloat(p.amount||0).toFixed(0)} — {(p.description||"").slice(0,30)}
+            </button>;})}
+          </div>
+        </div>}
         <div><label style={LS}>Job Description</label><input value={jobDesc} onChange={e=>setJobDesc(e.target.value)} placeholder="Repairs, PMs, etc." style={IS}/></div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeNotes(!includeNotes)}>
@@ -674,7 +746,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>PREVIEW</div>
           {tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {(t.hours||0).toFixed(1)}h × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
-          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0)+(includeParts?partsTotal:0)).toFixed(2)}</span></div>
+          {customItems.filter(it=>it.description&&it.amount>0).map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.purple,padding:"3px 0"}}><span>{it.description}</span><span style={{fontFamily:M}}>${it.amount.toFixed(2)}</span></div>)}
+          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0)+(includeParts?partsTotal:0)+customTotal).toFixed(2)}</span></div>
           {includeBreakdown&&<div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6}}>
             <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:4}}>BREAKDOWN</div>
             {breakdown.pm.hours>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:B.text,padding:"2px 0"}}><span>Preventative maintenance — {breakdown.pm.hours.toFixed(2)}h</span></div>}
