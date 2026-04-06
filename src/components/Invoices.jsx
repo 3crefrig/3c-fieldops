@@ -93,6 +93,33 @@ async function buildInvoiceExcel(d){
     r=descEndRow+1;
   }else{r+=3;}
 
+  // PM/CM/EM Breakdown section (if included)
+  if(d.breakdownData){
+    const bd=d.breakdownData;
+    // Breakdown header
+    ws.getCell("E"+r).value="Breakdown:";ws.getCell("E"+r).font={name:"Palatino Linotype",size:10,bold:true,italic:true};ws.getCell("F"+r).fill=shadeFill;
+    r++;
+    if(bd.pm_hours>0){
+      ws.getCell("A"+r).value=bd.pm_hours;ws.getCell("A"+r).numFmt="0.00";ws.getCell("A"+r).font={name:"Palatino Linotype",size:10};
+      ws.getCell("B"+r).value="Preventative maintenance";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true};
+      ws.getCell("F"+r).value=bd.pm_total;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+      r++;
+    }
+    if(bd.cm_hours>0){
+      ws.getCell("A"+r).value=bd.cm_hours;ws.getCell("A"+r).numFmt="0.00";ws.getCell("A"+r).font={name:"Palatino Linotype",size:10};
+      ws.getCell("B"+r).value="Corrective maintenance";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true};
+      ws.getCell("F"+r).value=bd.cm_total;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+      r++;
+    }
+    if(bd.em_hours>0){
+      ws.getCell("A"+r).value=bd.em_hours;ws.getCell("A"+r).numFmt="0.00";ws.getCell("A"+r).font={name:"Palatino Linotype",size:10};
+      ws.getCell("B"+r).value="Emergency service";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true};
+      ws.getCell("F"+r).value=bd.em_total;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).fill=shadeFill;
+      r++;
+    }
+    r++;
+  }
+
   // Parts section
   const partsRow=r;
   ws.getCell("B"+r).value="Parts:";ws.getCell("B"+r).font={name:"Palatino Linotype",size:10,bold:true,underline:true};
@@ -258,6 +285,28 @@ async function buildInvoicePDF(d){
     y+=2;L(y,[220,225,235],0.2);y+=4;
   }
 
+  // PM/CM/EM Breakdown
+  if(d.breakdownData){
+    const bd=d.breakdownData;
+    doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
+    txt("BREAKDOWN",lm+4,y+4);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+30,y+5.5);
+    y+=9;
+    doc.setFontSize(9.5);
+    const bItems=[[bd.pm_hours,bd.pm_total,"Preventative maintenance"],[bd.cm_hours,bd.cm_total,"Corrective maintenance"],[bd.em_hours,bd.em_total,"Emergency service"]];
+    bItems.forEach((item,i)=>{
+      if(item[0]>0){
+        if(i%2===0)R(lm,y-1,cw,8,light);
+        doc.setFont("helvetica","normal");doc.setTextColor(...dark);
+        txt(item[0].toFixed(2),lm+6,y+4);
+        doc.setFont("helvetica","bold");txt(item[2],lm+24,y+4);
+        doc.setFont("helvetica","bold");txt("$"+item[1].toFixed(2),pw-rm-2,y+4,{align:"right"});
+        y+=8;
+      }
+    });
+    y+=2;L(y,[220,225,235],0.2);y+=4;
+  }
+
   // Parts
   if(d.partsTotal>0){
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
@@ -316,7 +365,7 @@ async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
   }catch(e){console.warn("Drive upload failed:",e);return null;}
 }
 
-function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers}){
+function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser}){
   const PAGE_SIZE=50;
   const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
@@ -397,16 +446,37 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
     </div>}
-    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice}/>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser}/>}
   </div>);
 }
 
-function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice}){
+// Helper: classify a WO or time entry into PM/CM/EM category
+function classifyWorkType(wo,te){
+  if(!wo)return"pm";
+  const t=(wo.wo_type||"").toUpperCase();
+  const desc=((te?.description||"")+" "+(wo.title||"")+" "+(wo.notes||"")).toLowerCase();
+  if(t==="EM"||desc.includes("emergency"))return"em";
+  if(t==="CM"||desc.includes("corrective")||desc.includes("repair")||desc.includes("replaced")||desc.includes("faulty"))return"cm";
+  return"pm"; // PM, walkthrough, preventative all count as PM
+}
+
+// Calculate bi-weekly date range based on a start anchor date
+function getBiWeeklyRange(anchorDateStr){
+  const anchor=anchorDateStr?new Date(anchorDateStr):new Date("2026-01-05");
+  const now=new Date();const ms=now-anchor;const periods=Math.floor(ms/(14*86400000));
+  const start=new Date(anchor.getTime()+periods*14*86400000);
+  const end=new Date(start.getTime()+13*86400000);
+  return{from:start.toISOString().slice(0,10),to:end.toISOString().slice(0,10)};
+}
+
+function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
+  const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
+  const isDUMC=cust.includes("DUMC")||cust.includes("Duke")||customer?.customer_id_code==="DUMC";
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
   // Filter: per-WO mode or date range mode
   const filteredWOs=mode==="wo"?(selWO?custWOs.filter(w=>w.id===selWO):[]): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
@@ -420,14 +490,45 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const[markupPct,setMarkupPct]=useState(35);
   useEffect(()=>{if(customer)setMarkupPct(customer.parts_markup!=null?parseFloat(customer.parts_markup):35);},[cust]);
   const partsTotal=Math.round(partsCost*(1+markupPct/100)*100)/100;
-  // PM/CM counts
-  const pmCount=filteredWOs.filter(w=>w.wo_type==="PM").length;
-  const cmCount=filteredWOs.filter(w=>w.wo_type==="CM").length;
+
+  // PM/CM/EM breakdown — calculate hours per category from time entries + WO types
+  const breakdown=React.useMemo(()=>{
+    const b={pm:{hours:0,wos:0},cm:{hours:0,wos:0},em:{hours:0,wos:0}};
+    filteredWOs.forEach(wo=>{
+      const woTime=filteredTime.filter(t=>t.wo_id===wo.id);
+      const cat=classifyWorkType(wo);
+      b[cat].wos++;
+      if(woTime.length>0){woTime.forEach(te=>{const teCat=classifyWorkType(wo,te);b[teCat].hours+=parseFloat(te.hours||0);});}
+    });
+    return b;
+  },[filteredWOs,filteredTime]);
+  const pmCount=breakdown.pm.wos;const cmCount=breakdown.cm.wos;const emCount=breakdown.em.wos;
+
   // Default tiers based on customer
   const totalLogged=Object.values(techHours).reduce((s,h)=>s+h,0);
-  const buildTiers=(c)=>{let base;if(customer?.labor_tiers&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0){base=customer.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));}else{const isDuke=c.includes("DUMC")||c.includes("Medical");base=isDuke?[{name:"Journeyman Mechanic",rate:60,hours:0},{name:"Senior Technician",rate:75,hours:0},{name:"Licensed Technician",rate:90,hours:0}]:[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];}if(base.length>0)base[0].hours=totalLogged;return base;};
+  const buildTiers=(c)=>{let base;if(customer?.labor_tiers&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0){base=customer.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));}else{const isDk=c.includes("DUMC")||c.includes("Medical");base=isDk?[{name:"Journeyman Mechanic",rate:60,hours:0},{name:"Senior Technician",rate:75,hours:0},{name:"Licensed Technician",rate:90,hours:0}]:[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];}
+    // DUMC auto-split: 50/50 between Journeyman (idx 0) and Licensed Tech (idx 2)
+    if((c.includes("DUMC")||c.includes("Duke"))&&base.length>=3){
+      const half=Math.round(totalLogged/2*100)/100;
+      base[0].hours=half;base[1].hours=0;base[2].hours=Math.round((totalLogged-half)*100)/100;
+    }else if(base.length>0){base[0].hours=totalLogged;}
+    return base;};
   const[tiers,setTiers]=useState(()=>cust?buildTiers(cust):[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
+
+  // DUMC quick-fill: auto-set fields when DUMC is selected
+  useEffect(()=>{
+    if(!isDUMC||!customer)return;
+    const settings=customer.invoice_settings||{};
+    setMode("range");
+    setIncludeBreakdown(true);
+    setJobDesc(settings.default_job_desc||"PMs, Repairs");
+    setPoNum(settings.default_po||customer.vendor_number||"");
+    // Auto-set bi-weekly date range
+    const range=getBiWeeklyRange(settings.bi_weekly_start);
+    if(!dateFrom)setDateFrom(range.from);
+    if(!dateTo)setDateTo(range.to);
+  },[isDUMC,customer]);
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
 
@@ -436,13 +537,25 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     const tiersData=tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
     const terms=customer?.payment_terms||"Net 30";const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;const due=new Date();due.setDate(due.getDate()+netDays);const dueStr=due.toLocaleDateString();
-    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount};
+    // Build breakdown data with dollar amounts based on blended rate
+    const totalHrs=tiersData.reduce((s,t)=>s+(t.hours||0),0);
+    const laborTotal=tiersData.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
+    const blendedRate=totalHrs>0?laborTotal/totalHrs:0;
+    const breakdownData=includeBreakdown?{
+      pm_hours:breakdown.pm.hours,pm_total:Math.round(breakdown.pm.hours*blendedRate*100)/100,
+      cm_hours:breakdown.cm.hours,cm_total:Math.round(breakdown.cm.hours*blendedRate*100)/100,
+      em_hours:breakdown.em.hours,em_total:Math.round(breakdown.em.hours*blendedRate*100)/100,
+      description:(dateFrom&&dateTo)?dateFrom.replace(/-/g,"/")+' - '+dateTo.replace(/-/g,"/")+' Coverage for repairs and preventive maintenance':'Coverage for repairs and preventive maintenance'
+    }:null;
+    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,isDUMC,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
   const saveInvoiceRecord=async(d)=>{
     if(!onCreateInvoice)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    await onCreateInvoice({invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()});
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()};
+    if(d.breakdownData)record.breakdown_data=d.breakdownData;
+    await onCreateInvoice(record);
     filteredWOs.forEach(w=>{sb().from("work_orders").update({invoiced:true}).eq("id",w.id);});
     if(customer)sb().from("customers").update({labor_tiers:tiers.map(t=>({name:t.name,rate:t.rate}))}).eq("id",customer.id);
   };
@@ -454,7 +567,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       const url=URL.createObjectURL(blob);const a=document.createElement("a");
       a.href=url;a.download="INV_"+invoiceNum+"_"+safeName+".xlsx";a.click();URL.revokeObjectURL(url);
       msg("Invoice downloaded!");
-      await saveInvoiceRecord(d);
+      await saveInvoiceRecord(d);setLastInvoiceData(d);
       if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
       if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
@@ -466,9 +579,27 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       const d=buildInvoiceData();const doc=await buildInvoicePDF(d);
       doc.save("INV_"+invoiceNum+"_"+safeName+".pdf");
       msg("PDF downloaded!");
-      await saveInvoiceRecord(d);
+      await saveInvoiceRecord(d);setLastInvoiceData(d);
       if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
       if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
+    }catch(e){msg("Error: "+e.message);console.error(e);}
+    setGenerating(false);
+  };
+  const generateAndSend=async()=>{
+    if(generating)return;setGenerating(true);
+    try{
+      const d=buildInvoiceData();
+      // Generate PDF for attachment
+      const doc=await buildInvoicePDF(d);
+      const pdfB64=doc.output("datauristring").split(",")[1];
+      const pdfName="INV_"+invoiceNum+"_"+safeName+".pdf";
+      // Upload to Drive first to get preview link
+      let driveFileId=null;
+      if(saveToDrive){const r=await uploadInvoiceToDrive(pdfB64,pdfName,"application/pdf");if(r&&r.fileId)driveFileId=r.fileId;else if(r&&r.webViewLink){const m=r.webViewLink.match(/\/d\/([^/]+)/);if(m)driveFileId=m[1];}}
+      await saveInvoiceRecord(d);
+      setLastInvoiceData({...d,pdfB64,pdfName,driveFileId});
+      setShowSendModal(true);
+      msg("Invoice ready to send!");
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
   };
@@ -540,7 +671,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           </div>}
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeBreakdown(!includeBreakdown)}>
             <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeBreakdown?B.cyan:B.border),background:includeBreakdown?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeBreakdown&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
-            <span style={{fontSize:12,color:B.text}}>Include PM/CM breakdown ({pmCount} PM, {cmCount} CM)</span>
+            <span style={{fontSize:12,color:B.text}}>Include PM/CM/EM breakdown ({breakdown.pm.hours.toFixed(1)}h PM, {breakdown.cm.hours.toFixed(1)}h CM, {breakdown.em.hours.toFixed(1)}h EM)</span>
           </label>
         </div>
         {/* Preview */}
@@ -549,6 +680,12 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           {tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {(t.hours||0).toFixed(1)}h × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
           <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0)+(includeParts?partsTotal:0)).toFixed(2)}</span></div>
+          {includeBreakdown&&<div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6}}>
+            <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:4}}>BREAKDOWN</div>
+            {breakdown.pm.hours>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:B.text,padding:"2px 0"}}><span>Preventative maintenance — {breakdown.pm.hours.toFixed(2)}h</span></div>}
+            {breakdown.cm.hours>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:B.text,padding:"2px 0"}}><span>Corrective maintenance — {breakdown.cm.hours.toFixed(2)}h</span></div>}
+            {breakdown.em.hours>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:B.text,padding:"2px 0"}}><span>Emergency service — {breakdown.em.hours.toFixed(2)}h</span></div>}
+          </div>}
         </div>
         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setSaveToDrive(!saveToDrive)}>
           <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(saveToDrive?B.green:B.border),background:saveToDrive?B.green:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{saveToDrive&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
@@ -559,9 +696,209 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <button onClick={generateXLSX} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"📊 Excel"}</button>
           <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,background:B.purple,opacity:generating?.6:1}}>{generating?"Generating...":"📄 PDF"}</button>
         </div>
+        <button onClick={generateAndSend} disabled={generating} style={{...BP,width:"100%",background:"linear-gradient(135deg,#00D4F5,#7C3AED)",marginTop:4,opacity:generating?.6:1}}>{generating?"Generating...":"📧 Generate & Send Invoice"}</button>
       </div>
     </Card>}
+    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>setShowSendModal(false)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser}/>}
   </div>);
+}
+
+// ── Email variation templates for natural-sounding invoices ──
+const EMAIL_VARIANTS=[
+  {greeting:"Good morning, I hope everyone had a good weekend!",closing:"Please feel free to contact me with any questions or concerns."},
+  {greeting:"Hi team, hope you're having a great start to the week!",closing:"Don't hesitate to reach out if you have any questions."},
+  {greeting:"Good morning! Hope all is well.",closing:"Please let me know if you need anything else or have questions."},
+  {greeting:"Hello everyone, I hope you're doing well!",closing:"As always, feel free to reach out with any questions or concerns."},
+  {greeting:"Good morning, hope you had a great week!",closing:"Let me know if you have any questions about the attached invoice."},
+];
+
+function buildInvoiceEmailHTML(d,variant,driveLink){
+  const LOGO="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
+  const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
+  const total=laborTotal+(d.partsTotal||0);
+  const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/")+" - "+d.dateTo.replace(/-/g,"/")):"";
+
+  let tiersHTML=d.tiers.filter(t=>(t.hours||0)>0).map(t=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${(t.hours||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${t.name}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">$${(t.rate||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${((t.hours||0)*(t.rate||0)).toFixed(2)}</td></tr>`).join("");
+
+  let breakdownHTML="";
+  if(d.breakdownData){
+    const bd=d.breakdownData;
+    breakdownHTML=`<table style="border-collapse:collapse;width:100%;margin:12px 0;"><tr style="background:#f0f7ff;"><td colspan="2" style="padding:8px 12px;border:1px solid #ddd;font-weight:bold;font-size:12px;color:#333;">Breakdown:</td></tr>`+
+    (bd.pm_hours>0?`<tr><td style="padding:6px 12px;border:1px solid #ddd;font-size:12px;">Preventative maintenance</td><td style="padding:6px 12px;border:1px solid #ddd;font-size:12px;text-align:right;font-weight:bold;">${bd.pm_hours.toFixed(2)}h — $${bd.pm_total.toFixed(2)}</td></tr>`:"")+
+    (bd.cm_hours>0?`<tr><td style="padding:6px 12px;border:1px solid #ddd;font-size:12px;">Corrective maintenance</td><td style="padding:6px 12px;border:1px solid #ddd;font-size:12px;text-align:right;font-weight:bold;">${bd.cm_hours.toFixed(2)}h — $${bd.cm_total.toFixed(2)}</td></tr>`:"")+
+    (bd.em_hours>0?`<tr><td style="padding:6px 12px;border:1px solid #ddd;font-size:12px;">Emergency service</td><td style="padding:6px 12px;border:1px solid #ddd;font-size:12px;text-align:right;font-weight:bold;">${bd.em_hours.toFixed(2)}h — $${bd.em_total.toFixed(2)}</td></tr>`:"")+
+    `</table>`;
+  }
+
+  const viewBtn=driveLink?`<div style="text-align:center;margin:20px 0;"><a href="${driveLink}" style="display:inline-block;padding:14px 32px;background:#00D4F5;color:#101214;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px;">View Full Invoice</a></div>`:"";
+
+  return `<div style="font-family:Calibri,Arial,sans-serif;max-width:640px;margin:0 auto;color:#333;">
+<div style="text-align:center;padding:16px 0;border-bottom:3px solid #00D4F5;">
+  <img src="${LOGO}" alt="3C Refrigeration" style="width:160px;height:auto;"/>
+</div>
+<div style="padding:20px;">
+  <p style="font-size:14px;line-height:1.6;">${variant.greeting}</p>
+  <p style="font-size:14px;line-height:1.6;">Below I've attached the invoice for work completed through the following dates ${dateRange}.</p>
+
+  <table style="border-collapse:collapse;width:100%;margin:16px 0;">
+    <tr style="background:#00D4F5;color:#fff;">
+      <td style="padding:10px 12px;font-weight:bold;font-size:12px;border:1px solid #00B7E8;">Invoice #</td>
+      <td style="padding:10px 12px;font-weight:bold;font-size:12px;border:1px solid #00B7E8;">Date</td>
+      <td style="padding:10px 12px;font-weight:bold;font-size:12px;border:1px solid #00B7E8;">Due Date</td>
+      <td style="padding:10px 12px;font-weight:bold;font-size:12px;border:1px solid #00B7E8;text-align:right;">Amount</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 12px;border:1px solid #ddd;font-size:14px;font-weight:bold;">${d.invoiceNum}</td>
+      <td style="padding:10px 12px;border:1px solid #ddd;font-size:13px;">${d.date}</td>
+      <td style="padding:10px 12px;border:1px solid #ddd;font-size:13px;">${d.dueDate}</td>
+      <td style="padding:10px 12px;border:1px solid #ddd;font-size:16px;font-weight:bold;text-align:right;color:#00B050;">$${total.toFixed(2)}</td>
+    </tr>
+  </table>
+
+  <table style="border-collapse:collapse;width:100%;margin:12px 0;">
+    <tr style="background:#f5f7fc;">
+      <th style="padding:8px 12px;border:1px solid #ddd;font-size:11px;text-align:left;color:#666;">QTY</th>
+      <th style="padding:8px 12px;border:1px solid #ddd;font-size:11px;text-align:left;color:#666;">DESCRIPTION</th>
+      <th style="padding:8px 12px;border:1px solid #ddd;font-size:11px;text-align:right;color:#666;">RATE</th>
+      <th style="padding:8px 12px;border:1px solid #ddd;font-size:11px;text-align:right;color:#666;">AMOUNT</th>
+    </tr>
+    ${tiersHTML}
+    <tr style="background:#f0f7ff;">
+      <td colspan="3" style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:14px;">Total</td>
+      <td style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:16px;color:#00B050;">$${total.toFixed(2)}</td>
+    </tr>
+  </table>
+
+  ${breakdownHTML}
+  ${viewBtn}
+
+  <p style="font-size:14px;line-height:1.6;">${variant.closing}</p>
+  <p style="font-size:14px;line-height:1.6;">Thank you.</p>
+</div>
+<div style="border-top:2px solid #eee;padding:16px 20px;font-size:11px;color:#999;text-align:center;">
+  3C Refrigeration LLC &nbsp;|&nbsp; 336-264-0935 &nbsp;|&nbsp; service@3crefrigeration.com
+</div>
+</div>`;
+}
+
+function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
+  const d=data;
+  const[emailTo,setEmailTo]=useState(d.customerEmail||""),[emailCC,setEmailCC]=useState((d.ccEmails||[]).join(", "));
+  const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/").replace(/^20/,"")+" - "+d.dateTo.replace(/-/g,"/").replace(/^20/,"")):"";
+  const defaultSubject=d.invoiceNum+" "+(d.customerDisplayName||"")+" PM & Repairs Invoice "+dateRange;
+  const[subject,setSubject]=useState(defaultSubject);
+  const[variantIdx,setVariantIdx]=useState(()=>Math.floor(Math.random()*EMAIL_VARIANTS.length));
+  const[customBody,setCustomBody]=useState("");
+  const[useCustom,setUseCustom]=useState(false);
+  const[scheduleEnabled,setScheduleEnabled]=useState(true);
+  // Random time between 5:30 AM and 7:00 AM tomorrow
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+  const randHr=5+Math.floor(Math.random()*2);const randMin=randHr===5?30+Math.floor(Math.random()*30):Math.floor(Math.random()*60);
+  const[scheduleDate,setScheduleDate]=useState(tomorrow.toISOString().slice(0,10));
+  const[scheduleTime,setScheduleTime]=useState(String(randHr).padStart(2,"0")+":"+String(randMin).padStart(2,"0"));
+  const[sending,setSending]=useState(false);
+  const[contacts,setContacts]=useState([]);
+  useEffect(()=>{sb().from("email_contacts").select("*").order("last_used",{ascending:false}).then(({data:c})=>{if(c)setContacts(c);});},[]);
+
+  const variant=EMAIL_VARIANTS[variantIdx];
+  const driveLink=d.driveFileId?"https://drive.google.com/file/d/"+d.driveFileId+"/preview":null;
+  const emailHTML=useCustom?customBody:buildInvoiceEmailHTML(d,variant,driveLink);
+
+  const saveContact=async(email)=>{if(!email)return;const existing=contacts.find(c=>c.email.toLowerCase()===email.toLowerCase());if(existing){await sb().from("email_contacts").update({last_used:new Date().toISOString()}).eq("id",existing.id);}else{await sb().from("email_contacts").insert({email:email.toLowerCase()});}};
+
+  const send=async()=>{
+    if(!emailTo.trim()||sending)return;setSending(true);
+    try{
+      // Build signature
+      const u=currentUser||{};
+      const sigHTML='<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;font-family:Calibri,sans-serif;font-size:13px;color:#333;"><strong>'+(u.name||"Alex Clapp")+'</strong><br/>Manager<br/>(336) 264-0935<br/><img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style="width:120px;height:auto;margin-top:6px;display:block;"/></div>';
+      const fullBody='<div style="font-family:Calibri,sans-serif;">'+emailHTML+sigHTML+'</div>';
+
+      // Save contacts
+      emailTo.split(",").map(e=>e.trim()).filter(Boolean).forEach(em=>saveContact(em));
+      if(emailCC)emailCC.split(",").map(e=>e.trim()).filter(Boolean).forEach(em=>saveContact(em));
+
+      if(scheduleEnabled){
+        // Save to scheduled_emails table
+        const sendAt=new Date(scheduleDate+"T"+scheduleTime+":00");
+        await sb().from("scheduled_emails").insert({
+          to_emails:emailTo.trim(),cc_emails:emailCC.trim()||null,subject,body:fullBody,
+          attachment_name:d.pdfName||null,attachment_base64:d.pdfB64||null,
+          drive_file_id:d.driveFileId||null,send_at:sendAt.toISOString(),status:"pending"
+        });
+        msg("Invoice scheduled for "+sendAt.toLocaleString()+"!");
+      }else{
+        // Send immediately
+        const payload={to:emailTo.trim(),cc:emailCC.trim()||undefined,subject,body:fullBody};
+        if(d.pdfB64&&d.pdfName)payload.attachment={name:d.pdfName,content:d.pdfB64,type:"application/pdf"};
+        const resp=await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(payload)});
+        const result=await resp.json();
+        if(result.success)msg("Invoice sent!");else msg("Error: "+(result.error||"Failed"));
+      }
+      onClose();
+    }catch(e){msg("Error: "+e.message);console.error(e);}
+    setSending(false);
+  };
+
+  return(<Modal title="Send Invoice Email" onClose={onClose} wide>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{background:B.bg,borderRadius:6,padding:10,border:"1px solid "+B.border,fontSize:12,color:B.textMuted}}>
+        Sending invoice <strong style={{color:B.cyan}}>#{d.invoiceNum}</strong> to <strong>{d.customerDisplayName}</strong> with PDF attachment from <span style={{color:B.cyan}}>service@3crefrigeration.com</span>
+      </div>
+
+      <div><label style={LS}>To <span style={{color:B.red}}>*</span></label><input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="customer@example.com" style={{...IS,fontSize:14,padding:12}}/></div>
+      <div><label style={LS}>CC <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={emailCC} onChange={e=>setEmailCC(e.target.value)} placeholder="boss@example.com" style={{...IS,fontSize:14,padding:12}}/></div>
+      <div><label style={LS}>Subject</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={{...IS,fontSize:14,padding:12}}/></div>
+
+      {/* Email style picker */}
+      <div>
+        <label style={LS}>Email Style</label>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {EMAIL_VARIANTS.map((v,i)=><button key={i} onClick={()=>{setVariantIdx(i);setUseCustom(false);}} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+(variantIdx===i&&!useCustom?B.cyan:B.border),background:variantIdx===i&&!useCustom?B.cyanGlow:"transparent",color:variantIdx===i&&!useCustom?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>Style {i+1}</button>)}
+          <button onClick={()=>setUseCustom(true)} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+(useCustom?B.cyan:B.border),background:useCustom?B.cyanGlow:"transparent",color:useCustom?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>Custom</button>
+        </div>
+      </div>
+
+      {/* Preview or custom editor */}
+      {useCustom?<div><label style={LS}>Custom Email Body (HTML)</label><textarea value={customBody} onChange={e=>setCustomBody(e.target.value)} rows={6} style={{...IS,resize:"vertical",fontSize:11,fontFamily:M}}/></div>
+      :<div style={{background:"#fff",borderRadius:8,padding:16,border:"1px solid "+B.border,maxHeight:300,overflowY:"auto"}}>
+        <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>EMAIL PREVIEW</div>
+        <div style={{fontSize:13,color:"#333",lineHeight:1.6}}>
+          <p>{variant.greeting}</p>
+          <p>Below I've attached the invoice for work completed through the following dates {dateRange}.</p>
+          <div style={{background:"#f5f7fc",borderRadius:6,padding:12,margin:"8px 0",fontSize:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700}}>Invoice #{d.invoiceNum}</span><span style={{fontWeight:700,color:"#00B050"}}>${(d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0)+(d.partsTotal||0)).toFixed(2)}</span></div>
+            {d.tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{(t.hours||0).toFixed(2)}h {t.name} @ ${t.rate}</span><span>${((t.hours||0)*(t.rate||0)).toFixed(2)}</span></div>)}
+            {d.breakdownData&&<div style={{borderTop:"1px solid #ddd",marginTop:6,paddingTop:6,fontSize:11,color:"#555"}}>
+              {d.breakdownData.pm_hours>0&&<div>PM: {d.breakdownData.pm_hours.toFixed(2)}h — ${d.breakdownData.pm_total.toFixed(2)}</div>}
+              {d.breakdownData.cm_hours>0&&<div>CM: {d.breakdownData.cm_hours.toFixed(2)}h — ${d.breakdownData.cm_total.toFixed(2)}</div>}
+              {d.breakdownData.em_hours>0&&<div>EM: {d.breakdownData.em_hours.toFixed(2)}h — ${d.breakdownData.em_total.toFixed(2)}</div>}
+            </div>}
+          </div>
+          <p>{variant.closing}</p>
+          <p>Thank you.</p>
+        </div>
+      </div>}
+
+      {/* Schedule send */}
+      <div style={{background:B.bg,borderRadius:8,padding:14,border:"1px solid "+B.border}}>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:scheduleEnabled?10:0}} onClick={()=>setScheduleEnabled(!scheduleEnabled)}>
+          <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(scheduleEnabled?B.cyan:B.border),background:scheduleEnabled?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{scheduleEnabled&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
+          <span style={{fontSize:12,color:B.text,fontWeight:600}}>Schedule send (randomized morning delivery)</span>
+        </label>
+        {scheduleEnabled&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><label style={LS}>Date</label><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={IS}/></div>
+          <div><label style={LS}>Time</label><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={IS}/></div>
+          <div style={{gridColumn:"1/-1",fontSize:10,color:B.textDim}}>Default: random time between 5:30-7:00 AM tomorrow. Adjust as needed.</div>
+        </div>}
+      </div>
+
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={onClose} style={{...BS,flex:1}}>Cancel</button>
+        <button onClick={send} disabled={sending||!emailTo.trim()} style={{...BP,flex:1,background:"linear-gradient(135deg,#00D4F5,#7C3AED)",opacity:sending?.6:1}}>{sending?"Sending...":(scheduleEnabled?"📅 Schedule Send":"📧 Send Now")}</button>
+      </div>
+    </div>
+  </Modal>);
 }
 
 export { InvoiceDashboard, InvoiceGenerator, buildInvoiceExcel, buildInvoicePDF, uploadInvoiceToDrive };
