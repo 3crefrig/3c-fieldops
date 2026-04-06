@@ -69,4 +69,7 @@ html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
 .tab-content::-webkit-scrollbar-track{background:transparent}
 .tab-content::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.3);border-radius:3px}
 .tab-content::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.5)}
+input[type="date"],input[type="time"]{cursor:pointer;position:relative}
+input[type="date"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;opacity:0;cursor:pointer}
+select{cursor:pointer}
 `}</style>;

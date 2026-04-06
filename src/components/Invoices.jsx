@@ -638,7 +638,12 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <span style={{fontFamily:M,fontSize:12,color:B.green,minWidth:60,textAlign:"right"}}>${((t.rate||0)*(t.hours||0)).toFixed(0)}</span>
           {tiers.length>1&&<button onClick={()=>setTiers(tiers.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14}}>×</button>}
         </div>)}
-        <button onClick={()=>setTiers([...tiers,{name:"Technician",rate:100,hours:0}])} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Tier</button>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <button onClick={()=>setTiers([...tiers,{name:"Technician",rate:100,hours:0}])} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Tier</button>
+          <span style={{color:B.border}}>|</span>
+          <button onClick={()=>{const active=tiers.filter(t=>t.rate>0);if(active.length<2){msg("Need at least 2 tiers to split");return;}const per=Math.round(totalLogged/active.length*100)/100;const remainder=Math.round((totalLogged-per*(active.length-1))*100)/100;setTiers(tiers.map((t,i)=>{if(t.rate<=0)return{...t,hours:0};const isLast=i===tiers.map((tt,ii)=>tt.rate>0?ii:-1).filter(x=>x>=0).pop();return{...t,hours:isLast===i?remainder:per};}));}} style={{background:"none",border:"none",color:B.orange,fontSize:11,cursor:"pointer",fontFamily:F}}>Split evenly</button>
+          <button onClick={()=>{setTiers(tiers.map(t=>({...t,hours:0})));}} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer",fontFamily:F}}>Clear all</button>
+        </div>
       </div>
       <div style={{display:"flex",gap:8,marginTop:14}}>
         <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
