@@ -510,7 +510,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const customer=customers.find(c=>c.name===cust);
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
   // Filter: per-WO mode or date range mode
-  const filteredWOs=mode==="wo"?(selWO?custWOs.filter(w=>w.id===selWO):[]): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
+  const filteredWOs=mode==="lineonly"?[]:mode==="wo"?(selWO?custWOs.filter(w=>w.id===selWO):[]): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
   // Get time entries for filtered WOs
   const filteredTime=time.filter(t=>filteredWOs.some(w=>w.id===t.wo_id));
   // Group hours by technician
