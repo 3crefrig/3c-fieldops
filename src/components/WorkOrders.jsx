@@ -193,8 +193,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         {canEdit&&<button onClick={()=>setShowTime(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Log Time</button>}
       </Card>}
 
-      {/* Line Items — only for project WOs */}
-      {isProjectWO&&<>
+      {/* Line Items — only for project WOs, hidden from techs */}
+      {isProjectWO&&isManager&&<>
         <Toggle label={"Line Items"+(lineItemsTotal>0?" ($"+lineItemsTotal.toLocaleString(undefined,{minimumFractionDigits:2})+")":"")} count={woLineItems.length} open={showLineItems} setOpen={setShowLineItems}/>
         {showLineItems&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
           {woLineItems.length===0&&!addingLI&&<div style={{color:B.textDim,fontSize:12}}>No line items yet. Add flat-rate charges for this project WO.</div>}
@@ -235,8 +235,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       {/* Crew section */}
       <Card style={{marginBottom:8}}>
         <span style={LS}>Crew</span>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{(wo.crew||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:6,background:B.purple+"22",color:B.purple,fontSize:12,fontWeight:600}}>{t}<button onClick={async()=>{const nc=(wo.crew||[]).filter(x=>x!==t);await onUpdateWO({...wo,crew:nc});}} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:0}}>×</button></span>)}{(wo.crew||[]).length===0&&<span style={{fontSize:12,color:B.textDim}}>No additional crew</span>}
-        <select onChange={async e=>{if(!e.target.value)return;const nc=[...(wo.crew||[]),e.target.value];await onUpdateWO({...wo,crew:nc});e.target.value="";}} style={{...IS,width:"auto",padding:"6px 10px",fontSize:12,cursor:"pointer",marginLeft:6}}><option value="">+ Add</option>{(users||[]).filter(u=>u.active!==false&&u.name!==wo.assignee&&!(wo.crew||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{(wo.crew||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:6,background:B.purple+"22",color:B.purple,fontSize:12,fontWeight:600}}>{t}<button onClick={async()=>{const nc=(wo.crew||[]).filter(x=>x!==t);await sb().from("work_orders").update({crew:nc}).eq("id",wo.id);if(loadData)loadData();msg("Removed "+t);}} style={{background:"none",border:"none",color:B.red,fontSize:16,cursor:"pointer",padding:"2px 4px",lineHeight:1}}>×</button></span>)}{(wo.crew||[]).length===0&&<span style={{fontSize:12,color:B.textDim}}>No additional crew</span>}
+        <select onChange={async e=>{if(!e.target.value)return;const nc=[...(wo.crew||[]),e.target.value];await sb().from("work_orders").update({crew:nc}).eq("id",wo.id);if(loadData)loadData();e.target.value="";msg("Added "+e.target.value);}} style={{...IS,width:"auto",padding:"6px 10px",fontSize:12,cursor:"pointer",marginLeft:6}}><option value="">+ Add</option>{(users||[]).filter(u=>u.active!==false&&u.name!==wo.assignee&&!(wo.crew||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
       </Card>
 
       {/* Activity Log */}
@@ -313,7 +313,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
             <span style={{fontSize:12,color:B.text,flex:1}}>{t.description||"No description"}</span>
           </div>)}
         </div>}
-        {woTime.length===0&&isProjectWO&&woLineItems.length>0&&<div style={{background:B.bg,borderRadius:8,padding:12,border:"1px solid "+B.purple+"40"}}>
+        {woTime.length===0&&isProjectWO&&isManager&&woLineItems.length>0&&<div style={{background:B.bg,borderRadius:8,padding:12,border:"1px solid "+B.purple+"40"}}>
           {woLineItems.map((li,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<woLineItems.length-1?"1px solid "+B.border:"none",alignItems:"center"}}>
             <span style={{fontSize:12,color:B.text}}>{li.description}</span>
             <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.purple}}>${parseFloat(li.amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
