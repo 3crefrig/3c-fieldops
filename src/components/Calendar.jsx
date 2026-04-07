@@ -10,7 +10,7 @@ function CompanyCalendar({userRole,wos,userName}){
   const load=async()=>{const{data}=await sb().from("company_events").select("*").order("event_date");setEvents(data||[]);setLoading(false);};
   useEffect(()=>{load();},[]);
 
-  const save=async()=>{if(!title.trim()||!eDate||saving)return;setSaving(true);await sb().from("company_events").insert({title:title.trim(),description:desc.trim(),event_date:eDate,event_type:eType});setSaving(false);setShowForm(false);setTitle("");setDesc("");setEDate("");load();msg("Event added");};
+  const save=async()=>{if(!title.trim()||!eDate||saving)return;setSaving(true);try{await sb().from("company_events").insert({title:title.trim(),description:desc.trim(),event_date:eDate,event_type:eType});setSaving(false);setShowForm(false);setTitle("");setDesc("");setEDate("");load();msg("Event added");}catch(e){console.error(e);setSaving(false);}};
   const del=async(ev)=>{await sb().from("company_events").delete().eq("id",ev.id);load();msg("Deleted");};
 
   // Calendar grid

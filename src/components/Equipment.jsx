@@ -99,7 +99,7 @@ function EquipmentForm({initial,customers,onSave,onClose}){
     if(!f.customer_name.trim()){alert("Customer is required.");return;}
     if(!f.model.trim()&&!f.serial_number.trim()&&!f.asset_tag.trim()){alert("At least one identifier (model, serial, or asset tag) is required.");return;}
     if(f.notes&&cleanText(f.notes,"Notes")===null)return;
-    setSaving(true);await onSave(initial?{...initial,...f}:f);setSaving(false);onClose();
+    setSaving(true);try{await onSave(initial?{...initial,...f}:f);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}
   };
   return(<Modal title={initial?"Edit Equipment":"Register Equipment"} onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>

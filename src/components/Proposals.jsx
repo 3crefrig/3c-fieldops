@@ -170,14 +170,14 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
   const removeOption=(idx)=>{if(options.length<=2)return;setOptions(options.filter((_,i)=>i!==idx));if(activeOpt>=options.length-1)setActiveOpt(0);};
   const calcOptTotal=(opt)=>{const l=(opt.tier_data||[]).reduce((s,t)=>s+t.rate*t.hours,0);const p=(opt.parts_data||[]).reduce((s,pp)=>s+pp.quantity*pp.unit_cost*(1+pp.markup_pct/100),0);return{labor:l,parts:p,total:l+p};};
 
-  const save=async()=>{if(!cust||saving)return;setSaving(true);
+  const save=async()=>{if(!cust||saving)return;setSaving(true);try{
     if(estimateType==="multi_option"){
       const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"multi_option",options:options.map(o=>{const t=calcOptTotal(o);return{...o,labor_total:t.labor,parts_total:Math.round(t.parts*100)/100,grand_total:Math.round(t.total*100)/100};}),tier_data:[],parts_data:[],labor_total:0,parts_total:0,grand_total:0,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
       await onSave(data);
     }else{
       const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"standard",tier_data:tiers,parts_data:parts,labor_total:laborTotal,parts_total:Math.round(partsTotal*100)/100,grand_total:Math.round(grandTotal*100)/100,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
       await onSave(data);
-    }setSaving(false);};
+    }setSaving(false);}catch(e){console.error(e);setSaving(false);}};
 
   return(<div>
     <div style={{marginBottom:16}}>
@@ -452,18 +452,18 @@ function ProposalPortal({token}){
     setProp(data);setLoading(false);
   })();},[token]);
 
-  const approve=async()=>{if(submitting)return;setSubmitting(true);
+  const approve=async()=>{if(submitting)return;setSubmitting(true);try{
     await sb().from("proposals").update({status:"approved",approved_at:new Date().toISOString(),approved_by:"Customer"}).eq("id",prop.id);
     // If estimate exists, mark it approved + save selected option
     if(est){const upd={status:"approved",approved_at:new Date().toISOString()};if(selectedOpt!==null)upd.selected_option=selectedOpt;await sb().from("estimates").update(upd).eq("id",est.id);}
     const optLabel=est?.estimate_type==="multi_option"&&selectedOpt!==null?(est.options||[])[selectedOpt]?.label:"";
-    await sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name+(optLabel?" — "+optLabel:""),for_role:"admin"});
-    setDone("approved");setSubmitting(false);};
+    sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name+(optLabel?" — "+optLabel:""),for_role:"admin"}).then(()=>{}).catch(e=>console.error(e));
+    setDone("approved");setSubmitting(false);}catch(e){console.error(e);setSubmitting(false);}};
 
-  const reject=async()=>{if(submitting)return;setSubmitting(true);
+  const reject=async()=>{if(submitting)return;setSubmitting(true);try{
     await sb().from("proposals").update({status:"rejected",rejected_at:new Date().toISOString(),rejection_reason:rejReason}).eq("id",prop.id);
-    await sb().from("notifications").insert({type:"proposal_rejected",title:"Proposal Rejected",message:prop.proposal_num+" rejected by "+prop.customer_name+(rejReason?": "+rejReason.slice(0,80):""),for_role:"admin"});
-    setDone("rejected");setSubmitting(false);};
+    sb().from("notifications").insert({type:"proposal_rejected",title:"Proposal Rejected",message:prop.proposal_num+" rejected by "+prop.customer_name+(rejReason?": "+rejReason.slice(0,80):""),for_role:"admin"}).then(()=>{}).catch(e=>console.error(e));
+    setDone("rejected");setSubmitting(false);}catch(e){console.error(e);setSubmitting(false);}};
 
   if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;

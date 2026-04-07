@@ -20,7 +20,7 @@ function UserForm({user,onSave,onClose,curRole}){
   const[title,setTitle]=useState(user?.title||""),[phone,setPhone]=useState(user?.phone||"");
   const[billingRate,setBillingRate]=useState(user?.billing_rate||""),[costRate,setCostRate]=useState(user?.cost_rate||"");
   const[active,setActive]=useState(user?.active!==false);
-  const go=async()=>{if(!n.trim()||!e.trim()||saving)return;setSaving(true);await onSave({name:n.trim(),email:e.trim().toLowerCase(),role:r,title:title.trim(),phone:phone.trim(),billing_rate:parseFloat(billingRate)||0,cost_rate:parseFloat(costRate)||0,active});setSaving(false);};
+  const go=async()=>{if(!n.trim()||!e.trim()||saving)return;setSaving(true);try{await onSave({name:n.trim(),email:e.trim().toLowerCase(),role:r,title:title.trim(),phone:phone.trim(),billing_rate:parseFloat(billingRate)||0,cost_rate:parseFloat(costRate)||0,active});setSaving(false);}catch(err){console.error(err);setSaving(false);}};
   return(<Modal title={user?"Edit User":"Add New User"} onClose={onClose} wide><div style={{display:"flex",flexDirection:"column",gap:12}}>
     <div><label style={LS}>Full Name</label><input value={n} onChange={ev=>setN(ev.target.value)} placeholder="Mike Johnson" style={IS}/></div>
     <div><label style={LS}>Gmail Address</label><input value={e} onChange={ev=>setE(ev.target.value)} placeholder="mike@gmail.com" style={IS}/><div style={{fontSize:10,color:B.textDim,marginTop:4}}>Must match their Google account email exactly.</div></div>

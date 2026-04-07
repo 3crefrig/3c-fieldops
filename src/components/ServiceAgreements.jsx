@@ -26,10 +26,10 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
   const toggleService=(svc)=>set("included_services",f.included_services.includes(svc)?f.included_services.filter(s=>s!==svc):[...f.included_services,svc]);
   const addCustomService=()=>{if(!newService.trim())return;set("included_services",[...f.included_services,newService.trim()]);setNewService("");};
 
-  const save=async()=>{if(!f.name.trim()||saving)return;setSaving(true);
+  const save=async()=>{if(!f.name.trim()||saving)return;setSaving(true);try{
     if(editing){await onUpdate({id:editing.id,...f});msg("Tier updated");}
     else{await onAdd(f);msg("Tier created");}
-    setSaving(false);setShowForm(false);setEditing(null);};
+    setSaving(false);setShowForm(false);setEditing(null);}catch(e){console.error(e);setSaving(false);}};
 
   return(<div>
     <Toast msg={toast}/>
@@ -120,7 +120,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
 
   const save=async()=>{
     if(!f.customer_name||!f.start_date||!f.end_date||saving)return;
-    setSaving(true);await onSave(initial?{id:initial.id,...f}:f);setSaving(false);onClose();};
+    setSaving(true);try{await onSave(initial?{id:initial.id,...f}:f);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
 
   return(<Modal title={initial?"Edit Agreement":"Create Service Agreement"} onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>

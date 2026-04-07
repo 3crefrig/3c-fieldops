@@ -9,7 +9,7 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const openNew=()=>{setEditing(null);setTName("");setTSubject("3C Refrigeration \u2014 Timesheet");setTBody("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");setShowForm(true);};
   const openEdit=(t)=>{setEditing(t);setTName(t.name);setTSubject(t.subject);setTBody(t.body);setShowForm(true);};
-  const go=async()=>{if(!tName.trim()||!tSubject.trim()||saving)return;setSaving(true);const obj={name:tName.trim(),subject:tSubject.trim(),body:tBody.trim()};if(editing){await onUpdateTemplate({...editing,...obj});}else{await onAddTemplate(obj);}setSaving(false);setShowForm(false);msg(editing?"Template updated":"Template created");};
+  const go=async()=>{if(!tName.trim()||!tSubject.trim()||saving)return;setSaving(true);try{const obj={name:tName.trim(),subject:tSubject.trim(),body:tBody.trim()};if(editing){await onUpdateTemplate({...editing,...obj});}else{await onAddTemplate(obj);}setSaving(false);setShowForm(false);msg(editing?"Template updated":"Template created");}catch(e){console.error(e);setSaving(false);}};
   const del=async(t)=>{if(!window.confirm("Delete template '"+t.name+"'?"))return;await onDeleteTemplate(t.id);msg("Deleted");};
 
   const tabs=[["templates","📧 Email Templates"],["workflows","⚡ Workflows"],["company","🏢 Company"],["app","⚙️ App Settings"]];
@@ -55,9 +55,9 @@ function CompanyProfile({msg}){
     setLoading(false);
   })();},[]);
 
-  const save=async()=>{if(saving)return;setSaving(true);
+  const save=async()=>{if(saving)return;setSaving(true);try{
     await sb().from("app_settings").upsert({key:"company_profile",value:profile},{onConflict:"key"});
-    setSaving(false);msg("Company profile saved");};
+    setSaving(false);msg("Company profile saved");}catch(e){console.error(e);setSaving(false);}};
 
   const set=(k,v)=>setProfile(p=>({...p,[k]:v}));
 
@@ -113,9 +113,9 @@ function AppSettings({msg}){
     setLoading(false);
   })();},[]);
 
-  const save=async()=>{if(saving)return;setSaving(true);
+  const save=async()=>{if(saving)return;setSaving(true);try{
     await sb().from("app_settings").upsert({key:"app_settings",value:settings},{onConflict:"key"});
-    setSaving(false);msg("Settings saved");};
+    setSaving(false);msg("Settings saved");}catch(e){console.error(e);setSaving(false);}};
 
   const set=(k,v)=>setSettings(s=>({...s,[k]:v}));
 
