@@ -499,6 +499,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
   const[customItems,setCustomItems]=useState([]);
+  const[skipLabor,setSkipLabor]=useState(false);
   const[linkedPOs,setLinkedPOs]=useState([]);
   const addCustomItem=()=>setCustomItems([...customItems,{description:"",amount:0}]);
   const updateCustomItem=(i,k,v)=>{const n=[...customItems];n[i]={...n[i],[k]:k==="description"?v:parseFloat(v)||0};setCustomItems(n);};
@@ -644,14 +645,14 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     {step===1&&<Card style={{padding:18,maxWidth:600}}>
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});setSkipLabor(false);setCustomItems([]);}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
         {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><CustomSelect value={selWO} onChange={v=>{setSelWO(v);const w=custWOs.find(x=>x.id===v);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");
-              // Project WO: auto-fill customer PO from project + line items, skip labor if line items exist
+              // Project WO: auto-fill customer PO from project + line items
               if(w.project_id){
                 const proj=(projects||[]).find(p=>p.id===w.project_id);
                 if(proj?.customer_po)setPoNum(proj.customer_po);
-                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0){setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));setMode("lineonly");}}
+                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0){setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));setSkipLabor(true);}}
               }
             }}} placeholder="— Select WO —" options={custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};const t=st&&tagMap[st]?tagMap[st]:null;return{value:w.id,label:w.wo_id+" — "+w.title,sub:w.customer_wo?"#"+w.customer_wo:null,badge:t?t[1]:null,tag:t?t[0]:null,tagColor:t?t[1]:null};})}/></div>}
         {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -670,9 +671,13 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     </Card>}
 
     {step===2&&<Card style={{padding:18,maxWidth:600}}>
-      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>{mode==="lineonly"?"Step 2: Add Line Items":"Step 2: Set Labor Rates"}</div>
-      {mode!=="lineonly"&&<div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>}
-      {mode!=="lineonly"&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>{(mode==="lineonly"||skipLabor)?"Step 2: Add Line Items":"Step 2: Set Labor Rates"}</div>
+      {!(mode==="lineonly"||skipLabor)&&<div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>}
+      {skipLabor&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 12px",background:B.purple+"15",borderRadius:6,border:"1px solid "+B.purple+"30"}}>
+        <span style={{fontSize:11,color:B.purple}}>Labor tiers hidden — billing from line items only.</span>
+        <button onClick={()=>setSkipLabor(false)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Include labor hours</button>
+      </div>}
+      {!(mode==="lineonly"||skipLabor)&&<div style={{marginBottom:14}}>
         {tiers.map((t,i)=><div key={i} draggable onDragStart={()=>setDragIdx(i)} onDragOver={e=>{e.preventDefault();setDragOver(i);}} onDragEnd={()=>{setDragIdx(null);setDragOver(null);}} onDrop={e=>{e.preventDefault();if(dragIdx===null||dragIdx===i)return;const n=[...tiers];const[moved]=n.splice(dragIdx,1);n.splice(i,0,moved);setTiers(n);setDragIdx(null);setDragOver(null);}} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+(dragOver===i?B.cyan:B.border),opacity:dragIdx===i?0.4:1,transition:"border-color .15s,opacity .15s",cursor:"grab"}}>
           <span style={{color:B.textDim,fontSize:14,cursor:"grab",userSelect:"none",flexShrink:0}}>⠿</span>
           <input value={t.name} onChange={e=>{const n=[...tiers];n[i]={...n[i],name:e.target.value};setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}} placeholder="Tier name"/>
@@ -689,7 +694,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         </div>
       </div>}
       {/* Custom Line Items — flat rate charges */}
-      <div style={{marginTop:mode==="lineonly"?0:16,paddingTop:mode==="lineonly"?0:14,borderTop:mode==="lineonly"?"none":"1px solid "+B.border}}>
+      <div style={{marginTop:(mode==="lineonly"||skipLabor)?0:16,paddingTop:(mode==="lineonly"||skipLabor)?0:14,borderTop:(mode==="lineonly"||skipLabor)?"none":"1px solid "+B.border}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <span style={{fontSize:12,fontWeight:700,color:B.text}}>Custom Line Items</span>
           <button onClick={addCustomItem} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Line Item</button>
@@ -705,7 +710,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
       <div style={{display:"flex",gap:8,marginTop:14}}>
         <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
-        <button onClick={()=>{if(mode==="lineonly"){if(customItems.filter(it=>it.description&&it.amount>0).length===0){msg("Add at least one line item");return;}}else if(tiers.every(t=>!t.hours)&&customItems.length===0){msg("Enter hours or add a line item");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
+        <button onClick={()=>{if(mode==="lineonly"||skipLabor){if(customItems.filter(it=>it.description&&it.amount>0).length===0){msg("Add at least one line item");return;}}else if(tiers.every(t=>!t.hours)&&customItems.length===0){msg("Enter hours or add a line item");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
       </div>
     </Card>}
 
