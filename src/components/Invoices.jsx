@@ -652,7 +652,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
               if(w.project_id){
                 const proj=(projects||[]).find(p=>p.id===w.project_id);
                 if(proj?.customer_po)setPoNum(proj.customer_po);
-                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0){setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));setSkipLabor(true);}}
+                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0){setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));setSkipLabor(true);setTiers(t=>t.map(tt=>({...tt,hours:0})));}}
               }
             }}} placeholder="— Select WO —" options={custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};const t=st&&tagMap[st]?tagMap[st]:null;return{value:w.id,label:w.wo_id+" — "+w.title,sub:w.customer_wo?"#"+w.customer_wo:null,badge:t?t[1]:null,tag:t?t[0]:null,tagColor:t?t[1]:null};})}/></div>}
         {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
