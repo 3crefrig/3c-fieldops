@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, SC, SL, PSC, PSL, ROLES, cleanText, calcWOHours, autoCorrect, genProjectPO } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast } from "./ui";
+import { WODetail } from "./WorkOrders";
 
 function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
   const[showCreate,setShowCreate]=useState(false),[name,setName]=useState(""),[desc,setDesc]=useState(""),[cust,setCust]=useState(""),[loc,setLoc]=useState(""),[budget,setBudget]=useState(""),[saving,setSaving]=useState(false);
@@ -22,10 +23,11 @@ function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
     </div></Modal>}
   </div>);
 }
-function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole,allWOs,onCreateWO,allPOs,allTime,customers,lineItems}){
+function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole,allWOs,onCreateWO,onUpdateWO,onDeleteWO,allPOs,onCreatePO,allTime,customers,lineItems,photos:woPhotos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,equipment,loadData}){
   const[tab,setTab]=useState("overview"),[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
   const[editBudget,setEditBudget]=useState(false),[localBudget,setLocalBudget]=useState(project.budget||0);
   const[editCustPO,setEditCustPO]=useState(false),[localCustPO,setLocalCustPO]=useState(project.customer_po||"");
+  const[selWO,setSelWO]=useState(null);
   const[chambers,setChambers]=useState([]),[milestones,setMilestones]=useState([]),[parts,setParts]=useState([]),[notes,setNotes]=useState([]),[photos,setPhotos]=useState([]),[drawings,setDrawings]=useState([]);
   const[newChamber,setNewChamber]=useState(""),[selChamber,setSelChamber]=useState(null);
   const[newMilestone,setNewMilestone]=useState(""),[newPart,setNewPart]=useState(""),[newPartQty,setNewPartQty]=useState(1),[newNote,setNewNote]=useState("");
@@ -132,13 +134,17 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
         <select id="woChamberId" style={{...IS,flex:1,cursor:"pointer"}}><option value="">Entire Project</option>{chambers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
         <button onClick={async()=>{const chId=document.getElementById("woChamberId").value||null;const ch=chId?chambers.find(c=>c.id===chId):null;await onCreateWO({title:ch?ch.name+" — "+project.name:project.name,priority:"medium",assignee:"Unassigned",due_date:"TBD",notes:"Project: "+project.name+(ch?" | Chamber: "+ch.name:""),location:ch?ch.name:project.location||"",wo_type:"CM",building:ch?ch.name:"",customer:project.customer||"",customer_wo:"",crew:project.assigned_techs||[],project_id:project.id,chamber_id:chId});msg("WO created"+(ch?" for "+ch.name:""));}} style={{...BP,fontSize:12,whiteSpace:"nowrap"}}>+ Create WO</button>
       </div>}
+      {/* Inline WO Detail view */}
+      {selWO&&(()=>{const fresh=allWOs.find(w=>w.id===selWO);if(!fresh)return null;return<WODetail wo={fresh} onBack={()=>setSelWO(null)} onUpdateWO={onUpdateWO} onDeleteWO={async id=>{await onDeleteWO(id);setSelWO(null);}} onCreateWO={onCreateWO} canEdit={isMgr} pos={allPOs} onCreatePO={onCreatePO} timeEntries={allTime} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={woPhotos||[]} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} equipment={equipment||[]} lineItems={lineItems}/>;})()}
+      {!selWO&&<>
       {pWOs.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No linked work orders</div>}
-      {pWOs.map(wo=>{const chName=wo.chamber_id?chambers.find(c=>c.id===wo.chamber_id)?.name:null;const woLI=(lineItems||[]).filter(li=>li.wo_id===wo.id);const woLITotal=woLI.reduce((s,li)=>s+parseFloat(li.amount||0),0);return<Card key={wo.id} style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(SC[wo.status]||B.border)}}>
+      {pWOs.map(wo=>{const chName=wo.chamber_id?chambers.find(c=>c.id===wo.chamber_id)?.name:null;const woLI=(lineItems||[]).filter(li=>li.wo_id===wo.id);const woLITotal=woLI.reduce((s,li)=>s+parseFloat(li.amount||0),0);return<Card key={wo.id} onClick={()=>setSelWO(wo.id)} className="card-hover" style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(SC[wo.status]||B.border),cursor:"pointer"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge>{chName&&<span style={{fontSize:9,color:B.purple,background:B.purple+"22",padding:"1px 6px",borderRadius:3}}>{chName}</span>}</div><div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{wo.title}</div></div>
           <div style={{textAlign:"right"}}><span style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.cyan}}>{calcWOHours(wo.id,allTime).toFixed(1)}h</span>{woLITotal>0&&<div style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.purple}}>${woLITotal.toLocaleString()}</div>}</div>
         </div>
       </Card>})}
+      </>}
     </div>}
     {tab==="pos"&&<div>
       {isMgr&&<button onClick={()=>setShowPOModal(true)} style={{...BP,marginBottom:12,fontSize:12}}>+ Create Project PO</button>}
@@ -177,9 +183,9 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
     {isMgr&&<div style={{marginTop:20}}><button onClick={async()=>{if(!window.confirm("Delete project?"))return;await onDelete(project.id);onBack();}} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete Project</button></div>}
   </div>);
 }
-function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onDelete,allWOs,onCreateWO,allPOs,allTime,lineItems}){
+function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onDelete,allWOs,onCreateWO,onUpdateWO,onDeleteWO,allPOs,onCreatePO,allTime,lineItems,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,equipment,loadData}){
   const[sel,setSel]=useState(null);
-  if(sel){const f=projects.find(p=>p.id===sel.id);if(!f){setSel(null);return null;}return<ProjectDetail project={f} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async id=>{await onDelete(id);setSel(null);}} users={users} userName={userName} userRole={userRole} allWOs={allWOs} onCreateWO={onCreateWO} allPOs={allPOs} allTime={allTime} customers={customers} lineItems={lineItems}/>;}
+  if(sel){const f=projects.find(p=>p.id===sel.id);if(!f){setSel(null);return null;}return<ProjectDetail project={f} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async id=>{await onDelete(id);setSel(null);}} users={users} userName={userName} userRole={userRole} allWOs={allWOs} onCreateWO={onCreateWO} onUpdateWO={onUpdateWO} onDeleteWO={onDeleteWO} allPOs={allPOs} onCreatePO={onCreatePO} allTime={allTime} customers={customers} lineItems={lineItems} photos={photos} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} onAddPhoto={onAddPhoto} equipment={equipment} loadData={loadData}/>;}
   return<ProjectList projects={projects} onSelect={setSel} onCreate={onAdd} users={users} customers={customers} userRole={userRole}/>;
 }
 

@@ -97,7 +97,7 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
     {tab==="orders"&&<WOList orders={my} {...wlp}/>}
     {tab==="time"&&<TimeLog timeEntries={myTime} wos={D.wos}/>}
-    {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time} lineItems={D.lineItems||[]}/>}
+    {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} onUpdateWO={A.updateWO} onDeleteWO={A.deleteWO} allPOs={D.pos} onCreatePO={A.createPO} allTime={D.time} lineItems={D.lineItems||[]} photos={D.photos||[]} onAddTime={A.addTime} onUpdateTime={A.updateTime} onDeleteTime={A.deleteTime} onAddPhoto={A.addPhoto} equipment={D.equipment||[]} loadData={A.loadData}/>}
     {tab==="equipment"&&<EquipmentDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
   </Shell>);
