@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours } from "../shared";
 import { Card, Badge, StatCard, Modal, EmptyState, Toast } from "./ui";
 import { KPIDashboard, DashAnalytics } from "./KPIDashboard";
@@ -24,8 +24,17 @@ import { EquipmentDashboard } from "./Equipment";
 import { AgreementDashboard } from "./ServiceAgreements";
 import { DayPlanner } from "./DayPlanner";
 
+function useHashTab(defaultTab,validTabs){
+  const getHash=()=>{const h=window.location.hash;const m=h.match(/^#tab=([a-z_-]+)/i);return m&&validTabs.includes(m[1])?m[1]:defaultTab;};
+  const[tab,setTabState]=useState(getHash);
+  const setTab=useCallback((t)=>{setTabState(t);const h="#tab="+t;if(window.location.hash!==h)window.history.pushState(null,"",h);},[]);
+  useEffect(()=>{const onPop=()=>setTabState(getHash());window.addEventListener("popstate",onPop);return()=>window.removeEventListener("popstate",onPop);},[]);
+  return[tab,setTab];
+}
+
 function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
-  const[tab,setTab]=useState("today");const[navWOId,setNavWOId]=useState(null);
+  const techTabs=["today","planner","orders","time","equipment","calendar","projects","kb"];
+  const[tab,setTab]=useHashTab("today",techTabs);const[navWOId,setNavWOId]=useState(null);
   const[quickLog,setQuickLog]=useState(false),[qlWO,setQlWO]=useState(""),[qlH,setQlH]=useState(""),[qlD,setQlD]=useState(""),[qlDate,setQlDate]=useState(new Date().toISOString().slice(0,10)),[qlSaving,setQlSaving]=useState(false);
   const my=D.wos.filter(o=>o.assignee===user.name||(o.crew&&o.crew.includes(user.name)));
   const myActive=my.filter(o=>o.status!=="completed");
@@ -104,7 +113,8 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
 }
 
 function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
-  const[tab,setTab]=useState("overview");const[navWOId,setNavWOId]=useState(null);
+  const mgrTabs=["overview","inbox","orders","planner","pos","reports","billing","invoices","feedback","agreements","equipment","team","customers","users","calendar","projects","kb"];
+  const[tab,setTab]=useHashTab("overview",mgrTabs);const[navWOId,setNavWOId]=useState(null);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,equipment:D.equipment||[],lineItems:D.lineItems||[],userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} offlineQueueCount={offlineQueueCount} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"Work Orders",icon:"📋"},{key:"planner",label:"Week Plan",icon:"🗓"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"feedback",label:"Feedback",icon:"⭐"},{key:"agreements",label:"Agreements",icon:"📋"},{key:"equipment",label:"Equipment",icon:"🔧"},{key:"team",label:"Team",icon:"👥"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
@@ -129,7 +139,8 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
 }
 
 function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
-  const[tab,setTab]=useState("overview");const[navWOId,setNavWOId]=useState(null);
+  const adminTabs=["overview","inbox","orders","planner","pos","reports","billing","invoices","feedback","proposals","agreements","recurring","equipment","customers","users","settings","calendar","projects","kb"];
+  const[tab,setTab]=useHashTab("overview",adminTabs);const[navWOId,setNavWOId]=useState(null);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,equipment:D.equipment||[],lineItems:D.lineItems||[],userName:user.name,userRole:user.role,loadData:A.loadData,navWOId,clearNavWO:()=>setNavWOId(null)};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} offlineQueueCount={offlineQueueCount} notifications={D.notifs} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"planner",label:"Week Plan",icon:"🗓"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"feedback",label:"Feedback",icon:"⭐"},{key:"proposals",label:"Proposals",icon:"📑"},{key:"agreements",label:"Agreements",icon:"📋"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"equipment",label:"Equipment",icon:"🔧"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"}]}>
