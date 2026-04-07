@@ -45,7 +45,10 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const saveDetails=async()=>{if(saving)return;setSaving(true);const{error}=await sb().from("work_orders").update({notes:detailsText}).eq("id",wo.id);if(error)console.error("save details error:",error);await loadData();setSaving(false);setEditingDetails(false);msg("Job details updated");};
   const changeStatus=async(newStatus)=>{if(saving)return;if(newStatus==="completed"){openCompleteFlow();return;}setSaving(true);await onUpdateWO({...wo,status:newStatus});setSaving(false);msg("Status → "+SL[newStatus]);};
   const getAutoWorkPerformed=()=>{const descs=woTime.map(t=>t.description).filter(Boolean);const unique=[...new Set(descs)];return wo.work_performed||unique.join(". ")||"";};
-  const openCompleteFlow=()=>{setSigErr("");setCmpH("");setCmpD("");setCmpDate(new Date().toISOString().slice(0,10));setCompDate(new Date().toISOString().slice(0,10));setWorkPerformed(getAutoWorkPerformed());setCompleteStep(woTime.length>0?2:1);setShowComplete(true);};
+  const openCompleteFlow=()=>{setSigErr("");setCmpH("");setCmpD("");setCmpDate(new Date().toISOString().slice(0,10));setCompDate(new Date().toISOString().slice(0,10));setWorkPerformed(getAutoWorkPerformed());
+    // Project WOs with line items can skip time entry — go straight to review & sign
+    const hasLineItems=isProjectWO&&woLineItems.length>0;
+    setCompleteStep((woTime.length>0||hasLineItems)?2:1);setShowComplete(true);};
   const logTimeAndContinue=async()=>{const h=parseFloat(cmpH);if(!h||h<=0||!cmpD.trim()){setSigErr("Enter hours and description first.");return;}if(cleanText(cmpD,"Description")===null)return;setSigErr("");setSaving(true);await onAddTime({wo_id:wo.id,hours:h,description:cmpD.trim(),logged_date:cmpDate});setSaving(false);if(!workPerformed)setWorkPerformed(cmpD.trim());setCompleteStep(2);msg("Time logged");};
   const markComplete=async()=>{if(saving)return;if(!compDate){setSigErr("Completion date required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required.");return;}if(workPerformed&&cleanText(workPerformed,"Work Performed")===null)return;setSigErr("");setSaving(true);await onUpdateWO({...wo,status:"completed",date_completed:compDate,signature:sigCanvas._getData(),work_performed:workPerformed.trim()||null});setSaving(false);setShowComplete(false);setShowFollowUp(true);msg("Completed & Signed");};
   const createFollowUp=async()=>{if(saving)return;if(cleanText(fuNotes,"Follow-up Notes")===null)return;setSaving(true);await onCreateWO({title:"Follow-up: "+wo.title,priority:wo.priority,assignee:wo.assignee,due_date:"TBD",notes:"Follow-up from "+wo.wo_id+".\n"+fuNotes.trim(),location:wo.location||"",wo_type:"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);setShowFollowUp(false);setFuNotes("");msg("Follow-up WO created");};
@@ -302,13 +305,20 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         <div style={{display:"flex",gap:8}}><button onClick={()=>setShowComplete(false)} style={{...SEC}}>Cancel</button><button onClick={logTimeAndContinue} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Logging...":"Next →"}</button></div>
       </>}
       {completeStep===2&&<>
-        <div style={{fontSize:12,color:B.textDim,textAlign:"center"}}>Review time entries — these become the completion notes</div>
+        <div style={{fontSize:12,color:B.textDim,textAlign:"center"}}>{woTime.length>0?"Review time entries — these become the completion notes":isProjectWO&&woLineItems.length>0?"Project line items — no time entries required":""}</div>
         {woTime.length>0&&<div style={{background:B.bg,borderRadius:8,padding:12,border:"1px solid "+B.border}}>
           {woTime.sort((a,b)=>(a.logged_date||"").localeCompare(b.logged_date||"")).map((t,i)=><div key={i} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",alignItems:"center"}}>
             <span style={{fontFamily:M,fontSize:11,color:B.textDim,minWidth:75}}>{t.logged_date}</span>
             <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.cyan,minWidth:35}}>{t.hours}h</span>
             <span style={{fontSize:12,color:B.text,flex:1}}>{t.description||"No description"}</span>
           </div>)}
+        </div>}
+        {woTime.length===0&&isProjectWO&&woLineItems.length>0&&<div style={{background:B.bg,borderRadius:8,padding:12,border:"1px solid "+B.purple+"40"}}>
+          {woLineItems.map((li,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<woLineItems.length-1?"1px solid "+B.border:"none",alignItems:"center"}}>
+            <span style={{fontSize:12,color:B.text}}>{li.description}</span>
+            <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.purple}}>${parseFloat(li.amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+          </div>)}
+          <div style={{display:"flex",justifyContent:"flex-end",paddingTop:6,fontSize:13,fontWeight:800,color:B.green,fontFamily:M}}>Total: ${lineItemsTotal.toLocaleString(undefined,{minimumFractionDigits:2})}</div>
         </div>}
         <div><label style={LS}>Additional Notes <span style={{color:B.textDim,fontWeight:400}}>(optional — added to completion record)</span></label><textarea value={workPerformed} onChange={e=>setWorkPerformed(e.target.value)} rows={2} placeholder="Any extra notes for the customer record..." style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:13,padding:12}}/></div>
         <div><label style={LS}>Completion Date</label><input type="date" value={compDate} onChange={e=>setCompDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div>
@@ -435,7 +445,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
-      {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=calcWOHours(wo.id,timeEntries);const noTime=wo.status==="in_progress"&&woHrs===0;return(
+      {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=calcWOHours(wo.id,timeEntries);const hasLI=wo.project_id&&(lineItems||[]).some(li=>li.wo_id===wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
         <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{const upd={...wo,status:st};if(st==="completed")upd.date_completed=new Date().toISOString().slice(0,10);await onUpdateWO(upd);}}><Card style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:800}}>✓</span>}</button>}
