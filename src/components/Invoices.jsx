@@ -264,27 +264,30 @@ async function buildInvoicePDF(d){
   txt("QTY",lm+4,y+5);txt("DESCRIPTION",lm+24,y+5);txt("RATE",pw-rm-34,y+5);txt("AMOUNT",pw-rm-2,y+5,{align:"right"});
   y+=9;
 
-  // Labor section
-  doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
-  txt("LABOR",lm+4,y+5);
-  doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+6.5,lm+22,y+6.5);
-  y+=9;
+  // Labor section — only show if there are tiers with hours
+  const hasLabor=d.tiers.some(t=>(t.hours||0)>0);
+  if(hasLabor){
+    doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
+    txt("LABOR",lm+4,y+5);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+6.5,lm+22,y+6.5);
+    y+=9;
 
-  doc.setFontSize(9.5);
-  d.tiers.forEach((t,i)=>{
-    pageBreak(10);
-    const total=(t.hours||0)*(t.rate||0);
-    if(i%2===0)R(lm,y-1,cw,8,light);
-    doc.setFont("helvetica","normal");doc.setTextColor(...dark);
-    txt((t.hours||0).toFixed(2),lm+6,y+4);
-    txt(t.name,lm+24,y+4);
-    txt("$"+(t.rate||0).toFixed(2),pw-rm-34,y+4);
-    doc.setFont("helvetica","bold");
-    const totalStr=total>0?"$"+total.toLocaleString("en-US",{minimumFractionDigits:2}):"—";
-    txt(totalStr,pw-rm-2,y+4,{align:"right"});
-    y+=8;
-  });
-  y+=2;L(y,[220,225,235],0.2);y+=4;
+    doc.setFontSize(9.5);
+    d.tiers.forEach((t,i)=>{
+      pageBreak(10);
+      const total=(t.hours||0)*(t.rate||0);
+      if(i%2===0)R(lm,y-1,cw,8,light);
+      doc.setFont("helvetica","normal");doc.setTextColor(...dark);
+      txt((t.hours||0).toFixed(2),lm+6,y+4);
+      txt(t.name,lm+24,y+4);
+      txt("$"+(t.rate||0).toFixed(2),pw-rm-34,y+4);
+      doc.setFont("helvetica","bold");
+      const totalStr=total>0?"$"+total.toLocaleString("en-US",{minimumFractionDigits:2}):"—";
+      txt(totalStr,pw-rm-2,y+4,{align:"right"});
+      y+=8;
+    });
+    y+=2;L(y,[220,225,235],0.2);y+=4;
+  }
 
   // Description / coverage text
   const descText=d.breakdownData?.description||d.description;
@@ -343,8 +346,8 @@ async function buildInvoicePDF(d){
   if(d.customItems&&d.customItems.length>0){
     pageBreak(18);
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
-    txt("OTHER CHARGES",lm+4,y+4);
-    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+36,y+5.5);
+    txt("LINE ITEMS",lm+4,y+4);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+30,y+5.5);
     y+=9;
     doc.setFontSize(9.5);
     d.customItems.forEach((it,i)=>{
@@ -513,6 +516,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
   const[customItems,setCustomItems]=useState([]);
   const[skipLabor,setSkipLabor]=useState(false);
+  const[lineDesc,setLineDesc]=useState("");
   const[linkedPOs,setLinkedPOs]=useState([]);
   const addCustomItem=()=>setCustomItems([...customItems,{description:"",amount:0}]);
   const updateCustomItem=(i,k,v)=>{const n=[...customItems];n[i]={...n[i],[k]:k==="description"?v:parseFloat(v)||0};setCustomItems(n);};
@@ -568,7 +572,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
 
   const buildInvoiceData=()=>{
-    const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
+    const notes=mode==="lineonly"?lineDesc.trim():(includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"");
     const tiersData=(skipLabor||mode==="lineonly")?[]:tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
     const terms=customer?.payment_terms||"Net 30";const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;const due=new Date();due.setDate(due.getDate()+netDays);const dueStr=due.toLocaleDateString();
@@ -666,8 +670,9 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WO{filteredWOs.length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> tech{Object.keys(techHours).length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
           {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed ("+markupPct+"% markup)"}</div>}
         </div>}
-        {cust&&mode==="lineonly"&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
+        {cust&&mode==="lineonly"&&<div style={{padding:12,background:B.bg,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
           <div style={{fontSize:12,color:B.textDim}}>Create an invoice with flat-rate line items only — no work order or time entries required. Ideal for project milestones, mobilization, equipment charges.</div>
+          <div><label style={LS}>Work Description <span style={{color:B.textDim,fontWeight:400}}>(appears on invoice)</span></label><textarea value={lineDesc} onChange={e=>setLineDesc(e.target.value)} placeholder="Brief description of work for the customer..." rows={2} style={{...IS,resize:"vertical",minHeight:40}}/></div>
         </div>}
         <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(mode==="lineonly"){setStep(2);return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select a work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||(mode!=="lineonly"&&filteredWOs.length===0)}>{mode==="lineonly"?"Next: Add Line Items":"Next: Set Labor Rates"}</button>
       </div>
