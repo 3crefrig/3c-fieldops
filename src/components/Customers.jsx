@@ -31,7 +31,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Phone</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="555-123-4567" style={IS}/></div><div><label style={LS}>Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="john@abc.com" style={IS}/></div></div>
         <div><label style={LS}>Address</label><input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="123 Main St, City, NC" style={IS}/></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={LS}>Invoice Customer ID <span style={{color:B.textDim,fontWeight:400}}>(e.g. DUFMD)</span></label><input value={custIdCode} onChange={e=>setCustIdCode(e.target.value)} placeholder="Short code" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>Invoice Customer ID <span style={{color:B.textDim,fontWeight:400}}>(e.g. DUMC)</span></label><input value={custIdCode} onChange={e=>setCustIdCode(e.target.value)} placeholder="Short code" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>Vendor Number <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={vendorNum} onChange={e=>setVendorNum(e.target.value)} placeholder="e.g. 126337" style={{...IS,fontFamily:M}}/></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:12}}>

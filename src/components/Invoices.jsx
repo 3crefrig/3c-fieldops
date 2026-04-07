@@ -192,6 +192,7 @@ async function buildInvoicePDF(d){
   const R=(x,y1,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,y1,w,h,"F");};
   const L=(y1,c,w)=>{doc.setDrawColor(...c);doc.setLineWidth(w||0.3);doc.line(lm,y1,pw-rm,y1);};
   const txt=(t,x,yy,opts)=>doc.text(String(t||""),x,yy,opts||{});
+  const pageBreak=(needed)=>{if(y+needed>ph-22){doc.addPage();y=14;return true;}return false;};
 
   // ── Top accent bar ──
   R(0,0,pw,3,cyan);
@@ -242,16 +243,22 @@ async function buildInvoicePDF(d){
 
   // ── Order info row ──
   const cols=[{label:"PURCHASE ORDER",val:d.poNumber||"—",w:cw*0.22},{label:"JOB",val:d.jobDesc||"Repairs",w:cw*0.28},{label:"PAYMENT TERMS",val:d.paymentTerms||"Net 30",w:cw*0.28},{label:"DUE DATE",val:d.dueDate||"—",w:cw*0.22}];
-  R(lm,y,cw,14,dark);
+  // Pre-wrap values and compute dynamic row height
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  const colWrapped=cols.map(c=>({...c,lines:doc.splitTextToSize(String(c.val),c.w-8)}));
+  const maxValLines=Math.max(...colWrapped.map(c=>c.lines.length));
+  const orderRowH=8+maxValLines*4.5;
+  R(lm,y,cw,orderRowH,dark);
   let cx=lm;
   doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...cyan);
-  cols.forEach(c=>{txt(c.label,cx+4,y+4.5);cx+=c.w;});
+  colWrapped.forEach(c=>{txt(c.label,cx+4,y+4.5);cx+=c.w;});
   cx=lm;
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...white);
-  cols.forEach(c=>{txt(c.val,cx+4,y+10.5);cx+=c.w;});
-  y+=18;
+  colWrapped.forEach(c=>{c.lines.forEach((ln,li)=>{txt(ln,cx+4,y+9+li*4.5);});cx+=c.w;});
+  y+=orderRowH+4;
 
   // ── Line items ──
+  pageBreak(20);
   R(lm,y,cw,7,[0,212,245]);
   doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...white);
   txt("QTY",lm+4,y+5);txt("DESCRIPTION",lm+24,y+5);txt("RATE",pw-rm-34,y+5);txt("AMOUNT",pw-rm-2,y+5,{align:"right"});
@@ -265,6 +272,7 @@ async function buildInvoicePDF(d){
 
   doc.setFontSize(9.5);
   d.tiers.forEach((t,i)=>{
+    pageBreak(10);
     const total=(t.hours||0)*(t.rate||0);
     if(i%2===0)R(lm,y-1,cw,8,light);
     doc.setFont("helvetica","normal");doc.setTextColor(...dark);
@@ -281,6 +289,7 @@ async function buildInvoicePDF(d){
   // Description / coverage text
   const descText=d.breakdownData?.description||d.description;
   if(descText){
+    pageBreak(16);
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
     txt("WORK PERFORMED",lm+4,y+4);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+40,y+5.5);
@@ -293,6 +302,7 @@ async function buildInvoicePDF(d){
 
   // PM/CM/EM Breakdown
   if(d.breakdownData){
+    pageBreak(20);
     const bd=d.breakdownData;
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
     txt("BREAKDOWN",lm+4,y+4);
@@ -315,6 +325,7 @@ async function buildInvoicePDF(d){
 
   // Parts
   if(d.partsTotal>0){
+    pageBreak(16);
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
     txt("PARTS & MATERIALS",lm+4,y+4);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+42,y+5.5);
@@ -330,6 +341,7 @@ async function buildInvoicePDF(d){
 
   // Custom Line Items
   if(d.customItems&&d.customItems.length>0){
+    pageBreak(18);
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
     txt("OTHER CHARGES",lm+4,y+4);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.3);doc.line(lm+4,y+5.5,lm+36,y+5.5);
@@ -347,6 +359,7 @@ async function buildInvoicePDF(d){
   }
 
   // ── Totals ──
+  pageBreak(50);
   y+=4;
   const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
   const subtotal=laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0);
