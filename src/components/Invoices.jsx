@@ -566,7 +566,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
   const buildInvoiceData=()=>{
     const notes=includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"";
-    const tiersData=tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
+    const tiersData=(skipLabor||mode==="lineonly")?[]:tiers.filter(t=>(t.hours||0)>0||tiers.length<=3).map(t=>({name:t.name,rate:t.rate,hours:t.hours||0}));
     const partsDetailData=filteredPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+markupPct/100)*100)/100}));
     const terms=customer?.payment_terms||"Net 30";const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;const due=new Date();due.setDate(due.getDate()+netDays);const dueStr=due.toLocaleDateString();
     // Build breakdown data with dollar amounts based on blended rate
@@ -770,10 +770,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         {/* Preview */}
         <div style={{background:B.bg,borderRadius:8,padding:14,marginTop:4}}>
           <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>PREVIEW</div>
-          {tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {(t.hours||0).toFixed(1)}h × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
+          {!(skipLabor||mode==="lineonly")&&tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {(t.hours||0).toFixed(1)}h × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
           {customItems.filter(it=>it.description&&it.amount>0).map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.purple,padding:"3px 0"}}><span>{it.description}</span><span style={{fontFamily:M}}>${it.amount.toFixed(2)}</span></div>)}
-          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+(tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0)+(includeParts?partsTotal:0)+customTotal).toFixed(2)}</span></div>
+          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+((skipLabor||mode==="lineonly"?0:tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0))+(includeParts?partsTotal:0)+customTotal).toFixed(2)}</span></div>
           {includeBreakdown&&<div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6}}>
             <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:4}}>BREAKDOWN</div>
             {breakdown.pm.hours>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:B.text,padding:"2px 0"}}><span>Preventative maintenance — {breakdown.pm.hours.toFixed(2)}h</span></div>}
