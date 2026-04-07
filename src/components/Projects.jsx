@@ -76,7 +76,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
   const laborCost=projectTimeEntries.reduce((s,t)=>s+parseFloat(t.hours||0)*getRate(t.technician,"cost"),0);
   const laborBilling=projectTimeEntries.reduce((s,t)=>s+parseFloat(t.hours||0)*getRate(t.technician,"billing"),0);
   const totalCost=materialSpend+laborCost;
-  const totalBilling=materialSpend+laborBilling;
+  const totalBilling=materialSpend+laborBilling+pLineItemsTotal;
   const profit=totalBilling-totalCost;
   const bLeft=(project.budget||0)-totalCost;
   return(<div><Toast msg={toast}/>
@@ -99,7 +99,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
         {(project.budget||0)>0&&<div><div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontSize:12}}><span>Budget: <strong style={{fontFamily:M}}>{"$"+(project.budget||0).toLocaleString()}</strong></span><span>Cost: <strong style={{color:B.orange,fontFamily:M}}>{"$"+totalCost.toLocaleString()}</strong></span><span style={{color:bLeft<0?B.red:B.green}}>Left: <strong style={{fontFamily:M}}>{"$"+bLeft.toLocaleString()}</strong></span></div><div style={{marginTop:8,background:B.bg,borderRadius:4,height:10,overflow:"hidden"}}><div style={{width:Math.min(100,project.budget>0?totalCost/project.budget*100:0)+"%",height:"100%",background:bLeft<0?B.red:B.orange,borderRadius:4}}/></div></div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
           <div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>MATERIALS</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:B.orange,marginTop:2}}>{"$"+materialSpend.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>Approved POs</div></div>
-          <div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>BILLING</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:B.green,marginTop:2}}>{"$"+totalBilling.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>{pHrs.toFixed(1)}h billed</div></div>
+          <div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>BILLING</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:B.green,marginTop:2}}>{"$"+totalBilling.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>{pHrs>0?pHrs.toFixed(1)+"h billed":""}{ pHrs>0&&pLineItemsTotal>0?" + ":""}{pLineItemsTotal>0?"$"+pLineItemsTotal.toLocaleString()+" line items":""}{pHrs===0&&pLineItemsTotal===0?"0.0h billed":""}</div></div>
           {isAdmin&&<div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>LABOR COST</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:B.cyan,marginTop:2}}>{"$"+laborCost.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>{pHrs.toFixed(1)}h × cost rates</div></div>}
           {isAdmin&&<div style={{background:B.bg,borderRadius:6,padding:10}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>PROFIT</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:profit>=0?B.green:B.red,marginTop:2}}>{"$"+profit.toLocaleString()}</div><div style={{fontSize:9,color:B.textDim}}>{totalBilling>0?Math.round(profit/totalBilling*100):0}% margin</div></div>}
         </div>
