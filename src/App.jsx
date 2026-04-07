@@ -26,7 +26,7 @@ function App(){
   },[]);
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
-    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData]=await Promise.all([
+    const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData,lineItemsData]=await Promise.all([
       client.from("work_orders").select("*").order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
@@ -44,9 +44,10 @@ function App(){
       client.from("equipment").select("*").order("customer_name"),
       client.from("service_agreements").select("*").order("created_at",{ascending:false}),
       client.from("agreement_tiers").select("*").order("name"),
+      client.from("wo_line_items").select("*").order("sort_order"),
     ]);
-    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
-    const freshData={wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],equipment:equipmentData.data||[],agreements:agreementsData.data||[],agreementTiers:agreementTiersData.data||[]};
+    [wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData,lineItemsData].forEach((r,i)=>{if(r.error)console.warn("loadData query "+i+" failed:",r.error.message);});
+    const freshData={wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:users.data||[],schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],equipment:equipmentData.data||[],agreements:agreementsData.data||[],agreementTiers:agreementTiersData.data||[],lineItems:lineItemsData.data||[]};
     setData(prev=>({...freshData,onlineUsers:prev?.onlineUsers||[]}));
     setOfflineMode(false);setLoading(false);
     try{await cacheData('appData',freshData);}catch(e){console.warn("IndexedDB cache write failed:",e);}

@@ -7,7 +7,7 @@ import { ActivityLog } from "./ActivityLog";
 import { POReqModal } from "./PurchaseOrders";
 import { EquipmentPicker, EQ_LABELS } from "./Equipment";
 
-function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,equipment}){
+function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,equipment,lineItems}){
   const D_equipment=equipment||[];
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false);
   const[jobIntel,setJobIntel]=useState(null),[intelLoading,setIntelLoading]=useState(false),[intelOpen,setIntelOpen]=useState(false);
@@ -22,7 +22,15 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const[workPerformed,setWorkPerformed]=useState("");
   const[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
   const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(new Date().toISOString().slice(0,10));
-  const[showDetails,setShowDetails]=useState(false),[showTimeEntries,setShowTimeEntries]=useState(false),[showPhotos,setShowPhotos]=useState(false),[showPOs,setShowPOs]=useState(false);
+  const[showDetails,setShowDetails]=useState(false),[showTimeEntries,setShowTimeEntries]=useState(false),[showLineItems,setShowLineItems]=useState(false),[showPhotos,setShowPhotos]=useState(false),[showPOs,setShowPOs]=useState(false);
+  const[liDesc,setLiDesc]=useState(""),[liAmt,setLiAmt]=useState(""),[addingLI,setAddingLI]=useState(false),[savingLI,setSavingLI]=useState(false);
+  const isProjectWO=!!wo.project_id;
+  const woLineItems=(lineItems||[]).filter(li=>li.wo_id===wo.id);
+  const lineItemsTotal=woLineItems.reduce((s,li)=>s+parseFloat(li.amount||0),0);
+  const addLineItem=async()=>{if(!liDesc.trim()||!liAmt||savingLI)return;setSavingLI(true);
+    await sb().from("wo_line_items").insert({wo_id:wo.id,description:liDesc.trim(),amount:parseFloat(liAmt)||0,sort_order:woLineItems.length});
+    setLiDesc("");setLiAmt("");setAddingLI(false);setSavingLI(false);if(loadData)loadData();msg("Line item added");};
+  const deleteLineItem=async(id)=>{await sb().from("wo_line_items").delete().eq("id",id);if(loadData)loadData();msg("Line item removed");};
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.wo_id===wo.id);const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const woPhotos=photos.filter(p=>p.wo_id===wo.id);
   const woHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
@@ -181,6 +189,26 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         {woTime.length===0?<div style={{color:B.textDim,fontSize:12}}>No time logged yet</div>:woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",fontSize:13,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:75}}>{te.logged_date}</span><span style={{fontFamily:M,color:B.cyan,minWidth:40,fontWeight:700}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<div style={{display:"flex",gap:6}}><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:"4px"}}>✏️</button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:"4px"}}>🗑</button></div>}</div>)}
         {canEdit&&<button onClick={()=>setShowTime(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Log Time</button>}
       </Card>}
+
+      {/* Line Items — only for project WOs */}
+      {isProjectWO&&<>
+        <Toggle label={"Line Items"+(lineItemsTotal>0?" ($"+lineItemsTotal.toLocaleString(undefined,{minimumFractionDigits:2})+")":"")} count={woLineItems.length} open={showLineItems} setOpen={setShowLineItems}/>
+        {showLineItems&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
+          {woLineItems.length===0&&!addingLI&&<div style={{color:B.textDim,fontSize:12}}>No line items yet. Add flat-rate charges for this project WO.</div>}
+          {woLineItems.map(li=><div key={li.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
+            <span style={{fontSize:13,color:B.text,flex:1}}>{li.description}</span>
+            <span style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.green,marginRight:8}}>${parseFloat(li.amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+            {isManager&&<button onClick={()=>deleteLineItem(li.id)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14}}>×</button>}
+          </div>)}
+          {woLineItems.length>0&&<div style={{display:"flex",justifyContent:"flex-end",padding:"8px 0",fontSize:14,fontWeight:800,color:B.green,fontFamily:M}}>Total: ${lineItemsTotal.toLocaleString(undefined,{minimumFractionDigits:2})}</div>}
+          {addingLI?<div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
+            <input value={liDesc} onChange={e=>setLiDesc(e.target.value)} placeholder="e.g. Mobilization" style={{...IS,flex:1,padding:"8px 10px",fontSize:12}}/>
+            <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={liAmt} onChange={e=>setLiAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,width:80,padding:"8px",fontSize:12,fontFamily:M}}/></div>
+            <button onClick={addLineItem} disabled={savingLI||!liDesc.trim()||!liAmt} style={{...BP,padding:"8px 12px",fontSize:11,opacity:(savingLI||!liDesc.trim()||!liAmt)?.5:1}}>{savingLI?"...":"Add"}</button>
+            <button onClick={()=>{setAddingLI(false);setLiDesc("");setLiAmt("");}} style={{...BS,padding:"8px",fontSize:11}}>×</button>
+          </div>:isManager&&<button onClick={()=>setAddingLI(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Add Line Item</button>}
+        </Card>}
+      </>}
 
       <Toggle label="Photos" count={woPhotos.length} open={showPhotos} setOpen={setShowPhotos}/>
       {showPhotos&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
@@ -375,7 +403,7 @@ function SwipeCard({wo,onStatusChange,children}){
   </div>);
 }
 
-function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,userName,userRole,loadData,navWOId,clearNavWO}){
+function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,navWOId,clearNavWO}){
   const PAGE_SIZE=50;
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   useEffect(()=>{if(navWOId){const wo=orders.find(o=>o.wo_id===navWOId||o.id===navWOId);if(wo){setSel(wo);if(clearNavWO)clearNavWO();}}},[navWOId]);
@@ -385,7 +413,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders}/>;
-  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} equipment={equipment}/>;}
+  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} equipment={equipment} lineItems={lineItems}/>;}
   const today=new Date().toISOString().slice(0,10);
   const poByWO={},phByWO={};pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
   return(<div>
@@ -413,7 +441,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:800}}>✓</span>}</button>}
             <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
             <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.purple}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge></div>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.purple}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.purple}>Project</Badge>}</div>
               <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{wo.customer&&<span>{"👤 "+wo.customer}</span>}{wo.location&&<span>{" · 📍 "+wo.location}</span>}</div>
               <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,flexWrap:"wrap"}}>

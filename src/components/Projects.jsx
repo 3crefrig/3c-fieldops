@@ -22,7 +22,7 @@ function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
     </div></Modal>}
   </div>);
 }
-function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole,allWOs,onCreateWO,allPOs,allTime,customers}){
+function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole,allWOs,onCreateWO,allPOs,allTime,customers,lineItems}){
   const[tab,setTab]=useState("overview"),[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
   const[editBudget,setEditBudget]=useState(false),[localBudget,setLocalBudget]=useState(project.budget||0);
   const[chambers,setChambers]=useState([]),[milestones,setMilestones]=useState([]),[parts,setParts]=useState([]),[notes,setNotes]=useState([]),[photos,setPhotos]=useState([]),[drawings,setDrawings]=useState([]);
@@ -62,6 +62,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
   const pDone=parts.filter(p=>p.received).length,pTot=parts.length;
   const pWOs=(allWOs||[]).filter(w=>w.project_id===project.id);
   const pHrs=pWOs.reduce((s,w)=>s+calcWOHours(w.id,allTime),0);
+  const pLineItemsTotal=pWOs.reduce((s,w)=>{const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);return s+woLI.reduce((ss,li)=>ss+parseFloat(li.amount||0),0);},0);
   const projectPOs=(allPOs||[]).filter(p=>p.project_id===project.id);
   const woPOs=(allPOs||[]).filter(p=>pWOs.some(w=>w.id===p.wo_id)&&!p.project_id);
   const allProjectPOs=[...projectPOs,...woPOs];
@@ -78,7 +79,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
   return(<div><Toast msg={toast}/>
     <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",fontFamily:F,marginBottom:10}}>← Back</button>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}><div><h2 style={{margin:0,fontSize:20,fontWeight:800,color:B.text}}>{project.name}</h2>{project.customer&&<div style={{fontSize:12,color:B.purple,marginTop:2}}>👤 {project.customer}</div>}{project.location&&<div style={{fontSize:11,color:B.textDim}}>📍 {project.location}</div>}</div><select value={project.status} onChange={async e=>{await onUpdate({...project,status:e.target.value});}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:11,cursor:"pointer",fontFamily:F}}><option value="active">Active</option><option value="archived">Archived</option></select></div>
-    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Milestones" value={mDone+"/"+mTot} icon="🎯" color={mTot>0&&mDone===mTot?B.green:B.cyan}/><StatCard label="Parts" value={pDone+"/"+pTot} icon="🔩" color={pTot>0&&pDone===pTot?B.green:B.orange}/><StatCard label="WOs" value={pWOs.length} icon="📋" color={B.cyan}/><StatCard label="Hours" value={pHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/>{isMgr&&allProjectPOs.filter(p=>p.status==="pending").length>0&&<StatCard label="Pending POs" value={allProjectPOs.filter(p=>p.status==="pending").length} icon="📄" color={B.orange}/>}{isMgr&&project.budget>0&&<StatCard label="Budget Left" value={"$"+bLeft.toLocaleString()} icon="💰" color={bLeft<0?B.red:B.green}/>}</div>
+    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}><StatCard label="Milestones" value={mDone+"/"+mTot} icon="🎯" color={mTot>0&&mDone===mTot?B.green:B.cyan}/><StatCard label="Parts" value={pDone+"/"+pTot} icon="🔩" color={pTot>0&&pDone===pTot?B.green:B.orange}/><StatCard label="WOs" value={pWOs.length} icon="📋" color={B.cyan}/><StatCard label="Hours" value={pHrs.toFixed(1)+"h"} icon="⏱" color={B.orange}/>{pLineItemsTotal>0&&<StatCard label="Line Items" value={"$"+pLineItemsTotal.toLocaleString()} icon="📋" color={B.purple}/>}{isMgr&&allProjectPOs.filter(p=>p.status==="pending").length>0&&<StatCard label="Pending POs" value={allProjectPOs.filter(p=>p.status==="pending").length} icon="📄" color={B.orange}/>}{isMgr&&project.budget>0&&<StatCard label="Budget Left" value={"$"+bLeft.toLocaleString()} icon="💰" color={bLeft<0?B.red:B.green}/>}</div>
     <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",overflowX:"auto"}}>{[["overview","Overview"],["chambers","Chambers"],["milestones","Milestones"],["parts","Parts"],["pos","POs"],["workorders","Work Orders"],["photos","Photos"],["drawings","Drawings"],["notes","Notes"],["team","Team"]].map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"8px 12px",borderRadius:6,border:"1px solid "+(tab===k?B.cyan:B.border),background:tab===k?B.cyanGlow:"transparent",color:tab===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F,whiteSpace:"nowrap"}}>{l}</button>)}</div>
     {(tab==="milestones"||tab==="parts"||tab==="photos"||tab==="pos")&&chambers.length>0&&<div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}><button onClick={()=>setSelChamber(null)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(selChamber===null?B.cyan:B.border),background:selChamber===null?B.cyanGlow:"transparent",color:selChamber===null?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>All</button>{chambers.map(c=><button key={c.id} onClick={()=>setSelChamber(c.id)} style={{padding:"4px 10px",borderRadius:4,border:"1px solid "+(selChamber===c.id?B.cyan:B.border),background:selChamber===c.id?B.cyanGlow:"transparent",color:selChamber===c.id?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{c.name}</button>)}</div>}
     {tab==="overview"&&<div>
@@ -124,10 +125,10 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
         <button onClick={async()=>{const chId=document.getElementById("woChamberId").value||null;const ch=chId?chambers.find(c=>c.id===chId):null;await onCreateWO({title:ch?ch.name+" — "+project.name:project.name,priority:"medium",assignee:"Unassigned",due_date:"TBD",notes:"Project: "+project.name+(ch?" | Chamber: "+ch.name:""),location:ch?ch.name:project.location||"",wo_type:"CM",building:ch?ch.name:"",customer:project.customer||"",customer_wo:"",crew:project.assigned_techs||[],project_id:project.id,chamber_id:chId});msg("WO created"+(ch?" for "+ch.name:""));}} style={{...BP,fontSize:12,whiteSpace:"nowrap"}}>+ Create WO</button>
       </div>}
       {pWOs.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No linked work orders</div>}
-      {pWOs.map(wo=>{const chName=wo.chamber_id?chambers.find(c=>c.id===wo.chamber_id)?.name:null;return<Card key={wo.id} style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(SC[wo.status]||B.border)}}>
+      {pWOs.map(wo=>{const chName=wo.chamber_id?chambers.find(c=>c.id===wo.chamber_id)?.name:null;const woLI=(lineItems||[]).filter(li=>li.wo_id===wo.id);const woLITotal=woLI.reduce((s,li)=>s+parseFloat(li.amount||0),0);return<Card key={wo.id} style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(SC[wo.status]||B.border)}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge>{chName&&<span style={{fontSize:9,color:B.purple,background:B.purple+"22",padding:"1px 6px",borderRadius:3}}>{chName}</span>}</div><div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{wo.title}</div></div>
-          <span style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.cyan}}>{calcWOHours(wo.id,allTime).toFixed(1)}h</span>
+          <div style={{textAlign:"right"}}><span style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.cyan}}>{calcWOHours(wo.id,allTime).toFixed(1)}h</span>{woLITotal>0&&<div style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.purple}}>${woLITotal.toLocaleString()}</div>}</div>
         </div>
       </Card>})}
     </div>}
@@ -168,9 +169,9 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
     {isMgr&&<div style={{marginTop:20}}><button onClick={async()=>{if(!window.confirm("Delete project?"))return;await onDelete(project.id);onBack();}} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete Project</button></div>}
   </div>);
 }
-function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onDelete,allWOs,onCreateWO,allPOs,allTime}){
+function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onDelete,allWOs,onCreateWO,allPOs,allTime,lineItems}){
   const[sel,setSel]=useState(null);
-  if(sel){const f=projects.find(p=>p.id===sel.id);if(!f){setSel(null);return null;}return<ProjectDetail project={f} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async id=>{await onDelete(id);setSel(null);}} users={users} userName={userName} userRole={userRole} allWOs={allWOs} onCreateWO={onCreateWO} allPOs={allPOs} allTime={allTime} customers={customers}/>;}
+  if(sel){const f=projects.find(p=>p.id===sel.id);if(!f){setSel(null);return null;}return<ProjectDetail project={f} onBack={()=>setSel(null)} onUpdate={onUpdate} onDelete={async id=>{await onDelete(id);setSel(null);}} users={users} userName={userName} userRole={userRole} allWOs={allWOs} onCreateWO={onCreateWO} allPOs={allPOs} allTime={allTime} customers={customers} lineItems={lineItems}/>;}
   return<ProjectList projects={projects} onSelect={setSel} onCreate={onAdd} users={users} customers={customers} userRole={userRole}/>;
 }
 

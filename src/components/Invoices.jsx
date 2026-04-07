@@ -389,7 +389,7 @@ async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
   }catch(e){console.warn("Drive upload failed:",e);return null;}
 }
 
-function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser}){
+function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems}){
   const PAGE_SIZE=50;
   const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
@@ -470,7 +470,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
     </div>}
-    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser}/>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems}/>}
   </div>);
 }
 
@@ -493,7 +493,7 @@ function getBiWeeklyRange(anchorDateStr){
   return{from:start.toISOString().slice(0,10),to:end.toISOString().slice(0,10)};
 }
 
-function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser}){
+function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
@@ -646,7 +646,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
-        {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><CustomSelect value={selWO} onChange={v=>{setSelWO(v);const w=custWOs.find(x=>x.id===v);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");}}} placeholder="— Select WO —" options={custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};const t=st&&tagMap[st]?tagMap[st]:null;return{value:w.id,label:w.wo_id+" — "+w.title,sub:w.customer_wo?"#"+w.customer_wo:null,badge:t?t[1]:null,tag:t?t[0]:null,tagColor:t?t[1]:null};})}/></div>}
+        {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><CustomSelect value={selWO} onChange={v=>{setSelWO(v);const w=custWOs.find(x=>x.id===v);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");
+              // Auto-populate custom items from WO line items (project WOs)
+              if(w.project_id&&lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0)setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));}
+            }}} placeholder="— Select WO —" options={custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};const t=st&&tagMap[st]?tagMap[st]:null;return{value:w.id,label:w.wo_id+" — "+w.title,sub:w.customer_wo?"#"+w.customer_wo:null,badge:t?t[1]:null,tag:t?t[0]:null,tagColor:t?t[1]:null};})}/></div>}
         {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>From</label><input value={dateFrom} onChange={e=>setDateFrom(e.target.value)} type="date" style={IS}/></div>
           <div><label style={LS}>To</label><input value={dateTo} onChange={e=>setDateTo(e.target.value)} type="date" style={IS}/></div>
