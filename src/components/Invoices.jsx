@@ -645,7 +645,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-        {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
+        {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
         {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><CustomSelect value={selWO} onChange={v=>{setSelWO(v);const w=custWOs.find(x=>x.id===v);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");
               // Project WO: auto-fill customer PO from project + line items
               if(w.project_id){
@@ -662,14 +662,17 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WO{filteredWOs.length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> tech{Object.keys(techHours).length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
           {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed ("+markupPct+"% markup)"}</div>}
         </div>}
-        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select a work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||filteredWOs.length===0}>Next: Set Labor Rates</button>
+        {cust&&mode==="lineonly"&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
+          <div style={{fontSize:12,color:B.textDim}}>Create an invoice with flat-rate line items only — no work order or time entries required. Ideal for project milestones, mobilization, equipment charges.</div>
+        </div>}
+        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(mode==="lineonly"){setStep(2);return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select a work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||(mode!=="lineonly"&&filteredWOs.length===0)}>{mode==="lineonly"?"Next: Add Line Items":"Next: Set Labor Rates"}</button>
       </div>
     </Card>}
 
     {step===2&&<Card style={{padding:18,maxWidth:600}}>
-      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>Step 2: Set Labor Rates</div>
-      <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>
-      <div style={{marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>{mode==="lineonly"?"Step 2: Add Line Items":"Step 2: Set Labor Rates"}</div>
+      {mode!=="lineonly"&&<div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>}
+      {mode!=="lineonly"&&<div style={{marginBottom:14}}>
         {tiers.map((t,i)=><div key={i} draggable onDragStart={()=>setDragIdx(i)} onDragOver={e=>{e.preventDefault();setDragOver(i);}} onDragEnd={()=>{setDragIdx(null);setDragOver(null);}} onDrop={e=>{e.preventDefault();if(dragIdx===null||dragIdx===i)return;const n=[...tiers];const[moved]=n.splice(dragIdx,1);n.splice(i,0,moved);setTiers(n);setDragIdx(null);setDragOver(null);}} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+(dragOver===i?B.cyan:B.border),opacity:dragIdx===i?0.4:1,transition:"border-color .15s,opacity .15s",cursor:"grab"}}>
           <span style={{color:B.textDim,fontSize:14,cursor:"grab",userSelect:"none",flexShrink:0}}>⠿</span>
           <input value={t.name} onChange={e=>{const n=[...tiers];n[i]={...n[i],name:e.target.value};setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}} placeholder="Tier name"/>
@@ -684,9 +687,9 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <button onClick={()=>{const active=tiers.filter(t=>t.rate>0);if(active.length<2){msg("Need at least 2 tiers to split");return;}const per=Math.round(totalLogged/active.length*100)/100;const remainder=Math.round((totalLogged-per*(active.length-1))*100)/100;setTiers(tiers.map((t,i)=>{if(t.rate<=0)return{...t,hours:0};const isLast=i===tiers.map((tt,ii)=>tt.rate>0?ii:-1).filter(x=>x>=0).pop();return{...t,hours:isLast===i?remainder:per};}));}} style={{background:"none",border:"none",color:B.orange,fontSize:11,cursor:"pointer",fontFamily:F}}>Split evenly</button>
           <button onClick={()=>{setTiers(tiers.map(t=>({...t,hours:0})));}} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer",fontFamily:F}}>Clear all</button>
         </div>
-      </div>
+      </div>}
       {/* Custom Line Items — flat rate charges */}
-      <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid "+B.border}}>
+      <div style={{marginTop:mode==="lineonly"?0:16,paddingTop:mode==="lineonly"?0:14,borderTop:mode==="lineonly"?"none":"1px solid "+B.border}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <span style={{fontSize:12,fontWeight:700,color:B.text}}>Custom Line Items</span>
           <button onClick={addCustomItem} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Add Line Item</button>
@@ -702,7 +705,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
       <div style={{display:"flex",gap:8,marginTop:14}}>
         <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
-        <button onClick={()=>{if(tiers.every(t=>!t.hours)&&customItems.length===0){msg("Enter hours or add a line item");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
+        <button onClick={()=>{if(mode==="lineonly"){if(customItems.filter(it=>it.description&&it.amount>0).length===0){msg("Add at least one line item");return;}}else if(tiers.every(t=>!t.hours)&&customItems.length===0){msg("Enter hours or add a line item");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
       </div>
     </Card>}
 
