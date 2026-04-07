@@ -647,11 +647,11 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
         {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><CustomSelect value={selWO} onChange={v=>{setSelWO(v);const w=custWOs.find(x=>x.id===v);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");
-              // Project WO: auto-fill customer PO from project + line items
+              // Project WO: auto-fill customer PO from project + line items, skip labor if line items exist
               if(w.project_id){
                 const proj=(projects||[]).find(p=>p.id===w.project_id);
                 if(proj?.customer_po)setPoNum(proj.customer_po);
-                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0)setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));}
+                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0){setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));setMode("lineonly");}}
               }
             }}} placeholder="— Select WO —" options={custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};const t=st&&tagMap[st]?tagMap[st]:null;return{value:w.id,label:w.wo_id+" — "+w.title,sub:w.customer_wo?"#"+w.customer_wo:null,badge:t?t[1]:null,tag:t?t[0]:null,tagColor:t?t[1]:null};})}/></div>}
         {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
