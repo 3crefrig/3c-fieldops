@@ -508,7 +508,6 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const togglePOLink=(poId)=>setLinkedPOs(prev=>prev.includes(poId)?prev.filter(x=>x!==poId):[...prev,poId]);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
-  const isDUMC=cust.includes("DUMC")||cust.includes("Duke")||customer?.customer_id_code==="DUMC";
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
   // Filter: per-WO mode or date range mode
   const filteredWOs=mode==="wo"?(selWO?custWOs.filter(w=>w.id===selWO):[]): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
@@ -538,29 +537,20 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
   // Default tiers based on customer
   const totalLogged=Object.values(techHours).reduce((s,h)=>s+h,0);
-  const buildTiers=(c)=>{let base;if(customer?.labor_tiers&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0){base=customer.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));}else{const isDk=c.includes("DUMC")||c.includes("Medical");base=isDk?[{name:"Journeyman Mechanic",rate:60,hours:0},{name:"Senior Technician",rate:75,hours:0},{name:"Licensed Technician",rate:90,hours:0}]:[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];}
-    // DUMC auto-split: 50/50 between Journeyman (idx 0) and Licensed Tech (idx 2)
-    if((c.includes("DUMC")||c.includes("Duke"))&&base.length>=3){
-      const half=Math.round(totalLogged/2*100)/100;
-      base[0].hours=half;base[1].hours=0;base[2].hours=Math.round((totalLogged-half)*100)/100;
-    }else if(base.length>0){base[0].hours=totalLogged;}
+  const buildTiers=(c)=>{let base;if(customer?.labor_tiers&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0){base=customer.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));}else{base=[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];}
+    if(base.length>0)base[0].hours=totalLogged;
     return base;};
   const[tiers,setTiers]=useState(()=>cust?buildTiers(cust):[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
 
-  // DUMC quick-fill: auto-set fields when DUMC is selected
+  // Auto-fill job desc and PO from customer settings (if available)
   useEffect(()=>{
-    if(!isDUMC||!customer)return;
+    if(!customer)return;
     const settings=customer.invoice_settings||{};
-    setMode("range");
-    setIncludeBreakdown(true);
-    setJobDesc(settings.default_job_desc||"PMs, Repairs");
-    setPoNum(settings.default_po||customer.vendor_number||"");
-    // Auto-set bi-weekly date range
-    const range=getBiWeeklyRange(settings.bi_weekly_start);
-    if(!dateFrom)setDateFrom(range.from);
-    if(!dateTo)setDateTo(range.to);
-  },[isDUMC,customer]);
+    if(settings.default_job_desc)setJobDesc(settings.default_job_desc);
+    if(settings.default_po)setPoNum(settings.default_po);
+    else if(customer.vendor_number)setPoNum(customer.vendor_number);
+  },[customer]);
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
 
@@ -581,7 +571,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     }:null;
     const customItemsData=customItems.filter(it=>it.description&&it.amount>0).map(it=>({description:it.description,amount:Math.round(it.amount*100)/100}));
     const customItemsTotal=customItemsData.reduce((s,it)=>s+it.amount,0);
-    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,customItems:customItemsData,customItemsTotal,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,isDUMC,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
+    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,customItems:customItemsData,customItemsTotal,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
   const saveInvoiceRecord=async(d)=>{
