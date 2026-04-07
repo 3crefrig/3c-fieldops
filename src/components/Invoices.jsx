@@ -716,6 +716,17 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div><label style={LS}>Invoice # (YYMM##)</label><input value={invoiceNum} onChange={e=>setInvoiceNum(e.target.value)} placeholder="250301" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>PO Number</label><input value={poNum} onChange={e=>setPoNum(e.target.value)} placeholder="e.g. 4605021670" style={{...IS,fontFamily:M}}/></div>
         </div>
+        {/* Project customer POs — quick apply */}
+        {(()=>{const custProjects=(projects||[]).filter(p=>p.customer===cust&&p.customer_po);
+          return custProjects.length>0?<div>
+            <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Customer PO# from projects:</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {custProjects.map(p=>{const active=poNum===p.customer_po;return<button key={p.id} onClick={()=>setPoNum(p.customer_po)} style={{padding:"5px 12px",borderRadius:4,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:M,border:"1px solid "+(active?B.green:B.border),background:active?B.green+"18":"transparent",color:active?B.green:B.textDim}}>
+                {active?"✓ ":""}{p.customer_po} <span style={{fontFamily:F,fontWeight:400,color:B.textDim,fontSize:9}}>({p.name})</span>
+              </button>;})}
+            </div>
+          </div>:null;
+        })()}
         {/* Link POs from system */}
         {filteredPOs.length>0&&<div>
           <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Link POs from system:</div>
