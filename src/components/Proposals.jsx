@@ -150,7 +150,7 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
   const[estimateType,setEstimateType]=useState(initial?.estimate_type||"standard");
   const[tiers,setTiers]=useState(initial?.tier_data||[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
   const[parts,setParts]=useState(initial?.parts_data||[]);const[desc,setDesc]=useState(initial?.job_description||"");
-  const[notes,setNotes]=useState(initial?.notes||"");const[validUntil,setValidUntil]=useState(initial?.valid_until||"");
+  const[notes,setNotes]=useState(initial?.notes||"");const[validUntil,setValidUntil]=useState(initial?.valid_until||"");const[hideRates,setHideRates]=useState(initial?.hide_rates||false);
   const[terms,setTerms]=useState(initial?.payment_terms||"Net 30");const[saving,setSaving]=useState(false);
   // Multi-option state
   const[options,setOptions]=useState(initial?.options||[
@@ -174,10 +174,10 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
 
   const save=async()=>{if(!cust||saving)return;setSaving(true);try{
     if(estimateType==="multi_option"){
-      const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"multi_option",options:options.map(o=>{const t=calcOptTotal(o);return{...o,labor_total:t.labor,parts_total:Math.round(t.parts*100)/100,grand_total:Math.round(t.total*100)/100};}),tier_data:[],parts_data:[],labor_total:0,parts_total:0,grand_total:0,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
+      const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"multi_option",options:options.map(o=>{const t=calcOptTotal(o);return{...o,labor_total:t.labor,parts_total:Math.round(t.parts*100)/100,grand_total:Math.round(t.total*100)/100};}),tier_data:[],parts_data:[],labor_total:0,parts_total:0,grand_total:0,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms,hide_rates:hideRates};
       await onSave(data);
     }else{
-      const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"standard",tier_data:tiers,parts_data:parts,labor_total:laborTotal,parts_total:Math.round(partsTotal*100)/100,grand_total:Math.round(grandTotal*100)/100,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms};
+      const data={customer_name:cust,customer_id:customers.find(c=>c.name===cust)?.id||null,estimate_type:"standard",tier_data:tiers,parts_data:parts,labor_total:laborTotal,parts_total:Math.round(partsTotal*100)/100,grand_total:Math.round(grandTotal*100)/100,job_description:desc,notes,valid_until:validUntil||null,payment_terms:terms,hide_rates:hideRates};
       await onSave(data);
     }setSaving(false);}catch(e){console.error(e);setSaving(false);}};
 
@@ -228,9 +228,13 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
       </div>
     </>}
 
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
       <div><label style={LS}>Valid Until</label><input value={validUntil} onChange={e=>setValidUntil(e.target.value)} type="date" style={IS}/></div>
       <div><label style={LS}>Payment Terms</label><input value={terms} onChange={e=>setTerms(e.target.value)} style={IS}/></div>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:16,background:B.bg,borderRadius:8,border:"1px solid "+B.border}}>
+      <input type="checkbox" checked={hideRates} onChange={e=>setHideRates(e.target.checked)} style={{width:16,height:16,accentColor:B.cyan}}/>
+      <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>Hide rates & hours on PDF</div><div style={{fontSize:10,color:B.textDim}}>Show labor as a lump sum instead of rate x hours breakdown</div></div>
     </div>
     <div style={{marginBottom:16}}><label style={LS}>Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Additional notes..."/></div>
 
@@ -449,35 +453,51 @@ async function generateProposalPdf(prop,est){
     doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(255,255,255);
     doc.text("PRICING",lm+6,y+6.5);y+=9;
 
+    const hideRates=est.hide_rates===true;
     const renderEstimate=(tierData,partsData,laborTotal,partsTotal,grandTotal,optLabel)=>{
       if(optLabel){checkPage(10);doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...cyan);doc.text(optLabel,lm,y+5);y+=8;}
+      // Filter out zero-hour tiers and zero-quantity parts
+      const activeTiers=(tierData||[]).filter(t=>t.hours>0&&t.rate>0);
+      const activeParts=(partsData||[]).filter(p=>p.quantity>0&&p.unit_cost>0);
       // Labor table
-      if(tierData&&tierData.length>0){
+      if(activeTiers.length>0){
         checkPage(12);
-        drawRect(lm,y,cw,7,[245,247,250]);
-        doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
-        doc.text("LABOR",lm+4,y+5);doc.text("RATE",lm+cw*0.5,y+5);doc.text("HOURS",lm+cw*0.65,y+5);doc.text("SUBTOTAL",pw-rm-4,y+5,{align:"right"});y+=7;
-        for(const t of tierData){
+        if(hideRates){
+          // Lump sum — just show "Labor" with total
+          drawRect(lm,y,cw,7,[245,247,250]);
+          doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
+          doc.text("LABOR",lm+4,y+5);doc.text("AMOUNT",pw-rm-4,y+5,{align:"right"});y+=7;
           checkPage(8);
           doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
-          doc.text(t.name||"—",lm+4,y+5);
-          doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
-          doc.text("$"+Number(t.rate).toFixed(2),lm+cw*0.5,y+5);
-          doc.text(String(t.hours||0),lm+cw*0.65,y+5);
+          doc.text("Labor",lm+4,y+5);
           doc.setFont("helvetica","bold");
-          doc.text("$"+(t.rate*t.hours).toFixed(2),pw-rm-4,y+5,{align:"right"});
+          doc.text("$"+(laborTotal||0).toFixed(2),pw-rm-4,y+5,{align:"right"});
           drawLine(y+7,[230,235,240]);y+=8;
+        }else{
+          drawRect(lm,y,cw,7,[245,247,250]);
+          doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
+          doc.text("LABOR",lm+4,y+5);doc.text("RATE",lm+cw*0.5,y+5);doc.text("HOURS",lm+cw*0.65,y+5);doc.text("SUBTOTAL",pw-rm-4,y+5,{align:"right"});y+=7;
+          for(const t of activeTiers){
+            checkPage(8);
+            doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+            doc.text(t.name||"—",lm+4,y+5);
+            doc.text("$"+Number(t.rate).toFixed(2),lm+cw*0.5,y+5);
+            doc.text(String(t.hours||0),lm+cw*0.65,y+5);
+            doc.setFont("helvetica","bold");
+            doc.text("$"+(t.rate*t.hours).toFixed(2),pw-rm-4,y+5,{align:"right"});
+            drawLine(y+7,[230,235,240]);y+=8;
+          }
         }
         doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...mid);
         doc.text("Labor Subtotal: $"+(laborTotal||0).toFixed(2),pw-rm-4,y+5,{align:"right"});y+=8;
       }
       // Parts table
-      if(partsData&&partsData.length>0){
+      if(activeParts.length>0){
         checkPage(12);y+=2;
         drawRect(lm,y,cw,7,[245,247,250]);
         doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
         doc.text("PARTS & MATERIALS",lm+4,y+5);doc.text("QTY",lm+cw*0.55,y+5);doc.text("UNIT",lm+cw*0.68,y+5);doc.text("SUBTOTAL",pw-rm-4,y+5,{align:"right"});y+=7;
-        for(const p of partsData){
+        for(const p of activeParts){
           checkPage(8);const sub=p.quantity*p.unit_cost*(1+p.markup_pct/100);
           doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
           const descLines=doc.splitTextToSize(p.description||"—",cw*0.5);
