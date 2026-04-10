@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
+import { jsPDF } from "jspdf";
+import { fetchLogoBase64 } from "./PurchaseOrders";
 
 // ── Email Picker for "Start from Email" ──────────────────────
 function EmailPicker({onSelect,onClose}){
@@ -324,11 +326,11 @@ function ProposalBuilder({customers,users,userName,onClose}){
       <div><label style={LS}>Location</label><input value={location} onChange={e=>setLocation(e.target.value)} style={IS} placeholder="Building/campus name"/></div>
       <div><label style={LS}>Scope Description *</label><textarea value={scope} onChange={e=>setScope(e.target.value)} rows={4} style={{...IS,resize:"vertical"}} placeholder="Describe the work in detail — what needs to be done, equipment involved, special requirements..."/></div>
       <SnippetSelector onAppend={(text)=>{setScope(prev=>prev?(prev+"\n\n"+text):text);setSelectedSnippets(prev=>[...prev,text]);}}/>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:B.bg,borderRadius:8,border:"1px solid "+B.border}}>
-        <input type="checkbox" checked={includeEstimate} onChange={e=>setIncludeEstimate(e.target.checked)} style={{width:18,height:18,accentColor:B.cyan}}/>
-        <div><div style={{fontSize:13,fontWeight:600,color:B.text}}>Include Cost Estimate</div><div style={{fontSize:11,color:B.textDim}}>Attach a detailed labor & parts estimate to this proposal</div></div>
-      </div>
-      {includeEstimate&&<Card style={{padding:16}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate saved");}} onCancel={()=>setIncludeEstimate(false)}/></Card>}
+      <button onClick={()=>setIncludeEstimate(!includeEstimate)} style={{...BS,width:"100%",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:10,borderStyle:includeEstimate?"solid":"dashed",borderColor:includeEstimate?B.green:B.border,background:includeEstimate?B.green+"12":"transparent"}}>
+        <span style={{fontSize:18}}>{includeEstimate?"✅":"💰"}</span>
+        <div style={{textAlign:"left"}}><div style={{fontSize:14,fontWeight:700,color:includeEstimate?B.green:B.text}}>{includeEstimate?"Pricing Added":"Add Pricing & Estimate"}</div><div style={{fontSize:11,color:B.textDim}}>{includeEstimate?"Labor, parts, and totals attached — click to collapse":"Add labor costs, equipment pricing, and totals to this proposal"}</div></div>
+      </button>
+      {includeEstimate&&<Card style={{padding:16,borderLeft:"3px solid "+B.green}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate saved");}} onCancel={()=>setIncludeEstimate(false)} initial={estimate}/></Card>}
       <button onClick={()=>setStep(2)} disabled={!cust||!scope} style={{...BP,width:"100%",opacity:(!cust||!scope)?.6:1}}>Continue to Generation</button>
     </div>}
 
@@ -377,9 +379,206 @@ function ProposalBuilder({customers,users,userName,onClose}){
   </div>);
 }
 
+// ── Proposal PDF Generator ──────────────────────────────────
+async function generateProposalPdf(prop,est){
+  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const pw=215.9,lm=20,rm=20,cw=pw-lm-rm;
+  const cyan=[0,229,255],dark=[30,34,42],mid=[120,130,150],light=[240,243,248];
+  let y=20;
+  const drawLine=(y1,color)=>{doc.setDrawColor(...color);doc.setLineWidth(0.3);doc.line(lm,y1,pw-rm,y1);};
+  const drawRect=(x,y1,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,y1,w,h,"F");};
+  const checkPage=(needed)=>{if(y+needed>260){doc.addPage();y=20;}};
+
+  // Logo
+  const logo=await fetchLogoBase64();
+  if(logo)doc.addImage(logo,"PNG",lm,y,40,14);
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  doc.text("3C Refrigeration LLC",pw-rm,y+4,{align:"right"});
+  doc.text("service@3crefrigeration.com",pw-rm,y+8,{align:"right"});
+  doc.text("www.3crefrigeration.com",pw-rm,y+12,{align:"right"});
+  y+=20;
+  drawRect(lm,y,cw,1.5,cyan);y+=8;
+
+  // PROPOSAL title + number
+  doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(...dark);
+  doc.text("PROPOSAL",lm,y);
+  doc.setFont("helvetica","bold");doc.setFontSize(14);doc.setTextColor(...dark);
+  doc.text(prop.proposal_num||"",pw-rm,y,{align:"right"});
+  y+=10;
+
+  // Info grid
+  const col1=lm+6,col2=lm+cw/2+4;
+  const labelS=()=>{doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);};
+  const valueS=()=>{doc.setFont("helvetica","normal");doc.setFontSize(11);doc.setTextColor(...dark);};
+  drawRect(lm,y,cw,32,light);doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(lm,y,lm,y+32);
+  labelS();doc.text("PREPARED FOR",col1,y+7);valueS();doc.text(prop.customer_name||"—",col1,y+13);
+  labelS();doc.text("DATE",col2,y+7);valueS();doc.text(prop.created_at?new Date(prop.created_at).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}):"—",col2,y+13);
+  labelS();doc.text("PROJECT",col1,y+22);valueS();const titleLines=doc.splitTextToSize(prop.title||"Service Proposal",cw/2-10);doc.text(titleLines,col1,y+28);
+  labelS();doc.text("VALID UNTIL",col2,y+22);valueS();doc.text(prop.expires_at?new Date(prop.expires_at).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}):"—",col2,y+28);
+  y+=40;
+
+  // Proposal content
+  const content=prop.user_edits||prop.scope_of_work||"";
+  const sections=content.split(/\n*---\n*/);
+  for(const section of sections){
+    const lines=section.split("\n");
+    for(const line of lines){
+      const trimmed=line.trim();if(!trimmed)continue;
+      // Detect section headers (numbered or ALL CAPS)
+      const isHeader=/^(\d+\.\s+|#{1,3}\s+)/.test(trimmed)||/^[A-Z][A-Z\s&/]{5,}$/.test(trimmed);
+      if(isHeader){
+        checkPage(14);y+=4;
+        doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(...cyan);
+        const headerText=trimmed.replace(/^#{1,3}\s+/,"");
+        doc.text(headerText,lm,y);y+=6;
+        drawRect(lm,y,30,0.8,cyan);y+=4;
+      }else{
+        doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+        const wrapped=doc.splitTextToSize(trimmed,cw);
+        checkPage(wrapped.length*4.5);
+        doc.text(wrapped,lm,y);y+=wrapped.length*4.5+2;
+      }
+    }
+    y+=4;
+  }
+
+  // Estimate / Pricing section
+  if(est){
+    checkPage(30);y+=6;
+    drawRect(lm,y,cw,9,dark);
+    doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(255,255,255);
+    doc.text("PRICING",lm+6,y+6.5);y+=9;
+
+    const renderEstimate=(tierData,partsData,laborTotal,partsTotal,grandTotal,optLabel)=>{
+      if(optLabel){checkPage(10);doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...cyan);doc.text(optLabel,lm,y+5);y+=8;}
+      // Labor table
+      if(tierData&&tierData.length>0){
+        checkPage(12);
+        drawRect(lm,y,cw,7,[245,247,250]);
+        doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
+        doc.text("LABOR",lm+4,y+5);doc.text("RATE",lm+cw*0.5,y+5);doc.text("HOURS",lm+cw*0.65,y+5);doc.text("SUBTOTAL",pw-rm-4,y+5,{align:"right"});y+=7;
+        for(const t of tierData){
+          checkPage(8);
+          doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+          doc.text(t.name||"—",lm+4,y+5);
+          doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+          doc.text("$"+Number(t.rate).toFixed(2),lm+cw*0.5,y+5);
+          doc.text(String(t.hours||0),lm+cw*0.65,y+5);
+          doc.setFont("helvetica","bold");
+          doc.text("$"+(t.rate*t.hours).toFixed(2),pw-rm-4,y+5,{align:"right"});
+          drawLine(y+7,[230,235,240]);y+=8;
+        }
+        doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...mid);
+        doc.text("Labor Subtotal: $"+(laborTotal||0).toFixed(2),pw-rm-4,y+5,{align:"right"});y+=8;
+      }
+      // Parts table
+      if(partsData&&partsData.length>0){
+        checkPage(12);y+=2;
+        drawRect(lm,y,cw,7,[245,247,250]);
+        doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
+        doc.text("PARTS & MATERIALS",lm+4,y+5);doc.text("QTY",lm+cw*0.55,y+5);doc.text("UNIT",lm+cw*0.68,y+5);doc.text("SUBTOTAL",pw-rm-4,y+5,{align:"right"});y+=7;
+        for(const p of partsData){
+          checkPage(8);const sub=p.quantity*p.unit_cost*(1+p.markup_pct/100);
+          doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
+          const descLines=doc.splitTextToSize(p.description||"—",cw*0.5);
+          doc.text(descLines,lm+4,y+5);
+          doc.text(String(p.quantity||0),lm+cw*0.55,y+5);
+          doc.text("$"+Number(p.unit_cost).toFixed(2),lm+cw*0.68,y+5);
+          doc.setFont("helvetica","bold");
+          doc.text("$"+sub.toFixed(2),pw-rm-4,y+5,{align:"right"});
+          drawLine(y+7,[230,235,240]);y+=8;
+        }
+        doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(...mid);
+        doc.text("Parts Subtotal: $"+(partsTotal||0).toFixed(2),pw-rm-4,y+5,{align:"right"});y+=8;
+      }
+      // Grand total
+      checkPage(16);y+=2;
+      drawRect(lm,y,cw,14,cyan);
+      doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(255,255,255);
+      doc.text(optLabel?"OPTION TOTAL":"TOTAL",lm+6,y+9.5);
+      doc.setFontSize(14);doc.text("$"+(grandTotal||0).toFixed(2),pw-rm-6,y+10,{align:"right"});
+      y+=18;
+    };
+
+    if(est.estimate_type==="multi_option"&&est.options){
+      for(const opt of est.options){renderEstimate(opt.tier_data,opt.parts_data,opt.labor_total,opt.parts_total,opt.grand_total,opt.label);}
+    }else{renderEstimate(est.tier_data,est.parts_data,est.labor_total,est.parts_total,est.grand_total);}
+
+    // Payment terms
+    if(est.payment_terms||est.valid_until){
+      checkPage(14);y+=2;
+      drawRect(lm,y,cw,14,light);doc.setDrawColor(...cyan);doc.setLineWidth(0.5);doc.line(lm,y,lm,y+14);
+      doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+      const termsText=[];
+      if(est.payment_terms)termsText.push("Payment Terms: "+est.payment_terms);
+      if(est.valid_until)termsText.push("Valid Until: "+new Date(est.valid_until).toLocaleDateString());
+      doc.text(termsText.join("   |   "),lm+6,y+9);y+=18;
+    }
+  }
+
+  // Footer
+  const fy=269;
+  drawLine(fy-4,[220,225,230]);
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...mid);
+  doc.text("3C Refrigeration LLC  |  service@3crefrigeration.com",pw/2,fy,{align:"center"});
+  doc.text("Generated "+new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}),pw/2,fy+4,{align:"center"});
+
+  doc.save("Proposal-"+(prop.proposal_num||"draft")+".pdf");
+}
+
+// ── Proposal Edit Modal ─────────────────────────────────────
+function ProposalEditModal({prop,est:initialEst,customers,users,onSave,onClose}){
+  const[title,setTitle]=useState(prop.title||"");
+  const[content,setContent]=useState(prop.user_edits||prop.ai_generated_content||prop.scope_of_work||"");
+  const[expiry,setExpiry]=useState(prop.expires_at?prop.expires_at.slice(0,10):"");
+  const[saving,setSaving]=useState(false);
+  const[showEstimate,setShowEstimate]=useState(!!initialEst);
+  const[estimate,setEstimate]=useState(initialEst||null);
+  const[toast,setToast]=useState("");
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
+
+  const save=async()=>{if(saving)return;setSaving(true);
+    try{
+      const updates={title,user_edits:content,expires_at:expiry||null};
+      // Update or create estimate
+      if(showEstimate&&estimate){
+        if(initialEst){
+          // Update existing estimate
+          await sb().from("estimates").update({...estimate,status:"draft"}).eq("id",initialEst.id);
+        }else{
+          // Create new estimate and link
+          const{data:estExisting}=await sb().from("estimates").select("estimate_num");
+          const estNum=genEstimateNum(estExisting||[]);
+          const custObj=customers.find(c=>c.name===prop.customer_name);
+          const{data:ins}=await sb().from("estimates").insert({estimate_num:estNum,customer_name:prop.customer_name,customer_id:custObj?.id||null,...estimate,status:"draft",created_by:prop.created_by}).select("id").single();
+          if(ins?.id)updates.estimate_id=ins.id;
+        }
+      }
+      await sb().from("proposals").update(updates).eq("id",prop.id);
+      await onSave();
+    }catch(e){console.error(e);msg("Error saving");}
+    setSaving(false);
+  };
+
+  return(<Modal title={"Edit "+prop.proposal_num} onClose={onClose} wide>
+    <Toast msg={toast}/>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div><label style={LS}>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} style={IS}/></div>
+      <div><label style={LS}>Proposal Content</label><textarea value={content} onChange={e=>setContent(e.target.value)} rows={14} style={{...IS,resize:"vertical",fontSize:13,lineHeight:1.6,fontFamily:F,minHeight:250}}/></div>
+      <div><label style={LS}>Expiry Date</label><input value={expiry} onChange={e=>setExpiry(e.target.value)} type="date" style={IS}/></div>
+      <button onClick={()=>setShowEstimate(!showEstimate)} style={{...BS,width:"100%",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:10,borderStyle:showEstimate?"solid":"dashed",borderColor:showEstimate?B.green:B.border,background:showEstimate?B.green+"12":"transparent"}}>
+        <span style={{fontSize:18}}>{showEstimate?"✅":"💰"}</span>
+        <div style={{textAlign:"left"}}><div style={{fontSize:14,fontWeight:700,color:showEstimate?B.green:B.text}}>{showEstimate?(estimate?"Edit Pricing":"Add Pricing"):"Add Pricing & Estimate"}</div><div style={{fontSize:11,color:B.textDim}}>{showEstimate?"Click to collapse":"Add labor costs, equipment pricing, and totals"}</div></div>
+      </button>
+      {showEstimate&&<Card style={{padding:16,borderLeft:"3px solid "+B.green}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate updated");}} onCancel={()=>setShowEstimate(false)} initial={estimate}/></Card>}
+      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={save} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save Changes"}</button></div>
+    </div>
+  </Modal>);
+}
+
 function ProposalDashboard({D,userName}){
   const[proposals,setProposals]=useState([]);const[estimates,setEstimates]=useState([]);
-  const[loading,setLoading]=useState(true);const[toast,setToast]=useState("");const[view,setView]=useState("list");const[selProp,setSelProp]=useState(null);
+  const[loading,setLoading]=useState(true);const[toast,setToast]=useState("");const[view,setView]=useState("list");const[selProp,setSelProp]=useState(null);const[editing,setEditing]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const load=async()=>{const[{data:p},{data:e}]=await Promise.all([sb().from("proposals").select("*").order("created_at",{ascending:false}),sb().from("estimates").select("*").order("created_at",{ascending:false})]);setProposals(p||[]);setEstimates(e||[]);setLoading(false);};
   useEffect(()=>{load();},[]);
@@ -433,12 +632,15 @@ function ProposalDashboard({D,userName}){
             </div>
           </div>
           <div style={{display:"flex",gap:4,flexShrink:0}}>
+            <button onClick={()=>generateProposalPdf(prop,est)} style={{...BS,padding:"5px 10px",fontSize:11}}>📄 PDF</button>
+            {(prop.status==="draft"||prop.status==="sent")&&<button onClick={()=>setEditing(prop)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>}
             {prop.status==="draft"&&<button onClick={()=>sendProposal(prop)} style={{...BP,padding:"5px 12px",fontSize:11}}>Send</button>}
             <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/#/proposal/"+prop.approval_token);msg("Link copied!");}} style={{...BS,padding:"5px 10px",fontSize:11}}>🔗</button>
             <button onClick={()=>del(prop.id)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
           </div>
         </div>
       </Card>);})}
+    {editing&&<ProposalEditModal prop={editing} est={estimates.find(e=>e.id===editing.estimate_id)||null} customers={D.customers} users={D.users} onSave={async()=>{await load();setEditing(null);msg("Proposal updated");}} onClose={()=>setEditing(null)}/>}
   </div>);
 }
 
@@ -544,4 +746,4 @@ function ProposalPortal({token}){
   </div>);
 }
 
-export { genProposalNum, genEstimateNum, EstimateBuilder, ProposalBuilder, ProposalDashboard, ProposalPortal, EmailPicker, SnippetSelector };
+export { genProposalNum, genEstimateNum, EstimateBuilder, ProposalBuilder, ProposalDashboard, ProposalPortal, EmailPicker, SnippetSelector, generateProposalPdf };
