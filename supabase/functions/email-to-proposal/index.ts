@@ -130,7 +130,7 @@ serve(async (req) => {
       );
 
       // Same keyword filter as process-inbox
-      const query = "in:inbox {work order OR service request OR repair OR maintenance OR emergency OR trouble OR broken OR malfunction OR leak OR temperature OR alarm OR unit down OR not cooling OR not working OR PM OR corrective OR WO OR inspection}";
+      const query = "in:inbox newer_than:21d {work order OR service request OR repair OR maintenance OR emergency OR trouble OR broken OR malfunction OR leak OR temperature OR alarm OR unit down OR not cooling OR not working OR PM OR corrective OR WO OR inspection}";
       const listResp = await gmailGet(`/messages?q=${encodeURIComponent(query)}&maxResults=20`, gmailToken);
       const messageIds: string[] = (listResp.messages || []).map((m: { id: string }) => m.id);
 

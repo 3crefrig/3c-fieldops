@@ -300,7 +300,7 @@ serve(async (req) => {
 
     // 3. List unread messages NOT already labeled 3C-Processed
     // Use Gmail search to pre-filter: look for service-related keywords
-    const serviceQuery = "is:unread -label:3C-Processed in:inbox {work order OR service request OR repair OR maintenance OR emergency OR trouble OR broken OR malfunction OR leak OR temperature OR alarm OR unit down OR not cooling OR not working OR PM OR corrective OR WO OR inspection}";
+    const serviceQuery = "is:unread -label:3C-Processed in:inbox newer_than:21d {work order OR service request OR repair OR maintenance OR emergency OR trouble OR broken OR malfunction OR leak OR temperature OR alarm OR unit down OR not cooling OR not working OR PM OR corrective OR WO OR inspection}";
     const listResp = await gmailGet(
       `/messages?q=${encodeURIComponent(serviceQuery)}&maxResults=10`,
       gmailToken
