@@ -405,7 +405,7 @@ async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
   }catch(e){console.warn("Drive upload failed:",e);return null;}
 }
 
-function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects}){
+function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const PAGE_SIZE=50;
   const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
@@ -486,7 +486,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
     </div>}
-    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects}/>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData}/>}
   </div>);
 }
 
@@ -509,7 +509,7 @@ function getBiWeeklyRange(anchorDateStr){
   return{from:start.toISOString().slice(0,10),to:end.toISOString().slice(0,10)};
 }
 
-function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects}){
+function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
@@ -597,8 +597,9 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
-    filteredWOs.forEach(w=>{sb().from("work_orders").update({invoiced:true}).eq("id",w.id);});
-    if(customer)sb().from("customers").update({labor_tiers:tiers.map(t=>({name:t.name,rate:t.rate}))}).eq("id",customer.id);
+    await Promise.all(filteredWOs.map(w=>sb().from("work_orders").update({invoiced:true}).eq("id",w.id)));
+    if(customer)await sb().from("customers").update({labor_tiers:tiers.map(t=>({name:t.name,rate:t.rate}))}).eq("id",customer.id);
+    if(reloadTable){reloadTable("work_orders");reloadTable("customers");}
   };
   const generateXLSX=async()=>{
     if(generating)return;setGenerating(true);
@@ -609,7 +610,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       a.href=url;a.download="INV_"+invoiceNum+"_"+safeName+".xlsx";a.click();URL.revokeObjectURL(url);
       msg("Invoice downloaded!");
       await saveInvoiceRecord(d);setLastInvoiceData(d);
-      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
+      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){await sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);if(reloadTable)reloadTable("customers");}
       if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
@@ -621,7 +622,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       doc.save("INV_"+invoiceNum+"_"+safeName+".pdf");
       msg("PDF downloaded!");
       await saveInvoiceRecord(d);setLastInvoiceData(d);
-      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);}
+      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){await sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);if(reloadTable)reloadTable("customers");}
       if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
@@ -906,7 +907,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
   const driveLink=d.driveFileId?"https://drive.google.com/file/d/"+d.driveFileId+"/preview":null;
   const emailHTML=useCustom?customBody:buildInvoiceEmailHTML(d,variant,driveLink);
 
-  const saveContact=async(email)=>{if(!email)return;const existing=contacts.find(c=>c.email.toLowerCase()===email.toLowerCase());if(existing){await sb().from("email_contacts").update({last_used:new Date().toISOString()}).eq("id",existing.id);}else{await sb().from("email_contacts").insert({email:email.toLowerCase()});}};
+  const saveContact=async(email)=>{if(!email)return;const existing=contacts.find(c=>c.email.toLowerCase()===email.toLowerCase());if(existing){await sb().from("email_contacts").update({last_used:new Date().toISOString()}).eq("id",existing.id);setContacts(prev=>prev.map(c=>c.id===existing.id?{...c,last_used:new Date().toISOString()}:c));}else{const{data}=await sb().from("email_contacts").insert({email:email.toLowerCase()}).select().single();if(data)setContacts(prev=>[data,...prev]);}};
 
   const send=async()=>{
     if(!emailTo.trim()||sending)return;setSending(true);

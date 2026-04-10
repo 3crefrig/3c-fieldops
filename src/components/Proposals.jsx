@@ -679,12 +679,12 @@ function ProposalPortal({token}){
     // If estimate exists, mark it approved + save selected option
     if(est){const upd={status:"approved",approved_at:new Date().toISOString()};if(selectedOpt!==null)upd.selected_option=selectedOpt;await sb().from("estimates").update(upd).eq("id",est.id);}
     const optLabel=est?.estimate_type==="multi_option"&&selectedOpt!==null?(est.options||[])[selectedOpt]?.label:"";
-    sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name+(optLabel?" — "+optLabel:""),for_role:"admin"}).then(()=>{}).catch(e=>console.error(e));
+    await sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name+(optLabel?" — "+optLabel:""),for_role:"admin"});
     setDone("approved");setSubmitting(false);}catch(e){console.error(e);setSubmitting(false);}};
 
   const reject=async()=>{if(submitting)return;setSubmitting(true);try{
     await sb().from("proposals").update({status:"rejected",rejected_at:new Date().toISOString(),rejection_reason:rejReason}).eq("id",prop.id);
-    sb().from("notifications").insert({type:"proposal_rejected",title:"Proposal Rejected",message:prop.proposal_num+" rejected by "+prop.customer_name+(rejReason?": "+rejReason.slice(0,80):""),for_role:"admin"}).then(()=>{}).catch(e=>console.error(e));
+    await sb().from("notifications").insert({type:"proposal_rejected",title:"Proposal Rejected",message:prop.proposal_num+" rejected by "+prop.customer_name+(rejReason?": "+rejReason.slice(0,80):""),for_role:"admin"});
     setDone("rejected");setSubmitting(false);}catch(e){console.error(e);setSubmitting(false);}};
 
   if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;

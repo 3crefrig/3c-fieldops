@@ -31,8 +31,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const lineItemsTotal=woLineItems.reduce((s,li)=>s+parseFloat(li.amount||0),0);
   const addLineItem=async()=>{if(!liDesc.trim()||!liAmt||savingLI)return;setSavingLI(true);
     await sb().from("wo_line_items").insert({wo_id:wo.id,description:liDesc.trim(),amount:parseFloat(liAmt)||0,sort_order:woLineItems.length});
-    setLiDesc("");setLiAmt("");setAddingLI(false);setSavingLI(false);if(reloadTable)reloadTable("wo_line_items");msg("Line item added");};
-  const deleteLineItem=async(id)=>{await sb().from("wo_line_items").delete().eq("id",id);if(reloadTable)reloadTable("wo_line_items");msg("Line item removed");};
+    setLiDesc("");setLiAmt("");setAddingLI(false);setSavingLI(false);if(reloadTable)await reloadTable("wo_line_items");msg("Line item added");};
+  const deleteLineItem=async(id)=>{await sb().from("wo_line_items").delete().eq("id",id);if(reloadTable)await reloadTable("wo_line_items");msg("Line item removed");};
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.wo_id===wo.id);const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const woPhotos=photos.filter(p=>p.wo_id===wo.id);
   const woHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
