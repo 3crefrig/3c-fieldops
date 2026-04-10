@@ -498,12 +498,12 @@ async function generateProposalPdf(prop,est){
         doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...mid);
         doc.text("PARTS & MATERIALS",lm+4,y+5);doc.text("QTY",lm+cw*0.55,y+5);doc.text("UNIT",lm+cw*0.68,y+5);doc.text("SUBTOTAL",pw-rm-4,y+5,{align:"right"});y+=7;
         for(const p of activeParts){
-          checkPage(8);const sub=p.quantity*p.unit_cost*(1+p.markup_pct/100);
+          checkPage(8);const markedUpUnit=p.unit_cost*(1+(p.markup_pct||0)/100);const sub=p.quantity*markedUpUnit;
           doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);
           const descLines=doc.splitTextToSize(p.description||"—",cw*0.5);
           doc.text(descLines,lm+4,y+5);
           doc.text(String(p.quantity||0),lm+cw*0.55,y+5);
-          doc.text("$"+Number(p.unit_cost).toFixed(2),lm+cw*0.68,y+5);
+          doc.text("$"+markedUpUnit.toFixed(2),lm+cw*0.68,y+5);
           doc.setFont("helvetica","bold");
           doc.text("$"+sub.toFixed(2),pw-rm-4,y+5,{align:"right"});
           drawLine(y+7,[230,235,240]);y+=8;
@@ -717,8 +717,8 @@ function ProposalPortal({token}){
                 <div style={{flex:1}}>
                   <div style={{fontSize:14,fontWeight:800,color:B.text}}>{opt.label||"Option "+(i+1)}</div>
                   {opt.description&&<div style={{fontSize:12,color:B.textMuted,marginTop:4}}>{opt.description}</div>}
-                  {(opt.tier_data||[]).length>0&&<div style={{marginTop:8}}>{opt.tier_data.map((t,ti)=><div key={ti} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{t.name}</span><span style={{fontFamily:M}}>{t.hours}h × ${t.rate}/hr</span></div>)}</div>}
-                  {(opt.parts_data||[]).length>0&&<div style={{marginTop:6}}>{opt.parts_data.map((p,pi)=><div key={pi} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{p.description} ×{p.quantity}</span><span style={{fontFamily:M}}>${(p.quantity*p.unit_cost*(1+p.markup_pct/100)).toFixed(2)}</span></div>)}</div>}
+                  {(opt.tier_data||[]).filter(t=>t.hours>0).length>0&&<div style={{marginTop:8}}>{est.hide_rates?<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>Labor</span><span style={{fontFamily:M}}>${(opt.labor_total||0).toFixed(2)}</span></div>:opt.tier_data.filter(t=>t.hours>0).map((t,ti)=><div key={ti} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{t.name}</span><span style={{fontFamily:M}}>{t.hours}h × ${t.rate}/hr</span></div>)}</div>}
+                  {(opt.parts_data||[]).filter(p=>p.quantity>0).length>0&&<div style={{marginTop:6}}>{opt.parts_data.filter(p=>p.quantity>0).map((p,pi)=><div key={pi} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{p.description} ×{p.quantity}</span><span style={{fontFamily:M}}>${(p.quantity*p.unit_cost*(1+(p.markup_pct||0)/100)).toFixed(2)}</span></div>)}</div>}
                 </div>
                 <div style={{textAlign:"right",marginLeft:16}}>
                   <div style={{fontSize:22,fontWeight:900,fontFamily:M,color:c}}>${(opt.grand_total||0).toFixed(2)}</div>
@@ -731,14 +731,16 @@ function ProposalPortal({token}){
         {est.payment_terms&&<div style={{fontSize:11,color:B.textDim}}>Payment terms: {est.payment_terms}</div>}
       </div>:est&&<Card style={{padding:20,marginBottom:16,borderLeft:"3px solid "+B.green}}>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Cost Estimate</div>
-        {est.tier_data&&est.tier_data.length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:6}}>Labor</div>
-          {est.tier_data.map((t,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
+        {est.tier_data&&est.tier_data.filter(t=>t.hours>0).length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:6}}>Labor</div>
+          {est.hide_rates?<div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
+            <span style={{color:B.text}}>Labor</span><span style={{fontFamily:M,color:B.text}}><strong>${(est.labor_total||0).toFixed(2)}</strong></span>
+          </div>:est.tier_data.filter(t=>t.hours>0).map((t,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
             <span style={{color:B.text}}>{t.name}</span><span style={{fontFamily:M,color:B.text}}>{t.hours}h × ${t.rate}/hr = <strong>${(t.hours*t.rate).toFixed(2)}</strong></span>
           </div>)}</>}
-        {est.parts_data&&est.parts_data.length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginTop:12,marginBottom:6}}>Parts & Materials</div>
-          {est.parts_data.map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
-            <span style={{color:B.text}}>{p.description} (×{p.quantity})</span><span style={{fontFamily:M,color:B.text}}>${(p.quantity*p.unit_cost*(1+p.markup_pct/100)).toFixed(2)}</span>
-          </div>)}</>}
+        {est.parts_data&&est.parts_data.filter(p=>p.quantity>0).length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginTop:12,marginBottom:6}}>Parts & Materials</div>
+          {est.parts_data.filter(p=>p.quantity>0).map((p,i)=>{const markedUp=p.unit_cost*(1+(p.markup_pct||0)/100);return<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
+            <span style={{color:B.text}}>{p.description} (×{p.quantity})</span><span style={{fontFamily:M,color:B.text}}>${(p.quantity*markedUp).toFixed(2)}</span>
+          </div>;})}</>}
         <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0 0",marginTop:8,fontSize:16,fontWeight:800}}>
           <span style={{color:B.text}}>Total</span><span style={{fontFamily:M,color:B.green}}>${est.grand_total?.toFixed(2)}</span>
         </div>
