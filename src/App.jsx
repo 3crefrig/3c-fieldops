@@ -196,6 +196,13 @@ function App(){
       const h=Math.round((parseFloat(te.hours)||0)*4)/4;
       if(h<=0){alert("Hours must be greater than 0.");return;}
       const logDate=te.logged_date||new Date().toISOString().slice(0,10);
+      // Check daily hour limit from app_settings
+      const{data:settingsRow}=await sb().from("app_settings").select("value").eq("key","app_settings").single();
+      const maxDaily=parseFloat(settingsRow?.value?.max_daily_hours)||0;
+      if(maxDaily>0){
+        const dayHrs=data.time.filter(t=>t.technician===appUser.name&&t.logged_date===logDate).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+        if(dayHrs+h>maxDaily){const isManager=appUser.role==="admin"||appUser.role==="manager";if(!isManager){alert("Daily limit: "+maxDaily+" hours exceeded for "+logDate+". Ask a manager to override.");return;}if(!window.confirm("This would put "+appUser.name+" over "+maxDaily+" hours for "+logDate+" ("+(dayHrs+h).toFixed(1)+"h). Override and allow?"))return;}
+      }
       await sb().from("time_entries").insert({...te,hours:h,technician:appUser.name,logged_date:logDate});
       const wo=data.wos.find(w=>w.id===te.wo_id);
       if(wo&&wo.status==="pending"){await sb().from("work_orders").update({status:"in_progress"}).eq("id",wo.id);await sb().from("wo_activity").insert({wo_id:wo.id,action:"updated",details:"Status → in_progress (auto on first time entry)",actor:appUser?.name||"System"});}
