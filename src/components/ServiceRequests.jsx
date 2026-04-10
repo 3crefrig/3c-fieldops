@@ -99,6 +99,8 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
   const[rejectReason,setRejectReason]=useState("");
   const[selected,setSelected]=useState([]);
   const[bulkApproving,setBulkApproving]=useState(false);
+  const[bulkRejecting,setBulkRejecting]=useState(false);
+  const[showBulkRejectConfirm,setShowBulkRejectConfirm]=useState(false);
 
   const openDraft=(d)=>{setSel(d);setEdits({title:d.title||"",customer_name:d.customer_name||"",customer_wo:d.customer_wo||"",location:d.location||"",building:d.building||"",description:d.description||"",priority:d.priority||"medium",assignee:"Unassigned",due_date:""});};
   const closeDraft=()=>{setSel(null);setEdits({});};
@@ -122,6 +124,15 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
     setSelected([]);setBulkApproving(false);haptic(50);
   };
 
+  const bulkReject=async()=>{
+    if(bulkRejecting||selected.length===0)return;
+    setBulkRejecting(true);
+    for(const id of selected){
+      await onReject(id,"Bulk rejected");
+    }
+    setSelected([]);setBulkRejecting(false);setShowBulkRejectConfirm(false);haptic(50);
+  };
+
   return(<div style={{display:"flex",flexDirection:"column",gap:10}}>
     {/* Scan Inbox button */}
     <Card style={{padding:"12px 16px"}}>
@@ -135,9 +146,11 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
         {selected.length===pending.length&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
       </div>
       <span style={{fontSize:12,color:B.textMuted,flex:1}}>{selected.length>0?selected.length+" selected":"Select requests for bulk actions"}</span>
-      {selected.length>0&&<button onClick={bulkApprove} disabled={bulkApproving} style={{...BP,background:B.green,padding:"6px 14px",fontSize:12,opacity:bulkApproving?.5:1}}>
+      {selected.length>0&&<><button onClick={()=>setShowBulkRejectConfirm(true)} disabled={bulkRejecting} style={{...BP,background:B.red,padding:"6px 14px",fontSize:12,opacity:bulkRejecting?.5:1}}>
+        {bulkRejecting?"Rejecting...":"Reject "+selected.length}
+      </button><button onClick={bulkApprove} disabled={bulkApproving} style={{...BP,background:B.green,padding:"6px 14px",fontSize:12,opacity:bulkApproving?.5:1}}>
         {bulkApproving?"Approving...":"Approve "+selected.length}
-      </button>}
+      </button></>}
     </div>}
 
     {/* Pending drafts */}
@@ -217,6 +230,16 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",flexWrap:"wrap"}}>
         <button onClick={()=>{setRejectId(sel.id);}} style={{...BS,color:B.red,borderColor:B.red+"40"}}>Reject</button>
         <button onClick={()=>{onApprove(sel,edits);closeDraft();haptic(50);}} style={{...BP,background:B.green}}>Approve & Create WO</button>
+      </div>
+    </Modal>}
+
+    {/* Bulk reject confirmation modal */}
+    {showBulkRejectConfirm&&<Modal title="Reject Service Requests" onClose={()=>setShowBulkRejectConfirm(false)}>
+      <div style={{textAlign:"center",padding:"10px 0"}}>
+        <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:4}}>Reject {selected.length} service request{selected.length>1?"s":""}?</div>
+        <div style={{fontSize:12,color:B.textDim,marginBottom:16}}>This cannot be undone. All selected requests will be rejected.</div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowBulkRejectConfirm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={bulkReject} disabled={bulkRejecting} style={{...BP,flex:1,background:B.red,opacity:bulkRejecting?.5:1}}>{bulkRejecting?"Rejecting...":"Reject All"}</button></div>
       </div>
     </Modal>}
 

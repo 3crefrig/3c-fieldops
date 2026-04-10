@@ -145,7 +145,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="feedback"&&<FeedbackDashboard D={D}/>}
@@ -171,7 +171,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user} lineItems={D.lineItems||[]} projects={D.projects||[]}/>}
