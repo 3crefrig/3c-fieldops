@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -531,7 +531,7 @@ async function generateProposalPdf(prop,est){
       doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
       const termsText=[];
       if(est.payment_terms)termsText.push("Payment Terms: "+est.payment_terms);
-      if(est.valid_until)termsText.push("Valid Until: "+new Date(est.valid_until).toLocaleDateString());
+      if(est.valid_until)termsText.push("Valid Until: "+fmtDate(est.valid_until));
       doc.text(termsText.join("   |   "),lm+6,y+9);y+=18;
     }
   }
@@ -727,7 +727,7 @@ function ProposalPortal({token}){
               </div>
             </Card>;})}
         </div>
-        {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:8}}>Valid until {new Date(est.valid_until).toLocaleDateString()}</div>}
+        {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:8}}>Valid until {fmtDate(est.valid_until)}</div>}
         {est.payment_terms&&<div style={{fontSize:11,color:B.textDim}}>Payment terms: {est.payment_terms}</div>}
       </div>:est&&<Card style={{padding:20,marginBottom:16,borderLeft:"3px solid "+B.green}}>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Cost Estimate</div>
@@ -744,7 +744,7 @@ function ProposalPortal({token}){
         <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0 0",marginTop:8,fontSize:16,fontWeight:800}}>
           <span style={{color:B.text}}>Total</span><span style={{fontFamily:M,color:B.green}}>${est.grand_total?.toFixed(2)}</span>
         </div>
-        {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:6}}>Valid until {new Date(est.valid_until).toLocaleDateString()}</div>}
+        {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:6}}>Valid until {fmtDate(est.valid_until)}</div>}
         {est.payment_terms&&<div style={{fontSize:11,color:B.textDim}}>Payment terms: {est.payment_terms}</div>}
       </Card>}
 

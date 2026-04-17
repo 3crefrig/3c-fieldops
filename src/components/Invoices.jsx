@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -467,9 +467,9 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 <div style={{fontSize:11,color:B.textDim,marginTop:2}}>
                   <span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(inv.amount||0).toFixed(2)}</span>
                   {inv.parts_total>0&&<span> (incl. ${parseFloat(inv.parts_total).toFixed(2)} parts)</span>}
-                  {" · Issued "+inv.date_issued}
-                  {inv.date_sent&&" · Sent "+inv.date_sent}
-                  {inv.date_paid&&" · Paid "+inv.date_paid}
+                  {" · Issued "+fmtDate(inv.date_issued)}
+                  {inv.date_sent&&" · Sent "+fmtDate(inv.date_sent)}
+                  {inv.date_paid&&" · Paid "+fmtDate(inv.date_paid)}
                   {inv.wo_ids&&<span> · {inv.wo_ids.length} WO{inv.wo_ids.length!==1?"s":""}</span>}
                 </div>
                 {inv.job_desc&&<div style={{fontSize:10,color:B.textDim,marginTop:2,fontStyle:"italic"}}>{inv.job_desc}</div>}
@@ -594,7 +594,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const saveInvoiceRecord=async(d)=>{
     if(!onCreateInvoice)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString()};
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString().slice(0,10)};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     await Promise.all(filteredWOs.map(w=>sb().from("work_orders").update({invoiced:true}).eq("id",w.id)));

@@ -50,6 +50,10 @@ export const BS=new Proxy({},{get:(_,p)=>_BS()[p],ownKeys:()=>Object.keys(_BS())
 
 export function genPO(list){const n=new Date(),pfx=String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0");const mx=list.filter(p=>p.po_id&&p.po_id.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.po_id.slice(4));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
 export function genProjectPO(list){const n=new Date(),pfx="PPO-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0");const mx=list.filter(p=>p.po_id&&p.po_id.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.po_id.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+// Format a date string for display. Handles YYYY-MM-DD (date-only, parsed as
+// local to avoid UTC timezone shifting the day) and full ISO timestamps.
+export function fmtDate(s,opts){if(!s)return"";const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);if(m)return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString("en-US",opts);return new Date(s).toLocaleDateString("en-US",opts);}
+export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString("en-US",{month:"numeric",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});}
 
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}

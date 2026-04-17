@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -479,7 +479,7 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
     <Card style={{marginBottom:12}}>
       <span style={LS}>Agreement Terms</span>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8,fontSize:12}}>
-        <div><span style={{color:B.textDim}}>Period:</span> <span style={{color:B.text,fontWeight:600}}>{a.start_date} — {a.end_date}</span></div>
+        <div><span style={{color:B.textDim}}>Period:</span> <span style={{color:B.text,fontWeight:600}}>{fmtDate(a.start_date)} — {fmtDate(a.end_date)}</span></div>
         <div><span style={{color:B.textDim}}>Frequency:</span> <span style={{color:B.text,fontWeight:600}}>{FREQ_LABELS[a.visit_frequency]||a.visit_frequency}</span></div>
         <div><span style={{color:B.textDim}}>Response:</span> <span style={{color:B.text,fontWeight:600}}>{a.response_time_hours}h</span></div>
         <div><span style={{color:B.textDim}}>Priority:</span> <span style={{color:B.text,fontWeight:600}}>{a.priority_level}</span></div>

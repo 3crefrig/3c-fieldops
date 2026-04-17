@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { CameraUpload } from "./CameraUpload";
 import { Html5Qrcode } from "html5-qrcode";
@@ -208,7 +208,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
     {(eq.location||eq.location_detail)&&<Card style={{marginBottom:12}}>
       <span style={LS}>Location</span>
       <div style={{fontSize:13,color:B.text,marginTop:4}}>{eq.location}{eq.location_detail?" — "+eq.location_detail:""}</div>
-      {eq.install_date&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>Installed: {eq.install_date}</div>}
+      {eq.install_date&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>Installed: {fmtDate(eq.install_date)}</div>}
     </Card>}
 
     {/* Notes */}
