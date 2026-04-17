@@ -431,7 +431,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
     }}catch(e){console.error("Feedback request error:",e);}
   };
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
-  const del=async(inv)=>{if(!window.confirm("Delete invoice "+inv.invoice_num+"?"))return;await onDeleteInvoice(inv);msg("Deleted");};
+  const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>{const c=customers.find(x=>x.name===inv.customer);const terms=c?.payment_terms||"Net 30";const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;const issued=inv.date_issued?new Date(inv.date_issued):new Date();const due=new Date(issued);due.setDate(due.getDate()+netDays);const invPOs=pos.filter(p=>inv.wo_ids&&inv.wo_ids.some(wid=>{const wo=wos.find(w=>w.wo_id===wid||w.id===wid);return wo&&p.wo_id===wo.id;})&&p.status==="approved");const mkup=c?.parts_markup!=null?parseFloat(c.parts_markup):35;const partsDetail=invPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+mkup/100)*100)/100}));return{invoiceNum:inv.invoice_num,date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null};};
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
   const regenPDF=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const doc=await buildInvoicePDF(d);doc.save("INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf");msg("PDF downloaded!");}catch(e){msg("Error: "+e.message);}};
@@ -474,12 +474,12 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 </div>
                 {inv.job_desc&&<div style={{fontSize:10,color:B.textDim,marginTop:2,fontStyle:"italic"}}>{inv.job_desc}</div>}
               </div>
-              <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
-                <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"5px 10px",fontSize:11}} title="Download Excel">📊</button>
-                <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"5px 10px",fontSize:11}} title="Download PDF">📄</button>
-                {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"5px 10px",fontSize:11}}>Mark Sent</button>}
-                {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Mark Paid</button>}
-                <button onClick={()=>del(inv)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
+              <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+                <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">📊</button>
+                <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">📄</button>
+                {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
+                {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}
+                <button onClick={()=>del(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
               </div>
             </div>
           </Card>);})}
@@ -690,8 +690,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         {tiers.map((t,i)=><div key={i} draggable onDragStart={()=>setDragIdx(i)} onDragOver={e=>{e.preventDefault();setDragOver(i);}} onDragEnd={()=>{setDragIdx(null);setDragOver(null);}} onDrop={e=>{e.preventDefault();if(dragIdx===null||dragIdx===i)return;const n=[...tiers];const[moved]=n.splice(dragIdx,1);n.splice(i,0,moved);setTiers(n);setDragIdx(null);setDragOver(null);}} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+(dragOver===i?B.cyan:B.border),opacity:dragIdx===i?0.4:1,transition:"border-color .15s,opacity .15s",cursor:"grab"}}>
           <span style={{color:B.textDim,fontSize:14,cursor:"grab",userSelect:"none",flexShrink:0}}>⠿</span>
           <input value={t.name} onChange={e=>{const n=[...tiers];n[i]={...n[i],name:e.target.value};setTiers(n);}} style={{...IS,flex:1,padding:"6px 10px",fontSize:12}} placeholder="Tier name"/>
-          <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate} onChange={e=>{const n=[...tiers];n[i]={...n[i],rate:parseFloat(e.target.value)||0};setTiers(n);}} type="number" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>/hr</span></div>
-          <div style={{display:"flex",alignItems:"center",gap:2}}><input value={t.hours||""} onChange={e=>{const n=[...tiers];n[i]={...n[i],hours:parseFloat(e.target.value)||0};setTiers(n);}} type="number" step="0.25" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>hrs</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={t.rate} onChange={e=>{const n=[...tiers];n[i]={...n[i],rate:Math.max(0,parseFloat(e.target.value)||0)};setTiers(n);}} type="number" min="0" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>/hr</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:2}}><input value={t.hours||""} onChange={e=>{const n=[...tiers];n[i]={...n[i],hours:Math.max(0,parseFloat(e.target.value)||0)};setTiers(n);}} type="number" min="0" step="0.25" style={{...IS,width:60,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0"/><span style={{fontSize:11,color:B.textDim}}>hrs</span></div>
           <span style={{fontFamily:M,fontSize:12,color:B.green,minWidth:60,textAlign:"right"}}>${((t.rate||0)*(t.hours||0)).toFixed(0)}</span>
           {tiers.length>1&&<button onClick={()=>setTiers(tiers.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14}}>×</button>}
         </div>)}
@@ -767,7 +767,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           </label>
           {includeParts&&partsCost>0&&<div style={{display:"flex",alignItems:"center",gap:8,marginLeft:28}}>
             <span style={{fontSize:11,color:B.textDim}}>Markup:</span>
-            <input value={markupPct} onChange={e=>setMarkupPct(parseFloat(e.target.value)||0)} type="number" step="5" style={{...IS,width:65,padding:"4px 8px",fontSize:12,fontFamily:M,textAlign:"center"}}/>
+            <input value={markupPct} onChange={e=>setMarkupPct(Math.max(0,parseFloat(e.target.value)||0))} type="number" min="0" step="5" style={{...IS,width:65,padding:"4px 8px",fontSize:12,fontFamily:M,textAlign:"center"}}/>
             <span style={{fontSize:11,color:B.textDim}}>%</span>
             <span style={{fontSize:10,color:B.textDim}}>{"($"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed)"}</span>
           </div>}
@@ -818,7 +818,7 @@ const EMAIL_VARIANTS=[
 function buildInvoiceEmailHTML(d,variant,driveLink){
   const LOGO="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
   const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-  const total=laborTotal+(d.partsTotal||0);
+  const total=laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0);
   const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/")+" - "+d.dateTo.replace(/-/g,"/")):"";
 
   let tiersHTML=d.tiers.filter(t=>(t.hours||0)>0).map(t=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${(t.hours||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${t.name}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">$${(t.rate||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${((t.hours||0)*(t.rate||0)).toFixed(2)}</td></tr>`).join("");
@@ -970,7 +970,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
           <p>{variant.greeting}</p>
           <p>Below I've attached the invoice for work completed through the following dates {dateRange}.</p>
           <div style={{background:"#f5f7fc",borderRadius:6,padding:12,margin:"8px 0",fontSize:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700}}>Invoice #{d.invoiceNum}</span><span style={{fontWeight:700,color:"#00B050"}}>${(d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0)+(d.partsTotal||0)).toFixed(2)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700}}>Invoice #{d.invoiceNum}</span><span style={{fontWeight:700,color:"#00B050"}}>${(d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0)+(d.partsTotal||0)+(d.customItemsTotal||0)).toFixed(2)}</span></div>
             {d.tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{(t.hours||0).toFixed(2)}h {t.name} @ ${t.rate}</span><span>${((t.hours||0)*(t.rate||0)).toFixed(2)}</span></div>)}
             {d.breakdownData&&<div style={{borderTop:"1px solid #ddd",marginTop:6,paddingTop:6,fontSize:11,color:"#555"}}>
               {d.breakdownData.pm_hours>0&&<div>PM: {d.breakdownData.pm_hours.toFixed(2)}h — ${d.breakdownData.pm_total.toFixed(2)}</div>}

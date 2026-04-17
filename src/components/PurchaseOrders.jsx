@@ -205,12 +205,12 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO}){
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · {parseFloat(po.amount)?<span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount).toFixed(2)}</span>:<span style={{fontFamily:M,fontWeight:700,color:B.orange}}>$ —  needs amount</span>}{wo&&<span> · {wo.title}</span>}</div>
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
             </div>
-            <div style={{display:"flex",gap:4,flexShrink:0}}>
-              <button onClick={()=>generatePOPdf(po,wo)} style={{...BS,padding:"5px 10px",fontSize:11}}>📄 PO Form</button>
-              <button onClick={()=>setEditing(po)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>
-              {po.status==="pending"&&<><button onClick={()=>approve(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.red}}>Reject</button></>}
-              {po.status==="rejected"&&<button onClick={()=>approve(po)} style={{...BP,padding:"5px 10px",fontSize:11,background:B.green}}>Re-approve</button>}
-              <button onClick={()=>setConfirmDelete(po)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
+            <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+              <button onClick={()=>generatePOPdf(po,wo)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>📄 PO Form</button>
+              <button onClick={()=>setEditing(po)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>
+              {po.status==="pending"&&<><button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.red}}>Reject</button></>}
+              {po.status==="rejected"&&<button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Re-approve</button>}
+              <button onClick={()=>setConfirmDelete(po)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
             </div></div></Card>);})}
       {visibleCount<flt.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {flt.length})</button>}
     </div>
