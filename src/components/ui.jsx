@@ -39,6 +39,46 @@ export function Spinner(){return <div style={{display:"flex",alignItems:"center"
 export function SkeletonCard(){return <div style={{background:B.surface,borderRadius:10,padding:18,border:"1px solid "+B.border,boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}><div style={{height:10,width:"40%",borderRadius:4,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:18,width:"70%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:10,width:"55%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /></div>;}
 export function SkeletonLoader({count}){return <div style={{display:"flex",flexDirection:"column",gap:10,animation:"fadeIn .3s ease-out"}}>{Array.from({length:count||3}).map((_,i)=><SkeletonCard key={i}/>)}</div>;}
 export function EmptyState({icon,title,subtitle}){return <div style={{textAlign:"center",padding:"48px 24px",animation:"fadeIn .3s ease-out"}}><div style={{fontSize:40,marginBottom:12,opacity:0.8}}>{icon||"📭"}</div><div style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:6}}>{title||"Nothing here yet"}</div><div style={{fontSize:12,color:B.textDim,lineHeight:1.5,maxWidth:260,margin:"0 auto"}}>{subtitle||""}</div></div>;}
+export function GlobalSearch({data,onNavigateWO,setTab}){
+  const[q,setQ]=useState("");
+  const[open,setOpen]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};const k=e=>{if(e.key==="Escape"){setOpen(false);setQ("");}if((e.key==="k"||e.key==="K")&&(e.metaKey||e.ctrlKey)){e.preventDefault();ref.current?.querySelector("input")?.focus();}};document.addEventListener("mousedown",h);document.addEventListener("keydown",k);return()=>{document.removeEventListener("mousedown",h);document.removeEventListener("keydown",k);};},[]);
+  const query=q.trim().toLowerCase();
+  const results=!query?null:(()=>{
+    const r=[];const cap=8;
+    const matches=(...fields)=>fields.some(v=>v&&String(v).toLowerCase().includes(query));
+    (data?.wos||[]).forEach(w=>{if(r.length>=cap*4)return;if(matches(w.wo_id,w.title,w.customer,w.customer_wo,w.location,w.assignee))r.push({kind:"wo",icon:"📋",title:w.wo_id+" — "+w.title,sub:[w.customer,w.status,w.assignee].filter(Boolean).join(" · "),color:w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange,onClick:()=>{if(onNavigateWO)onNavigateWO(w.id);setOpen(false);setQ("");}});});
+    (data?.pos||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.po_id,p.description,p.requested_by))r.push({kind:"po",icon:"🧾",title:p.po_id+" — $"+parseFloat(p.amount||0).toFixed(0),sub:(p.description||"").slice(0,60)+" · "+p.status,color:p.status==="approved"?B.green:p.status==="rejected"?B.red:B.orange,onClick:()=>{setTab&&setTab("pos");setOpen(false);setQ("");}});});
+    (data?.customers||[]).forEach(c=>{if(r.length>=cap*4)return;if(matches(c.name,c.contact_name,c.email,c.phone))r.push({kind:"customer",icon:"👤",title:c.name,sub:[c.contact_name,c.phone].filter(Boolean).join(" · "),color:B.purple,onClick:()=>{setTab&&setTab("customers");setOpen(false);setQ("");}});});
+    (data?.equipment||[]).forEach(e=>{if(r.length>=cap*4)return;if(matches(e.model,e.manufacturer,e.serial_number,e.asset_tag,e.customer_name))r.push({kind:"equipment",icon:"🔧",title:(e.model||"Equipment")+(e.asset_tag?" · "+e.asset_tag:""),sub:[e.customer_name,e.manufacturer,e.serial_number].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{setTab&&setTab("equipment");setOpen(false);setQ("");}});});
+    (data?.projects||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.name,p.customer,p.location))r.push({kind:"project",icon:"🏗️",title:p.name,sub:[p.customer,p.status].filter(Boolean).join(" · "),color:B.orange,onClick:()=>{setTab&&setTab("projects");setOpen(false);setQ("");}});});
+    const order={wo:0,po:1,customer:2,equipment:3,project:4};
+    return r.sort((a,b)=>(order[a.kind]||9)-(order[b.kind]||9)).slice(0,20);
+  })();
+  const grouped=results?results.reduce((acc,r)=>{(acc[r.kind]=acc[r.kind]||[]).push(r);return acc;},{}):null;
+  const groupLabel={wo:"Work Orders",po:"Purchase Orders",customer:"Customers",equipment:"Equipment",project:"Projects"};
+  return(<div ref={ref} style={{position:"relative",flex:"0 1 auto",minWidth:0}}>
+    <div style={{display:"flex",alignItems:"center",gap:6,background:B.bg,border:"1px solid "+B.border,borderRadius:8,padding:"5px 10px",minWidth:180,maxWidth:280}}>
+      <span style={{color:B.textDim,fontSize:12}}>🔍</span>
+      <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>q&&setOpen(true)} placeholder="Search WO, PO, customer…" style={{background:"transparent",border:"none",outline:"none",color:B.text,fontSize:12,fontFamily:F,flex:1,minWidth:0,padding:0}}/>
+      {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{background:"none",border:"none",color:B.textDim,fontSize:14,cursor:"pointer",padding:0,lineHeight:1}}>×</button>}
+    </div>
+    {open&&query&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,minWidth:320,maxWidth:420,background:B.surface,border:"1px solid "+B.border,borderRadius:10,boxShadow:"0 12px 40px rgba(0,0,0,0.4)",maxHeight:420,overflowY:"auto",zIndex:300}}>
+      {results.length===0?<div style={{padding:"16px 14px",fontSize:12,color:B.textDim,textAlign:"center"}}>No matches for "{q}"</div>:
+      Object.keys(grouped).map(k=><div key={k}>
+        <div style={{padding:"8px 12px 4px",fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.5}}>{groupLabel[k]||k}</div>
+        {grouped[k].map((r,i)=><div key={i} onClick={r.onClick} style={{padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderLeft:"3px solid "+r.color,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=B.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <span style={{fontSize:14,flexShrink:0}}>{r.icon}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
+            {r.sub&&<div style={{fontSize:10,color:B.textDim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</div>}
+          </div>
+        </div>)}
+      </div>)}
+    </div>}
+  </div>);
+}
 export function VoiceInput({onResult,style}){
   const[listening,setListening]=useState(false);
   const start=()=>{

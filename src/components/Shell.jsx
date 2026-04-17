@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { B, F, BS, haptic, setTheme, getTheme, getRoles, ROLES, GlobalStyles } from "../shared";
-import { Logo, Badge } from "./ui";
+import { Logo, Badge, GlobalSearch } from "./ui";
 import { NotifBell } from "./CameraUpload";
 
 let _ROLES = ROLES;
 
-export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQueueCount,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh}){
+export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQueueCount,notifications,onMarkRead,onQuickApprovePO,onQuickRejectPO,onNavigateWO,onRefresh,searchData}){
   const[theme,setThemeState]=useState(getTheme());
   const[isMobile,setIsMobile]=useState(window.innerWidth<768);
   const[offline,setOffline]=useState(!navigator.onLine);
@@ -38,6 +38,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
+      {searchData&&!isMobile&&<GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/>}
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
         {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline{offlineQueueCount>0?" ("+offlineQueueCount+" queued)":""}</span>}

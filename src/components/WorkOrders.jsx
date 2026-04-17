@@ -24,7 +24,24 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const[workPerformed,setWorkPerformed]=useState("");
   const[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
   const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(new Date().toISOString().slice(0,10));
-  const[showDetails,setShowDetails]=useState(false),[showTimeEntries,setShowTimeEntries]=useState(false),[showLineItems,setShowLineItems]=useState(false),[showPhotos,setShowPhotos]=useState(false),[showPOs,setShowPOs]=useState(false);
+  const[showDetails,setShowDetails]=useState(false),[showTimeEntries,setShowTimeEntries]=useState(false),[showLineItems,setShowLineItems]=useState(false),[showPhotos,setShowPhotos]=useState(false),[showPOs,setShowPOs]=useState(false),[showRefrigerant,setShowRefrigerant]=useState(false);
+  const[refLog,setRefLog]=useState([]);
+  const[refForm,setRefForm]=useState({action:"added",refrigerant_type:"R-448A",pounds:"",cylinder_id:"",notes:""});
+  const[savingRef,setSavingRef]=useState(false);
+  const[nteInput,setNteInput]=useState("");
+  const[editNte,setEditNte]=useState(false);
+  const loadRefLog=async()=>{const{data}=await sb().from("refrigerant_log").select("*").eq("wo_id",wo.id).order("logged_at",{ascending:false});setRefLog(data||[]);};
+  useEffect(()=>{loadRefLog();},[wo.id]);
+  const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("⚠️ Failed to log refrigerant");}setSavingRef(false);};
+  const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("⚠️ Failed to delete");}};
+  const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("⚠️ Failed to stamp");}};
+  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("⚠️ Failed to save NTE");}};
+  const poApprovedTotal=woPOs.filter(p=>p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const woSpend=poApprovedTotal+lineItemsTotal;
+  const ntePct=wo.nte&&wo.nte>0?Math.min(999,(woSpend/parseFloat(wo.nte))*100):0;
+  const nteColor=ntePct>=100?B.red:ntePct>=75?B.orange:B.green;
+  const refNet=refLog.reduce((s,r)=>s+(r.action==="added"?parseFloat(r.pounds||0):r.action==="recovered"?-parseFloat(r.pounds||0):0),0);
+  const elapsed=(from,to)=>{if(!from)return null;const t1=new Date(from).getTime();const t2=to?new Date(to).getTime():Date.now();const h=(t2-t1)/3600000;return h<1?Math.round(h*60)+"m":h.toFixed(1)+"h";};
   const[liDesc,setLiDesc]=useState(""),[liAmt,setLiAmt]=useState(""),[addingLI,setAddingLI]=useState(false),[savingLI,setSavingLI]=useState(false);
   const isProjectWO=!!wo.project_id;
   const woLineItems=(lineItems||[]).filter(li=>li.wo_id===wo.id);
@@ -80,6 +97,44 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       </div>
       {wo.date_completed&&<div style={{marginTop:8,padding:"8px 10px",background:B.greenGlow,borderRadius:6,fontSize:12}}><span style={{color:B.green,fontWeight:700}}>✓ Completed {wo.date_completed}</span>{wo.work_performed&&<div style={{marginTop:4,fontSize:11,color:B.text,lineHeight:1.4}}>{wo.work_performed}</div>}</div>}
       {wo.status==="completed"&&woTime.length>0&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><span style={LS}>Completion Notes</span>{woTime.sort((a,b)=>(a.logged_date||"").localeCompare(b.logged_date||"")).map((t,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none"}}><span style={{fontFamily:M,fontSize:11,color:B.textDim,minWidth:75}}>{t.logged_date}</span><span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan,minWidth:30}}>{t.hours}h</span><span style={{fontSize:12,color:B.text}}>{t.description||"—"}</span></div>)}{wo.work_performed&&<div style={{marginTop:6,padding:"6px 0",borderTop:"1px solid "+B.border,fontSize:12,color:B.textMuted,fontStyle:"italic"}}>{wo.work_performed}</div>}</div>}
+    </Card>
+
+    {/* NTE + SLA Timestamps — commercial/chain customer tracking */}
+    <Card style={{maxWidth:640,marginBottom:12,padding:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"start"}}>
+        {/* NTE */}
+        <div style={{borderRight:"1px solid "+B.border,paddingRight:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <span style={LS}>Not-To-Exceed</span>
+            {isManager&&!editNte&&<button onClick={()=>{setNteInput(wo.nte==null?"":String(wo.nte));setEditNte(true);}} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",fontFamily:F}}>{wo.nte?"Edit":"Set"}</button>}
+          </div>
+          {editNte?<div style={{display:"flex",gap:4,alignItems:"center"}}><span style={{color:B.textDim,fontSize:13}}>$</span><input value={nteInput} onChange={e=>setNteInput(e.target.value)} type="number" min="0" placeholder="1500" style={{...IS,padding:"6px 8px",fontSize:13,fontFamily:M,flex:1}}/><button onClick={saveNte} style={{background:"none",border:"none",color:B.green,fontSize:11,cursor:"pointer",fontWeight:700}}>Save</button><button onClick={()=>setEditNte(false)} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer"}}>×</button></div>:
+          !wo.nte?<div style={{fontSize:11,color:B.textDim,fontStyle:"italic"}}>Not set — customer may cap spend</div>:
+          <><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}><span style={{fontFamily:M,fontSize:17,fontWeight:800,color:nteColor}}>${parseFloat(wo.nte).toLocaleString()}</span><span style={{fontSize:10,color:B.textDim}}>${woSpend.toFixed(0)} used</span></div>
+          <div style={{height:6,background:B.bg,borderRadius:3,overflow:"hidden",border:"1px solid "+B.border}}><div style={{width:Math.min(100,ntePct)+"%",height:"100%",background:nteColor,transition:"width .3s"}}/></div>
+          {ntePct>=100&&<div style={{fontSize:10,color:B.red,fontWeight:700,marginTop:4}}>⚠️ Over NTE — request increase before adding more</div>}
+          {ntePct>=75&&ntePct<100&&<div style={{fontSize:10,color:B.orange,fontWeight:600,marginTop:4}}>Approaching NTE ({Math.round(ntePct)}%)</div>}
+          {wo.nte_approved_by&&<div style={{fontSize:9,color:B.textDim,marginTop:3}}>Last approved by {wo.nte_approved_by}</div>}</>}
+        </div>
+        {/* SLA Timestamps */}
+        <div>
+          <span style={LS}>SLA Timestamps</span>
+          <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+              <span style={{fontSize:11,color:wo.dispatched_at?B.cyan:B.textDim,fontWeight:600,minWidth:70}}>Dispatched</span>
+              {wo.dispatched_at?<span style={{fontFamily:M,fontSize:10,color:B.textMuted}}>{new Date(wo.dispatched_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>:canEdit&&<button onClick={()=>stampTime("dispatched_at")} style={{...BS,padding:"4px 10px",fontSize:10,minHeight:28}}>Stamp now</button>}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+              <span style={{fontSize:11,color:wo.on_site_at?B.cyan:B.textDim,fontWeight:600,minWidth:70}}>On Site</span>
+              {wo.on_site_at?<span style={{fontFamily:M,fontSize:10,color:B.textMuted}}>{new Date(wo.on_site_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}{wo.dispatched_at&&<span style={{color:B.cyan,marginLeft:4}}>(+{elapsed(wo.dispatched_at,wo.on_site_at)})</span>}</span>:canEdit&&<button onClick={()=>stampTime("on_site_at")} style={{...BS,padding:"4px 10px",fontSize:10,minHeight:28}}>Stamp now</button>}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+              <span style={{fontSize:11,color:wo.resolved_at?B.green:B.textDim,fontWeight:600,minWidth:70}}>Resolved</span>
+              {wo.resolved_at?<span style={{fontFamily:M,fontSize:10,color:B.textMuted}}>{new Date(wo.resolved_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}{wo.on_site_at&&<span style={{color:B.green,marginLeft:4}}>(+{elapsed(wo.on_site_at,wo.resolved_at)})</span>}</span>:canEdit&&<button onClick={()=>stampTime("resolved_at")} style={{...BS,padding:"4px 10px",fontSize:10,minHeight:28}}>Stamp now</button>}
+            </div>
+          </div>
+        </div>
+      </div>
     </Card>
 
     {/* Equipment link */}
@@ -229,6 +284,40 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
         {canEdit&&<div style={{display:"flex",gap:8,marginTop:10}}>
           <button onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
           <button onClick={()=>setShowReceipt(true)} style={{...BS,flex:1,padding:12}}>🧾 Scan Receipt</button>
+        </div>}
+      </Card>}
+
+      {/* EPA 608 Refrigerant log */}
+      <Toggle label={"Refrigerant Log"+(refNet!==0?" (net "+(refNet>0?"+":"")+refNet.toFixed(2)+" lbs)":"")} count={refLog.length} open={showRefrigerant} setOpen={setShowRefrigerant}/>
+      {showRefrigerant&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
+        <div style={{fontSize:10,color:B.textDim,marginBottom:8}}>EPA 608 tracking — every charge, recovery, or leak on systems ≥50 lbs.</div>
+        {refLog.length>0&&<div style={{marginBottom:10}}>{refLog.map(r=>{const actColor=r.action==="added"?B.green:r.action==="recovered"?B.orange:B.red;return<div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12,gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{padding:"2px 8px",borderRadius:10,background:actColor+"22",color:actColor,fontSize:9,fontWeight:700,textTransform:"uppercase"}}>{r.action}</span><span style={{fontFamily:M,fontWeight:700,color:B.text}}>{r.pounds} lbs</span><span style={{color:B.textDim,fontSize:11}}>{r.refrigerant_type}</span></div>
+            <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{r.technician}{r.cylinder_id&&" · Cyl "+r.cylinder_id}{" · "+new Date(r.logged_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}{r.notes&&" · "+r.notes}</div>
+          </div>
+          {(isManager||r.technician===userName)&&<button onClick={()=>delRefEntry(r.id)} style={{background:"none",border:"none",color:B.red+"88",fontSize:12,cursor:"pointer",padding:"4px 8px"}}>×</button>}
+        </div>;})}</div>}
+        {canEdit&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <select value={refForm.action} onChange={e=>setRefForm({...refForm,action:e.target.value})} style={{...IS,padding:"8px 10px",fontSize:12,cursor:"pointer"}}><option value="added">Added / Charge</option><option value="recovered">Recovered</option><option value="leak_found">Leak Found</option></select>
+          <select value={refForm.refrigerant_type} onChange={e=>setRefForm({...refForm,refrigerant_type:e.target.value})} style={{...IS,padding:"8px 10px",fontSize:12,cursor:"pointer",fontFamily:M}}>
+            <option value="R-448A">R-448A (Solstice N40)</option>
+            <option value="R-449A">R-449A (Opteon XP40)</option>
+            <option value="R-404A">R-404A</option>
+            <option value="R-134A">R-134A</option>
+            <option value="R-22">R-22 (phased out)</option>
+            <option value="R-410A">R-410A</option>
+            <option value="R-513A">R-513A</option>
+            <option value="R-290">R-290 (Propane)</option>
+            <option value="R-744">R-744 (CO2)</option>
+            <option value="R-32">R-32</option>
+            <option value="R-717">R-717 (Ammonia)</option>
+            <option value="Other">Other</option>
+          </select>
+          <input value={refForm.pounds} onChange={e=>setRefForm({...refForm,pounds:e.target.value})} type="number" step="0.1" min="0" placeholder="Pounds" style={{...IS,padding:"8px 10px",fontSize:12,fontFamily:M}}/>
+          <input value={refForm.cylinder_id} onChange={e=>setRefForm({...refForm,cylinder_id:e.target.value})} placeholder="Cylinder #" style={{...IS,padding:"8px 10px",fontSize:12,fontFamily:M}}/>
+          <input value={refForm.notes} onChange={e=>setRefForm({...refForm,notes:e.target.value})} placeholder="Notes (optional)" style={{...IS,padding:"8px 10px",fontSize:12,gridColumn:"1 / -1"}}/>
+          <button onClick={addRefEntry} disabled={savingRef||!refForm.pounds} style={{...BP,padding:"10px",fontSize:12,gridColumn:"1 / -1",opacity:(savingRef||!refForm.pounds)?.6:1}}>{savingRef?"Logging...":"+ Log Refrigerant"}</button>
         </div>}
       </Card>}
 
