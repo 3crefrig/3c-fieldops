@@ -231,7 +231,12 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
     {/* Service History */}
     <Card style={{marginBottom:12}}>
       <span style={LS}>Service History ({linkedWOs.length})</span>
-      {linkedWOs.length===0?<div style={{fontSize:12,color:B.textDim,marginTop:6}}>No service records yet</div>:
+      {linkedWOs.length===0?<div style={{fontSize:12,color:B.textDim,marginTop:6}}>No service records yet</div>:<>
+      {(()=>{const byTitle={};linkedWOs.forEach(w=>{const key=(w.title||"").toLowerCase().trim();if(!key)return;byTitle[key]=(byTitle[key]||0)+1;});const recurring=Object.entries(byTitle).filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,3);const firstDate=linkedWOs[linkedWOs.length-1]?.created_at?.slice(0,10);const lastDate=linkedWOs[0]?.created_at?.slice(0,10);return(recurring.length>0||linkedWOs.length>=3)?<div style={{marginTop:8,padding:"8px 10px",background:B.orange+"11",border:"1px solid "+B.orange+"33",borderRadius:6,fontSize:11}}>
+        {recurring.length>0&&<div style={{color:B.orange,fontWeight:600,marginBottom:recurring.length>0?4:0}}>⚠️ Recurring issues (repair-vs-replace flag):</div>}
+        {recurring.map(([title,count])=><div key={title} style={{color:B.text,marginLeft:12,marginTop:2}}>• {title.charAt(0).toUpperCase()+title.slice(1)} <span style={{color:B.orange,fontWeight:700}}>×{count}</span></div>)}
+        {firstDate&&lastDate&&<div style={{color:B.textDim,marginTop:6,fontSize:10}}>First service {firstDate} · last {lastDate} · {linkedWOs.length} total visits</div>}
+      </div>:null})()}
       <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>
         {linkedWOs.slice(0,20).map(w=>{
           const hrs=timeEntries.filter(t=>t.wo_id===w.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);
@@ -250,7 +255,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
             </div>
           </div>);
         })}
-      </div>}
+      </div></>}
     </Card>
 
     {/* Modals */}
