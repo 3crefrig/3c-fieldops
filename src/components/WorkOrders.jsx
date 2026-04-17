@@ -36,12 +36,6 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("⚠️ Failed to delete");}};
   const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("⚠️ Failed to stamp");}};
   const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("⚠️ Failed to save NTE");}};
-  const poApprovedTotal=woPOs.filter(p=>p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const woSpend=poApprovedTotal+lineItemsTotal;
-  const ntePct=wo.nte&&wo.nte>0?Math.min(999,(woSpend/parseFloat(wo.nte))*100):0;
-  const nteColor=ntePct>=100?B.red:ntePct>=75?B.orange:B.green;
-  const refNet=refLog.reduce((s,r)=>s+(r.action==="added"?parseFloat(r.pounds||0):r.action==="recovered"?-parseFloat(r.pounds||0):0),0);
-  const elapsed=(from,to)=>{if(!from)return null;const t1=new Date(from).getTime();const t2=to?new Date(to).getTime():Date.now();const h=(t2-t1)/3600000;return h<1?Math.round(h*60)+"m":h.toFixed(1)+"h";};
   const[liDesc,setLiDesc]=useState(""),[liAmt,setLiAmt]=useState(""),[addingLI,setAddingLI]=useState(false),[savingLI,setSavingLI]=useState(false);
   const isProjectWO=!!wo.project_id;
   const woLineItems=(lineItems||[]).filter(li=>li.wo_id===wo.id);
@@ -52,6 +46,12 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const deleteLineItem=async(id)=>{await sb().from("wo_line_items").delete().eq("id",id);if(reloadTable)await reloadTable("wo_line_items");msg("Line item removed");};
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.wo_id===wo.id);const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const woPhotos=photos.filter(p=>p.wo_id===wo.id);
+  const poApprovedTotal=woPOs.filter(p=>p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const woSpend=poApprovedTotal+lineItemsTotal;
+  const ntePct=wo.nte&&wo.nte>0?Math.min(999,(woSpend/parseFloat(wo.nte))*100):0;
+  const nteColor=ntePct>=100?B.red:ntePct>=75?B.orange:B.green;
+  const refNet=refLog.reduce((s,r)=>s+(r.action==="added"?parseFloat(r.pounds||0):r.action==="recovered"?-parseFloat(r.pounds||0):0),0);
+  const elapsed=(from,to)=>{if(!from)return null;const t1=new Date(from).getTime();const t2=to?new Date(to).getTime():Date.now();const h=(t2-t1)/3600000;return h<1?Math.round(h*60)+"m":h.toFixed(1)+"h";};
   const woHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
   const hasData=woTime.length>0||woPOs.length>0||woPhotos.length>0||(wo.notes&&wo.notes.trim()&&wo.notes!=="No details.")||woHrs>0;
   const isManager=userRole==="admin"||userRole==="manager";
