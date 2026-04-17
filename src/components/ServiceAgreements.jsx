@@ -120,7 +120,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
 
   const save=async()=>{
     if(!f.customer_name||!f.start_date||!f.end_date||saving)return;
-    setSaving(true);try{await onSave(initial?{id:initial.id,...f}:f);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
+    setSaving(true);try{const today=new Date().toISOString().slice(0,10);const thirtyDays=new Date(Date.now()+30*86400000).toISOString().slice(0,10);const computedStatus=f.status==="cancelled"?"cancelled":f.end_date<today?"expired":f.end_date<=thirtyDays?"pending_renewal":f.start_date<=today?"active":"active";const payload={...f,status:computedStatus};await onSave(initial?{id:initial.id,...payload}:payload);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
 
   return(<Modal title={initial?"Edit Agreement":"Create Service Agreement"} onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>

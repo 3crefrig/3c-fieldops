@@ -27,9 +27,9 @@ function DayPlanner({wos,templates,users,userName,userRole}){
     return wos.filter(w=>{
       if(w.status==="completed")return false;
       if(selectedTech!=="all"&&w.assignee!==selectedTech&&!(w.crew||[]).includes(selectedTech))return false;
-      // Include if due this week or has no due date (pending)
-      if(w.due_date&&w.due_date>="2020-01-01"){return w.due_date>=weekStart&&w.due_date<=weekEnd;}
-      return false;
+      // Include if due this week, or has no due date (unscheduled), or flagged TBD
+      if(!w.due_date||w.due_date==="TBD"||w.due_date<"2020-01-01")return true;
+      return w.due_date>=weekStart&&w.due_date<=weekEnd;
     });
   },[wos,weekStart,weekEnd,selectedTech]);
 
