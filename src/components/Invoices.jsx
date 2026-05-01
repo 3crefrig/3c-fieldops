@@ -510,7 +510,7 @@ function getBiWeeklyRange(anchorDateStr){
 }
 
 function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
-  const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWO,setSelWO]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
+  const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWOs,setSelWOs]=useState([]),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
@@ -527,7 +527,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const customer=customers.find(c=>c.name===cust);
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
   // Filter: per-WO mode or date range mode
-  const filteredWOs=mode==="lineonly"?[]:mode==="wo"?(selWO?custWOs.filter(w=>w.id===selWO):[]): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
+  const filteredWOs=mode==="lineonly"?[]:mode==="wo"?custWOs.filter(w=>selWOs.includes(w.id)): custWOs.filter(w=>{const d=w.date_completed||w.created_at?.slice(0,10);if(!d)return false;if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;});
   // Get time entries for filtered WOs
   const filteredTime=time.filter(t=>filteredWOs.some(w=>w.id===t.wo_id));
   // Group hours by technician
@@ -653,16 +653,43 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     {step===1&&<Card style={{padding:18,maxWidth:600}}>
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWO("");setTierAssign({});setSkipLabor(false);setCustomItems([]);}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-        {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWO("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
-        {cust&&mode==="wo"&&<div><label style={LS}>Work Order</label><CustomSelect value={selWO} onChange={v=>{setSelWO(v);const w=custWOs.find(x=>x.id===v);if(w){setJobDesc(w.title);setPoNum(w.customer_wo||"");
-              // Project WO: auto-fill customer PO from project + line items
-              if(w.project_id){
-                const proj=(projects||[]).find(p=>p.id===w.project_id);
-                if(proj?.customer_po)setPoNum(proj.customer_po);
-                if(lineItems){const woLI=(lineItems||[]).filter(li=>li.wo_id===w.id);if(woLI.length>0){setCustomItems(woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));setSkipLabor(true);setTiers(t=>t.map(tt=>({...tt,hours:0})));}}
-              }
-            }}} placeholder="— Select WO —" options={custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";}).map(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};const t=st&&tagMap[st]?tagMap[st]:null;return{value:w.id,label:w.wo_id+" — "+w.title,sub:w.customer_wo?"#"+w.customer_wo:null,badge:t?t[1]:null,tag:t?t[0]:null,tagColor:t?t[1]:null};})}/></div>}
+        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWOs([]);setTierAssign({});setSkipLabor(false);setCustomItems([]);}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+        {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWOs([]);}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
+        {cust&&mode==="wo"&&(()=>{
+          const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};
+          const avail=custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});
+          const toggle=(w)=>{
+            const checked=selWOs.includes(w.id);
+            const next=checked?selWOs.filter(id=>id!==w.id):[...selWOs,w.id];
+            setSelWOs(next);
+            if(!checked&&selWOs.length===0){setJobDesc(w.title);setPoNum(w.customer_wo||"");if(w.project_id){const proj=(projects||[]).find(p=>p.id===w.project_id);if(proj?.customer_po)setPoNum(proj.customer_po);}}
+            if(lineItems){
+              const projLI=[];let hasProj=false;
+              next.forEach(id=>{const ww=custWOs.find(x=>x.id===id);if(ww?.project_id){hasProj=true;const woLI=(lineItems||[]).filter(li=>li.wo_id===ww.id);if(woLI.length>0)projLI.push(...woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));}});
+              if(hasProj&&projLI.length>0){setCustomItems(projLI);setSkipLabor(true);setTiers(tt=>tt.map(t=>({...t,hours:0})));}
+            }
+          };
+          return <div><label style={LS}>Work Orders <span style={{color:B.textDim,fontWeight:400}}>(check one or more)</span></label>
+            {avail.length===0?<div style={{padding:"14px",fontSize:12,color:B.textDim,textAlign:"center",border:"1px solid "+B.border,borderRadius:6,background:B.bg}}>No completed WOs available</div>:
+            <div style={{maxHeight:240,overflowY:"auto",border:"1px solid "+B.border,borderRadius:6,background:B.bg}}>
+              {avail.map(w=>{
+                const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));
+                const st=inv?(inv.status==="sent"&&(new Date()-new Date(inv.date_issued))>30*86400000?"overdue":inv.status):null;
+                const tag=st&&tagMap[st]?tagMap[st]:null;
+                const checked=selWOs.includes(w.id);
+                return <div key={w.id} onClick={()=>toggle(w)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:"1px solid "+B.border+"40",cursor:"pointer",background:checked?B.cyanGlow:"transparent",transition:"background .1s",minHeight:44}}>
+                  <input type="checkbox" checked={checked} readOnly style={{width:18,height:18,accentColor:B.cyan,cursor:"pointer",flexShrink:0,pointerEvents:"none"}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:checked?700:600,color:checked?B.cyan:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.wo_id} — {w.title}</div>
+                    {w.customer_wo&&<div style={{fontSize:10,color:B.textDim,marginTop:1}}>#{w.customer_wo}</div>}
+                  </div>
+                  {tag&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:tag[1]+"20",color:tag[1],border:"1px solid "+tag[1]+"30",flexShrink:0}}>{tag[0]}</span>}
+                </div>;
+              })}
+            </div>}
+            {selWOs.length>0&&<div style={{marginTop:6,fontSize:11,color:B.textDim}}><strong style={{color:B.cyan}}>{selWOs.length}</strong> selected</div>}
+          </div>;
+        })()}
         {cust&&mode==="range"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>From</label><input value={dateFrom} onChange={e=>setDateFrom(e.target.value)} type="date" style={IS}/></div>
           <div><label style={LS}>To</label><input value={dateTo} onChange={e=>setDateTo(e.target.value)} type="date" style={IS}/></div>
@@ -675,7 +702,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:12,color:B.textDim}}>Create an invoice with flat-rate line items only — no work order or time entries required. Ideal for project milestones, mobilization, equipment charges.</div>
           <div><label style={LS}>Work Description <span style={{color:B.textDim,fontWeight:400}}>(appears on invoice)</span></label><textarea value={lineDesc} onChange={e=>setLineDesc(e.target.value)} placeholder="Brief description of work for the customer..." rows={2} style={{...IS,resize:"vertical",minHeight:40}}/></div>
         </div>}
-        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(mode==="lineonly"){setStep(2);return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select a work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||(mode!=="lineonly"&&filteredWOs.length===0)}>{mode==="lineonly"?"Next: Add Line Items":"Next: Set Labor Rates"}</button>
+        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(mode==="lineonly"){setStep(2);return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select at least one work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||(mode!=="lineonly"&&filteredWOs.length===0)}>{mode==="lineonly"?"Next: Add Line Items":"Next: Set Labor Rates"}</button>
       </div>
     </Card>}
 
