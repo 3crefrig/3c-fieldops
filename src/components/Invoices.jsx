@@ -407,7 +407,7 @@ async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
 
 function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const PAGE_SIZE=50;
-  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
+  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
   const today=new Date();
@@ -472,7 +472,8 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                   {inv.date_paid&&" · Paid "+fmtDate(inv.date_paid)}
                   {inv.wo_ids&&<span> · {inv.wo_ids.length} WO{inv.wo_ids.length!==1?"s":""}</span>}
                 </div>
-                {inv.job_desc&&<div style={{fontSize:10,color:B.textDim,marginTop:2,fontStyle:"italic"}}>{inv.job_desc}</div>}
+                {(()=>{const firstNoteLine=(inv.notes||"").split("\n").map(s=>s.trim()).filter(Boolean)[0]||"";const preview=inv.job_desc?(inv.job_desc+(firstNoteLine&&firstNoteLine!==inv.job_desc?" — "+firstNoteLine:"")):firstNoteLine;return preview?(<div style={{fontSize:11,color:B.textDim,marginTop:3,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{preview}</div>):null;})()}
+                {(inv.notes||(inv.wo_ids&&inv.wo_ids.length>0)||(inv.tier_data&&inv.tier_data.length>0)||(inv.custom_items&&inv.custom_items.length>0))&&<button onClick={()=>setExpandedId(expandedId===inv.id?null:inv.id)} style={{marginTop:6,padding:"3px 8px",fontSize:10,fontWeight:600,background:"transparent",border:"1px solid "+B.border,borderRadius:4,color:B.textDim,cursor:"pointer",fontFamily:F}}>{expandedId===inv.id?"▲ Hide details":"▼ Show details"}</button>}
               </div>
               <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
                 <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">📊</button>
@@ -482,6 +483,15 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 <button onClick={()=>del(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
               </div>
             </div>
+            {expandedId===inv.id&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+B.border,display:"flex",flexDirection:"column",gap:10}}>
+              {inv.job_desc&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Job</span><div style={{color:B.textMuted,marginTop:2}}>{inv.job_desc}</div></div>}
+              {inv.po_number&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Customer PO</span><div style={{color:B.textMuted,marginTop:2,fontFamily:M}}>{inv.po_number}</div></div>}
+              {inv.wo_ids&&inv.wo_ids.length>0&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Linked Work Orders ({inv.wo_ids.length})</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.wo_ids.map(wid=>{const w=wos.find(x=>x.wo_id===wid||x.id===wid);return(<div key={wid} style={{color:B.text,paddingLeft:8}}>• <span style={{fontFamily:M,fontWeight:700}}>{w?.wo_id||wid}</span>{w?.title&&<span style={{color:B.textMuted}}> — {w.title}</span>}{!w&&<span style={{color:B.textDim,fontStyle:"italic"}}> (not found)</span>}</div>);})}</div></div>}
+              {inv.notes&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Work Performed</span><div style={{color:B.textMuted,marginTop:4,whiteSpace:"pre-wrap",lineHeight:1.5,paddingLeft:8}}>{inv.notes}</div></div>}
+              {inv.tier_data&&inv.tier_data.length>0&&inv.tier_data.some(t=>(t.hours||0)>0)&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Labor</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.tier_data.filter(t=>(t.hours||0)>0).map((t,i)=>(<div key={i} style={{color:B.text,paddingLeft:8}}>• {t.name}: <span style={{fontFamily:M,color:B.textMuted}}>{(t.hours||0).toFixed(2)}h × ${(t.rate||0).toFixed(2)}</span> = <span style={{fontFamily:M,fontWeight:700}}>${((t.hours||0)*(t.rate||0)).toFixed(2)}</span></div>))}</div></div>}
+              {inv.custom_items&&inv.custom_items.length>0&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Other Charges</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.custom_items.map((it,i)=>(<div key={i} style={{color:B.text,paddingLeft:8}}>• {it.description}: <span style={{fontFamily:M,fontWeight:700}}>${parseFloat(it.amount||0).toFixed(2)}</span></div>))}</div></div>}
+              {inv.parts_total>0&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Parts</span><div style={{color:B.textMuted,marginTop:2,paddingLeft:8}}>Total (incl. markup): <span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(inv.parts_total||0).toFixed(2)}</span></div></div>}
+            </div>}
           </Card>);})}
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
