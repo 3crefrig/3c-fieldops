@@ -2,14 +2,14 @@ import React, { useState } from "react";
 import { sb, B, F, IS, LS, BP, BS } from "../shared";
 import { Card, Modal, Toast } from "./ui";
 
-function RecurringPM({templates,onAdd,onDelete,users}){
+function RecurringPM({templates,onAdd,onUpdate,onDelete,users}){
   const[showForm,setShowForm]=useState(false),[editing,setEditing]=useState(null),[toast,setToast]=useState("");
   const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState("Unassigned"),[loc,setLoc]=useState(""),[bldg,setBldg]=useState(""),[notes,setNotes]=useState(""),[freq,setFreq]=useState("monthly"),[nextDue,setNextDue]=useState(""),[cust,setCust]=useState(""),[saving,setSaving]=useState(false);
   const techs=users.filter(u=>u.role==="technician"&&u.active!==false);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const openEdit=(t)=>{setEditing(t);setTitle(t.title||"");setPri(t.priority||"medium");setAssign(t.assignee||"Unassigned");setLoc(t.location||"");setBldg(t.building||"");setNotes(t.notes||"");setFreq(t.frequency||"monthly");setNextDue(t.next_due||"");setCust(t.customer||"");setShowForm(true);};
   const openNew=()=>{setEditing(null);setTitle("");setPri("medium");setAssign("Unassigned");setLoc("");setBldg("");setNotes("");setFreq("monthly");setNextDue("");setCust("");setShowForm(true);};
-  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);try{const fields={title:title.trim(),priority:pri,assignee:assign,location:loc.trim(),building:bldg.trim(),notes:notes.trim(),customer:cust.trim(),frequency:freq,next_due:nextDue||null,active:true};if(editing){await sb().from("recurring_templates").update(fields).eq("id",editing.id);msg("Template updated");}else{await onAdd(fields);msg("Template created");}setShowForm(false);setEditing(null);setTitle("");setSaving(false);}catch(e){console.error(e);setSaving(false);}};
+  const go=async()=>{if(!title.trim()||saving)return;setSaving(true);try{const fields={title:title.trim(),priority:pri,assignee:assign,location:loc.trim(),building:bldg.trim(),notes:notes.trim(),customer:cust.trim(),frequency:freq,next_due:nextDue||null,active:true};if(editing){if(onUpdate){await onUpdate({id:editing.id,...fields});}else{await sb().from("recurring_templates").update(fields).eq("id",editing.id);}msg("Template updated");}else{await onAdd(fields);msg("Template created");}setShowForm(false);setEditing(null);setTitle("");setSaving(false);}catch(e){console.error(e);setSaving(false);}};
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Recurring PM Templates</h3>
     <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ New Recurring PM</button>
