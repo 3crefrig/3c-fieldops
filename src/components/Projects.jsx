@@ -56,6 +56,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
   const createProjectPO=async()=>{if(!poDesc.trim()||saving)return;if(cleanText(poDesc,"PO Description")===null)return;setSaving(true);const{data:all}=await sb().from("purchase_orders").select("po_id");const id=genProjectPO(all||[]);await sb().from("purchase_orders").insert({po_id:id,description:autoCorrect(poDesc.trim()),amount:parseFloat(poAmt)||0,notes:autoCorrect(poNotes.trim()),project_id:project.id,chamber_id:poScope||null,requested_by:userName,status:"pending"});setSaving(false);setShowPOModal(false);setPoDesc("");setPoAmt("");setPoNotes("");setPoScope("");if(reloadTable)reloadTable("purchase_orders");msg("PO "+id+" created");};
   const approveProjectPO=async(po)=>{const ok=await tryOp(()=>sb().from("purchase_orders").update({status:"approved",approved_by:userName,approved_at:new Date().toISOString()}).eq("id",po.id),"PO approved","Failed to approve PO");if(ok&&reloadTable)reloadTable("purchase_orders");};
   const rejectProjectPO=async(po)=>{const ok=await tryOp(()=>sb().from("purchase_orders").update({status:"rejected"}).eq("id",po.id),"PO rejected","Failed to reject PO");if(ok&&reloadTable)reloadTable("purchase_orders");};
+  const deleteProjectPO=async(po)=>{if(!window.confirm("Delete PO "+(po.po_id||"")+"? This cannot be undone."))return;const ok=await tryOp(()=>sb().from("purchase_orders").delete().eq("id",po.id),"PO deleted","Failed to delete PO");if(ok&&reloadTable)reloadTable("purchase_orders");};
   const editNote=async(n)=>{if(!editNoteText.trim())return;await sb().from("project_notes").update({note:autoCorrect(editNoteText.trim())}).eq("id",n.id);setEditNoteId(null);await loadPD();msg("Note updated");};
   const deleteNote=async(id)=>{if(!window.confirm("Delete this note?"))return;const ok=await tryOp(()=>sb().from("project_notes").delete().eq("id",id),"Note deleted","Failed to delete note");if(ok)await loadPD();};
   const deletePhoto=async(id)=>{if(!window.confirm("Delete this photo?"))return;const ok=await tryOp(()=>sb().from("project_photos").delete().eq("id",id),"Photo deleted","Failed to delete photo");if(ok)await loadPD();};
@@ -161,6 +162,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             {(isMgr||po.requested_by===userName)&&<span style={{fontFamily:M,fontSize:15,fontWeight:800,color:B.text}}>{"$"+(parseFloat(po.amount)||0).toFixed(2)}</span>}
             {isMgr&&po.status==="pending"&&<><button onClick={()=>approveProjectPO(po)} style={{...BP,padding:"8px 14px",fontSize:12,minHeight:36}}>✓</button><button onClick={()=>rejectProjectPO(po)} style={{...BS,padding:"8px 14px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button></>}
+            {isMgr&&po.status==="rejected"&&<button onClick={()=>deleteProjectPO(po)} style={{...BS,padding:"8px 14px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}} title="Delete PO">🗑</button>}
           </div>
         </div>
       </Card>})}
