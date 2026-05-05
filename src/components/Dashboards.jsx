@@ -178,7 +178,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="feedback"&&<FeedbackDashboard D={D}/>}
     {tab==="proposals"&&<ProposalDashboard D={D} userName={user.name}/>}
     {tab==="agreements"&&<AgreementDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
-    {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
+    {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onUpdate={A.updateTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
     {tab==="equipment"&&<EquipmentDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}

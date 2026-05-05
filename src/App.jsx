@@ -214,6 +214,7 @@ function App(){
     updateUser:withTableSync("users",async(u)=>{const{id,...rest}=u;const{error}=await sb().from("users").update(rest).eq("id",id);if(error){alert("Failed to update user.");throw error;}}),
     deleteUser:withTableSync("users",async(id)=>{const{error}=await sb().from("users").delete().eq("id",id);if(error){alert("Failed to delete user.");throw error;}}),
     addTemplate:withTableSync("recurring_templates",async(t)=>{const{error}=await sb().from("recurring_templates").insert(t);if(error){alert("Failed to add template.");throw error;}}),
+    updateTemplate:withTableSync("recurring_templates",async(t)=>{const{id,...rest}=t;const{error}=await sb().from("recurring_templates").update(rest).eq("id",id);if(error){alert("Failed to update template.");throw error;}}),
     deleteTemplate:withTableSync("recurring_templates",async(id)=>{const{error}=await sb().from("recurring_templates").delete().eq("id",id);if(error){alert("Failed to delete template.");throw error;}}),
     addCustomer:withTableSync("customers",async(c)=>{const{data:inserted,error}=await sb().from("customers").insert(c).select("*").single();if(error){alert("Failed to add customer.");throw error;}if(inserted)evaluateTriggers("customer_created",inserted);}),
     updateCustomer:withTableSync("customers",async(c)=>{const{id,...rest}=c;const{error}=await sb().from("customers").update(rest).eq("id",id);if(error){alert("Failed to update customer.");throw error;}}),
