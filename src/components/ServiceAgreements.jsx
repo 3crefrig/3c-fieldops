@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -471,7 +471,7 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
       <StatCard label="Annual Value" value={"$"+(a.annual_value||0).toFixed(0)} icon="📊" color={B.cyan}/>
       <StatCard label="Visits Done" value={a.visits_completed+"/"+(a.visits_per_year||"?")} icon="✓" color={B.cyan}/>
       <StatCard label="Days Left" value={daysRemaining>0?daysRemaining:"Expired"} icon="📅" color={daysRemaining<=30?B.orange:B.green}/>
-      <StatCard label="Service Hours" value={totalHours.toFixed(1)} icon="⏱" color={B.orange}/>
+      <StatCard label="Service Hours" value={fmtHours(totalHours)} icon="⏱" color={B.orange}/>
       <StatCard label="Parts Cost" value={"$"+totalCost.toFixed(0)} icon="🔧" color={B.purple}/>
     </div>
 

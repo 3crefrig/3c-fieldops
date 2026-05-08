@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { CameraUpload } from "./CameraUpload";
 import { Html5Qrcode } from "html5-qrcode";
@@ -200,7 +200,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
       <StatCard label="Refrigerant" value={eq.refrigerant_type||"—"} icon="❄️" color={B.purple}/>
       <StatCard label="Warranty" value={warrantyDays===null?"N/A":warrantyDays<=0?"Expired":warrantyDays+"d left"} icon="🛡" color={warrantyColor}/>
       <StatCard label="Service Visits" value={linkedWOs.length} icon="🔧" color={B.cyan}/>
-      <StatCard label="Total Hours" value={totalHours.toFixed(1)} icon="⏱" color={B.orange}/>
+      <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="⏱" color={B.orange}/>
       <StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="💰" color={B.green}/>
     </div>
 
@@ -250,7 +250,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
               <Badge color={w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange}>{w.status}</Badge>
             </div>
             <div style={{fontSize:10,color:B.textDim,marginTop:4}}>
-              {w.created_at?.slice(0,10)} · {hrs.toFixed(1)}h · {woPOs.length} PO{woPOs.length!==1?"s":""}
+              {w.created_at?.slice(0,10)} · {fmtHours(hrs)} · {woPOs.length} PO{woPOs.length!==1?"s":""}
               {w.work_performed&&<span> · {w.work_performed.slice(0,60)}{w.work_performed.length>60?"...":""}</span>}
             </div>
           </div>);
