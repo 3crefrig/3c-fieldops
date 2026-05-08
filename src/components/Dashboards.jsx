@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours, fmtHours } from "../shared";
 import { Card, Badge, StatCard, Modal, EmptyState, Toast } from "./ui";
 import { KPIDashboard, DashAnalytics } from "./KPIDashboard";
 import { Reports } from "./Reports";
@@ -77,12 +77,12 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
       </div>}
       {isAfternoon&&todayHours<4&&myActive.length>0&&<div style={{background:B.red+"15",border:"1px solid "+B.red+"33",borderRadius:8,padding:"10px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontSize:16}}>⚠️</span>
-        <div style={{fontSize:12,color:B.red,fontWeight:600}}>It's past 3pm and you have only {todayHours.toFixed(1)}h logged today. Don't forget to log your time before end of day.</div>
+        <div style={{fontSize:12,color:B.red,fontWeight:600}}>It's past 3pm and you have only {fmtHours(todayHours)} logged today. Don't forget to log your time before end of day.</div>
       </div>}
       </>;})()}
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <StatCard label="Active Jobs" value={myActive.length} icon="🔧" color={B.cyan}/>
-        <StatCard label="Today's Hours" value={todayHours.toFixed(1)+"h"} icon="⏱" color={B.green}/>
+        <StatCard label="Today's Hours" value={fmtHours(todayHours)} icon="⏱" color={B.green}/>
         <StatCard label="Completed" value={myCompleted.length} icon="✓" color={B.green}/>
       </div>
       {/* My Performance Stats */}
@@ -93,7 +93,7 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
         return <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
           <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Fix Rate (30d)</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:ftfr>=85?B.green:ftfr>=70?B.orange:B.red}}>{ftfr}%</div></Card>
           <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Week Utilization</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:util>=80?B.green:util>=60?B.orange:B.red}}>{util}%</div></Card>
-          <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Week Hours</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:B.cyan}}>{weekHrs.toFixed(1)}h</div></Card>
+          <Card style={{flex:"1 1 100px",minWidth:100,padding:"10px 14px"}}><div style={{fontSize:8,color:B.textDim,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>Week Hours</div><div style={{fontSize:20,fontWeight:900,fontFamily:M,color:B.cyan}}>{fmtHours(weekHrs)}</div></Card>
         </div>;})()}
       {recentWOs.length>0&&<div style={{marginBottom:20}}>
         <div style={{fontSize:11,fontWeight:700,color:B.textDim,marginBottom:10,textTransform:"uppercase",letterSpacing:0.8}}>Recent</div>
@@ -149,7 +149,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="feedback"&&<FeedbackDashboard D={D}/>}
-    {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0).toFixed(1)}h</div></div>{(D.onlineUsers||[]).includes(t.name)?<Badge color={B.green}>Online</Badge>:<Badge color={B.textDim}>Offline</Badge>}</div></Card>);})}</div>}
+    {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {fmtHours(to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0))}</div></div>{(D.onlineUsers||[]).includes(t.name)?<Badge color={B.green}>Online</Badge>:<Badge color={B.textDim}>Offline</Badge>}</div></Card>);})}</div>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user} lineItems={D.lineItems||[]} projects={D.projects||[]} reloadTable={A.reloadTable} loadData={A.loadData}/>}
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} cur={user}/>}

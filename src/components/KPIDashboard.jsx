@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { B, F, M, IS, LS } from "../shared";
+import { B, F, M, IS, LS, fmtHours } from "../shared";
 import { Card, Badge, StatCard, Modal } from "./ui";
 
 function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
@@ -120,7 +120,7 @@ function KPIDashboard({D,A,userRole,userName}){
     {key:"ftfr",label:"First-Time Fix",value:ftfr+"%",icon:"🎯",color:ftfr>=85?B.green:ftfr>=70?B.orange:B.red,click:()=>setDrillDown("completed")},
     {key:"util",label:"Tech Utilization",value:techUtil+"%",icon:"⚡",color:techUtil>=80?B.green:techUtil>=60?B.orange:B.red},
     {key:"comp",label:"WOs Completed",value:completedWOs.length,icon:"✓",color:B.green},
-    {key:"hrs",label:"Hours Logged",value:totalHours.toFixed(0)+"h",icon:"⏱",color:B.cyan},
+    {key:"hrs",label:"Hours Logged",value:fmtHours(totalHours),icon:"⏱",color:B.cyan},
   ];
   // Financial tiles (admin/manager)
   const finTiles=[];
@@ -186,7 +186,7 @@ function KPIDashboard({D,A,userRole,userName}){
       marginBottom:16,
     }}>
       {[
-        {label:"Hours (8 wk)",val:sparkWeeks[sparkWeeks.length-1].hrs.toFixed(0)+"h",data:sparkWeeks.map(w=>w.hrs),color:B.cyan,idx:allTiles.length},
+        {label:"Hours (8 wk)",val:fmtHours(sparkWeeks[sparkWeeks.length-1].hrs),data:sparkWeeks.map(w=>w.hrs),color:B.cyan,idx:allTiles.length},
         {label:"Completions (8 wk)",val:sparkWeeks[sparkWeeks.length-1].comp,data:sparkWeeks.map(w=>w.comp),color:B.green,idx:allTiles.length+1},
         ...(isAdmin?[{label:"Revenue (8 wk)",val:"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString(),data:sparkWeeks.map(w=>w.rev),color:B.purple,idx:allTiles.length+2}]:[]),
       ].map(sp=>(

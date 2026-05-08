@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, genProjectPO, GlobalStyles, setProfanityHandler } from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, genProjectPO, GlobalStyles, setProfanityHandler, fmtHours } from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
@@ -201,7 +201,7 @@ function App(){
       const maxDaily=parseFloat(settingsRow?.value?.max_daily_hours)||0;
       if(maxDaily>0){
         const dayHrs=data.time.filter(t=>t.technician===appUser.name&&t.logged_date===logDate).reduce((s,t)=>s+parseFloat(t.hours||0),0);
-        if(dayHrs+h>maxDaily){const isManager=appUser.role==="admin"||appUser.role==="manager";if(!isManager){alert("Daily limit: "+maxDaily+" hours exceeded for "+logDate+". Ask a manager to override.");return;}if(!window.confirm("This would put "+appUser.name+" over "+maxDaily+" hours for "+logDate+" ("+(dayHrs+h).toFixed(1)+"h). Override and allow?"))return;}
+        if(dayHrs+h>maxDaily){const isManager=appUser.role==="admin"||appUser.role==="manager";if(!isManager){alert("Daily limit: "+maxDaily+" hours exceeded for "+logDate+". Ask a manager to override.");return;}if(!window.confirm("This would put "+appUser.name+" over "+maxDaily+" hours for "+logDate+" ("+fmtHours(dayHrs+h)+"). Override and allow?"))return;}
       }
       const{error:teErr}=await sb().from("time_entries").insert({...te,hours:h,technician:appUser.name,logged_date:logDate});if(teErr){alert("Failed to log time. Please try again.");throw teErr;}
       const wo=data.wos.find(w=>w.id===te.wo_id);

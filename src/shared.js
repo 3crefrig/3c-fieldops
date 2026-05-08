@@ -34,6 +34,7 @@ export const setProfanityHandler=(fn)=>{_profanityToast=fn;};
 export const cleanText=(text,fieldName)=>{const corrected=autoCorrect(text);if(hasProfanity(corrected)){if(_profanityToast)_profanityToast("Inappropriate language in "+fieldName);else alert("Inappropriate language detected in "+fieldName+".");return null;}return corrected;};
 export const sanitizeHTML=(html)=>{if(!html)return"";const d=document.createElement("div");d.innerHTML=html;d.querySelectorAll("script,iframe,object,embed,form,link,style,svg").forEach(n=>n.remove());d.querySelectorAll("*").forEach(el=>{[...el.attributes].forEach(a=>{if(a.name.startsWith("on")||a.value.includes("javascript:"))el.removeAttribute(a.name);});});return d.innerHTML;};
 export const calcWOHours=(woId,timeEntries)=>timeEntries.filter(t=>t.wo_id===woId).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+export const fmtHours=(n)=>{const v=parseFloat(n||0);if(!isFinite(v))return"0h";return parseFloat(v.toFixed(2))+"h";};
 export const PC={high:B.red,medium:B.orange,low:B.green};
 export const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
 export const SL={pending:"Pending",in_progress:"In Progress",completed:"Completed"};

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, genPO, genProjectPO, fmtDate, fmtDateTime } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput } from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -51,7 +51,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const ntePct=wo.nte&&wo.nte>0?Math.min(999,(woSpend/parseFloat(wo.nte))*100):0;
   const nteColor=ntePct>=100?B.red:ntePct>=75?B.orange:B.green;
   const refNet=refLog.reduce((s,r)=>s+(r.action==="added"?parseFloat(r.pounds||0):r.action==="recovered"?-parseFloat(r.pounds||0):0),0);
-  const elapsed=(from,to)=>{if(!from)return null;const t1=new Date(from).getTime();const t2=to?new Date(to).getTime():Date.now();const h=(t2-t1)/3600000;return h<1?Math.round(h*60)+"m":h.toFixed(1)+"h";};
+  const elapsed=(from,to)=>{if(!from)return null;const t1=new Date(from).getTime();const t2=to?new Date(to).getTime():Date.now();const h=(t2-t1)/3600000;return h<1?Math.round(h*60)+"m":fmtHours(h);};
   const woHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
   const hasData=woTime.length>0||woPOs.length>0||woPhotos.length>0||(wo.notes&&wo.notes.trim()&&wo.notes!=="No details.")||woHrs>0;
   const isManager=userRole==="admin"||userRole==="manager";
@@ -90,7 +90,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <div style={{display:"flex",gap:6,marginBottom:12}}>{[["pending","Pending"],["in_progress","In Progress"],["completed","Completed"]].map(([k,l])=><button key={k} onClick={()=>changeStatus(k)} style={{flex:1,padding:"12px 8px",minHeight:44,borderRadius:6,border:wo.status===k?"2px solid "+SC[k]:"1px solid "+B.border,background:wo.status===k?SC[k]+"22":"transparent",color:wo.status===k?SC[k]:B.textDim,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12}}>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>DUE</span><br/><span style={{fontWeight:700,color:B.text}}>{wo.due_date}</span></div>
-        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>HOURS</span><br/><span style={{fontWeight:700,color:B.cyan,fontFamily:M}}>{woHrs.toFixed(1)}h</span></div>
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>HOURS</span><br/><span style={{fontWeight:700,color:B.cyan,fontFamily:M}}>{fmtHours(woHrs)}</span></div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>LOCATION</span><br/><span style={{fontWeight:600,color:B.text}}>{wo.location||"—"}{wo.building&&" · Bldg "+wo.building}</span></div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>ASSIGNED</span><br/><span style={{fontWeight:600,color:B.text}}>{[wo.assignee,...(wo.crew||[])].filter(Boolean).filter(n=>n!=="Unassigned").join(", ")||"Unassigned"}</span></div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6,gridColumn:"1 / -1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{color:B.textDim,fontSize:10,fontWeight:600}}>CUSTOMER WO#</span><button onClick={async()=>{await sb().from("work_orders").update({tms_entered:!wo.tms_entered}).eq("id",wo.id);await reloadWOs();}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",cursor:"pointer",padding:0}}><div style={{width:16,height:16,borderRadius:3,border:"2px solid "+(wo.tms_entered?B.green:B.border),background:wo.tms_entered?B.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{wo.tms_entered&&<span style={{color:"#fff",fontSize:10}}>✓</span>}</div><span style={{fontSize:10,color:wo.tms_entered?B.green:B.textDim}}>Entered in TMS</span></button></div><input value={localCustWO} onChange={e=>setLocalCustWO(e.target.value)} onBlur={async()=>{if(localCustWO!==(wo.customer_wo||"")){await sb().from("work_orders").update({customer_wo:localCustWO}).eq("id",wo.id);await reloadWOs();}}} placeholder="Enter customer WO# from their TMS" style={{background:"transparent",border:"none",color:B.text,fontWeight:600,fontSize:12,fontFamily:M,padding:"4px 0 0",width:"100%",outline:"none"}}/></div>
@@ -184,7 +184,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
           <div style={{fontSize:12,color:B.textMuted,marginBottom:8}}>{jobIntel.summary}</div>
           {jobIntel.common_issues&&jobIntel.common_issues.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Common Issues</span>{jobIntel.common_issues.map((issue,i)=><div key={i} style={{fontSize:11,color:B.orange,marginTop:2}}>• {issue}</div>)}</div>}
           {jobIntel.parts_used_previously&&jobIntel.parts_used_previously.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Parts Used Before</span>{jobIntel.parts_used_previously.map((p,i)=><div key={i} style={{fontSize:11,color:B.text,marginTop:2}}>• {p.name}{p.frequency>1?" (×"+p.frequency+")":""}</div>)}</div>}
-          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>⏱ Avg duration: {jobIntel.avg_duration_hours.toFixed(1)}h</div>}
+          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>⏱ Avg duration: {fmtHours(jobIntel.avg_duration_hours)}</div>}
           {jobIntel.suggested_approach&&<div style={{fontSize:11,color:B.green,fontStyle:"italic"}}>💡 {jobIntel.suggested_approach}</div>}
           {jobIntel.customer_notes&&<div style={{fontSize:11,color:B.purple,marginTop:4}}>📝 {jobIntel.customer_notes}</div>}
         </div>}
@@ -386,7 +386,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
     </Modal>}
     {showComplete&&<Modal title={completeStep===1?"Log Time":"Review & Sign"} onClose={()=>setShowComplete(false)} wide><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{background:B.bg,borderRadius:8,padding:14,border:"1px solid "+B.border}}><div style={{fontSize:14,fontWeight:700,color:B.text}}>{wo.wo_id} — {wo.title}</div></div>
-      <div style={{display:"flex",gap:6,justifyContent:"center",alignItems:"center"}}><div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:completeStep>=1?B.cyan:B.border,color:completeStep>=1?B.bg:B.textDim}}>1</div><div style={{width:24,height:2,background:completeStep>=2?B.cyan:B.border}}/><div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:completeStep>=2?B.cyan:B.border,color:completeStep>=2?B.bg:B.textDim}}>2</div></div>
+      {(()=>{const canStep2=woTime.length>0||(isProjectWO&&woLineItems.length>0);return(<div style={{display:"flex",gap:6,justifyContent:"center",alignItems:"center"}}><button onClick={()=>setCompleteStep(1)} title="Log Time" style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:completeStep>=1?B.cyan:B.border,color:completeStep>=1?B.bg:B.textDim,border:"none",cursor:"pointer",fontFamily:F,padding:0}}>1</button><div style={{width:24,height:2,background:completeStep>=2?B.cyan:B.border}}/><button onClick={()=>{if(canStep2)setCompleteStep(2);}} disabled={!canStep2} title={canStep2?"Review & Sign":"Log time first to continue"} style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:completeStep>=2?B.cyan:B.border,color:completeStep>=2?B.bg:B.textDim,border:"none",cursor:canStep2?"pointer":"not-allowed",fontFamily:F,padding:0,opacity:canStep2?1:.6}}>2</button></div>);})()}
       {completeStep===1&&<>
         <div style={{fontSize:13,color:B.orange,fontWeight:600,textAlign:"center"}}>No time has been logged for this job yet</div>
         <div><label style={LS}>Date</label><input type="date" value={cmpDate} onChange={e=>setCmpDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div>
@@ -546,7 +546,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
               <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{wo.customer&&<span>{"👤 "+wo.customer}</span>}{wo.location&&<span>{" · 📍 "+wo.location}</span>}</div>
               <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,flexWrap:"wrap"}}>
-                {woHrs>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>{woHrs.toFixed(1)}h</span>}
+                {woHrs>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>{fmtHours(woHrs)}</span>}
                 {noTime&&<span style={{fontSize:9,color:B.orange,fontWeight:600}}>⚠ No time logged</span>}
                 {overdue&&<span style={{fontSize:9,color:B.red,fontWeight:600}}>⚠ Overdue {wo.due_date}</span>}
                 {wo.date_completed&&<span style={{fontSize:10,color:B.green}}>{"Completed "+fmtDate(wo.date_completed)}</span>}
@@ -591,7 +591,7 @@ function WOOverview({orders,wlp,pos,time}){
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
       <StatCard label="Active" value={active.length} icon="📋" color={B.cyan}/>
       <StatCard label="Done This Week" value={completedThisWeek.length} icon="✓" color={B.green}/>
-      <StatCard label="Hours" value={thisWeek.reduce((s,o)=>s+calcWOHours(o.id,time),0).toFixed(1)+"h"} icon="⏱" color={B.orange}/>
+      <StatCard label="Hours" value={fmtHours(thisWeek.reduce((s,o)=>s+calcWOHours(o.id,time),0))} icon="⏱" color={B.orange}/>
       <StatCard label="Pending POs" value={pendingPOs} icon="📄" color={B.purple}/>
       {tmsPending>0&&<StatCard label="TMS Needed" value={tmsPending} icon="⚠️" color={B.orange}/>}
       {staleWOs.length>0&&<div onClick={()=>setFilter("stale")} style={{cursor:"pointer"}}><StatCard label="Stale (30d+)" value={staleWOs.length} icon="🕐" color={B.red}/></div>}
@@ -613,7 +613,7 @@ function WOOverview({orders,wlp,pos,time}){
             <span style={{fontSize:12,fontWeight:600,color:archiveMonth===key?B.cyan:B.textMuted}}>{label}</span>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{mos.length} orders</span>
-              <span style={{fontFamily:M,fontSize:11,color:B.cyan}}>{mos.reduce((s,o)=>s+calcWOHours(o.id,time),0).toFixed(1)}h</span>
+              <span style={{fontFamily:M,fontSize:11,color:B.cyan}}>{fmtHours(mos.reduce((s,o)=>s+calcWOHours(o.id,time),0))}</span>
               <span style={{color:B.textDim,fontSize:12}}>{archiveMonth===key?"\u25BE":"\u25B8"}</span>
             </div>
           </button>

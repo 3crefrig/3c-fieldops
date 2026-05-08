@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -705,7 +705,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div><label style={LS}>To</label><input value={dateTo} onChange={e=>setDateTo(e.target.value)} type="date" style={IS}/></div>
         </div>}
         {cust&&filteredWOs.length>0&&<div style={{padding:12,background:B.bg,borderRadius:6}}>
-          <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WO{filteredWOs.length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> tech{Object.keys(techHours).length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> total</div>
+          <div style={{fontSize:12,color:B.textDim}}>Found <strong style={{color:B.cyan}}>{filteredWOs.length}</strong> completed WO{filteredWOs.length!==1?"s":""} · <strong style={{color:B.cyan}}>{Object.keys(techHours).length}</strong> tech{Object.keys(techHours).length!==1?"s":""} · <strong style={{color:B.cyan}}>{fmtHours(Object.values(techHours).reduce((s,h)=>s+h,0))}</strong> total</div>
           {filteredPOs.length>0&&<div style={{fontSize:12,color:B.textDim,marginTop:4}}>{"$"+partsCost.toLocaleString()+" cost → $"+partsTotal.toLocaleString()+" billed ("+markupPct+"% markup)"}</div>}
         </div>}
         {cust&&mode==="lineonly"&&<div style={{padding:12,background:B.bg,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
@@ -718,7 +718,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
     {step===2&&<Card style={{padding:18,maxWidth:600}}>
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>{(mode==="lineonly"||skipLabor)?"Step 2: Add Line Items":"Step 2: Set Labor Rates"}</div>
-      {!(mode==="lineonly"||skipLabor)&&<div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{Object.values(techHours).reduce((s,h)=>s+h,0).toFixed(1)}h</strong> by {Object.keys(techHours).join(", ")||"—"}</div>}
+      {!(mode==="lineonly"||skipLabor)&&<div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{fmtHours(Object.values(techHours).reduce((s,h)=>s+h,0))}</strong> by {Object.keys(techHours).join(", ")||"—"}</div>}
       {skipLabor&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 12px",background:B.purple+"15",borderRadius:6,border:"1px solid "+B.purple+"30"}}>
         <span style={{fontSize:11,color:B.purple}}>Labor tiers hidden — billing from line items only.</span>
         <button onClick={()=>setSkipLabor(false)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Include labor hours</button>
@@ -810,13 +810,13 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           </div>}
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeBreakdown(!includeBreakdown)}>
             <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(includeBreakdown?B.cyan:B.border),background:includeBreakdown?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{includeBreakdown&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
-            <span style={{fontSize:12,color:B.text}}>Include PM/CM/EM breakdown ({breakdown.pm.hours.toFixed(1)}h PM, {breakdown.cm.hours.toFixed(1)}h CM, {breakdown.em.hours.toFixed(1)}h EM)</span>
+            <span style={{fontSize:12,color:B.text}}>Include PM/CM/EM breakdown ({fmtHours(breakdown.pm.hours)} PM, {fmtHours(breakdown.cm.hours)} CM, {fmtHours(breakdown.em.hours)} EM)</span>
           </label>
         </div>
         {/* Preview */}
         <div style={{background:B.bg,borderRadius:8,padding:14,marginTop:4}}>
           <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>PREVIEW</div>
-          {!(skipLabor||mode==="lineonly")&&tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {(t.hours||0).toFixed(1)}h × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
+          {!(skipLabor||mode==="lineonly")&&tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {fmtHours(t.hours||0)} × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
           {customItems.filter(it=>it.description&&it.amount>0).map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.purple,padding:"3px 0"}}><span>{it.description}</span><span style={{fontFamily:M}}>${it.amount.toFixed(2)}</span></div>)}
           <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+((skipLabor||mode==="lineonly"?0:tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0))+(includeParts?partsTotal:0)+customTotal).toFixed(2)}</span></div>
