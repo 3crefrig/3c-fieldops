@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, SC, SL, PSC, PSL, ROLES, cleanText, calcWOHours, fmtHours, fmtDate, autoCorrect, genProjectPO } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast } from "./ui";
 import { WODetail } from "./WorkOrders";
+import { openInvoicePDF } from "./Invoices";
 
 function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
   const[showCreate,setShowCreate]=useState(false),[name,setName]=useState(""),[desc,setDesc]=useState(""),[cust,setCust]=useState(""),[loc,setLoc]=useState(""),[budget,setBudget]=useState(""),[saving,setSaving]=useState(false);
@@ -191,7 +192,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
         <div style={{background:B.bg,borderRadius:6,padding:"10px 12px"}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>OUTSTANDING</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:invoicedOutstanding>0?B.cyan:B.textDim,marginTop:2}}>{"$"+invoicedOutstanding.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div><div style={{fontSize:9,color:B.textDim}}>{projectInvoices.filter(i=>i.status!=="paid").length} unpaid</div></div>
       </div>}
       {projectInvoices.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No invoices linked to this project</div>}
-      {projectInvoices.map(inv=>{const st=invStatusKey(inv);const days=invDaysOut(inv.date_issued);const linkedWOs=pWOs.filter(w=>(inv.wo_ids||[]).includes(w.wo_id)||(inv.wo_ids||[]).includes(w.id));return<Card key={inv.id} style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(ISC[st]||B.border)}}>
+      {projectInvoices.map(inv=>{const st=invStatusKey(inv);const days=invDaysOut(inv.date_issued);const linkedWOs=pWOs.filter(w=>(inv.wo_ids||[]).includes(w.wo_id)||(inv.wo_ids||[]).includes(w.id));return<Card key={inv.id} onClick={async()=>{msg("Generating PDF...");try{await openInvoicePDF(inv,{customers,pos:allPOs,wos:allWOs});}catch(e){msg("PDF error: "+(e.message||"failed"));}}} className="card-hover" style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(ISC[st]||B.border),cursor:"pointer"}} title="Click to view PDF">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
