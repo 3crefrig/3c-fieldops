@@ -420,6 +420,7 @@ function rebuildInvoiceData(inv,{customers,pos,wos}){
 }
 
 async function openInvoicePDF(inv,ctx){
+  if(inv?.pdf_drive_url){window.open(inv.pdf_drive_url,"_blank","noopener");return;}
   const d=rebuildInvoiceData(inv,ctx);
   const doc=await buildInvoicePDF(d);
   const url=doc.output("bloburl");
@@ -633,6 +634,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(customer)await sb().from("customers").update({labor_tiers:tiers.map(t=>({name:t.name,rate:t.rate}))}).eq("id",customer.id);
     if(reloadTable){reloadTable("work_orders");reloadTable("customers");}
   };
+  const backfillDriveUrl=async(url)=>{if(!url)return;try{const{error}=await sb().from("invoices").update({pdf_drive_url:url}).eq("invoice_num",invoiceNum);if(error)console.warn("backfillDriveUrl skipped:",error.message);else if(reloadTable)reloadTable("invoices");}catch(e){console.warn("backfillDriveUrl failed:",e);}};
   const generateXLSX=async()=>{
     if(generating)return;setGenerating(true);
     try{
@@ -643,7 +645,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       msg("Invoice downloaded!");
       await saveInvoiceRecord(d);setLastInvoiceData(d);
       if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){await sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);if(reloadTable)reloadTable("customers");}
-      if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
+      if(saveToDrive){const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").then(r=>{if(r){msg("Saved to Google Drive!");if(r.webViewLink)backfillDriveUrl(r.webViewLink);}else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
   };
@@ -655,7 +657,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       msg("PDF downloaded!");
       await saveInvoiceRecord(d);setLastInvoiceData(d);
       if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){await sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);if(reloadTable)reloadTable("customers");}
-      if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r)msg("Saved to Google Drive!");else msg("Drive save failed");});}
+      if(saveToDrive){const b64=doc.output("datauristring").split(",")[1];uploadInvoiceToDrive(b64,"INV_"+invoiceNum+"_"+safeName+".pdf","application/pdf").then(r=>{if(r){msg("Saved to Google Drive!");if(r.webViewLink)backfillDriveUrl(r.webViewLink);}else msg("Drive save failed");});}
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
   };
@@ -668,9 +670,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       const pdfB64=doc.output("datauristring").split(",")[1];
       const pdfName="INV_"+invoiceNum+"_"+safeName+".pdf";
       // Upload to Drive first to get preview link
-      let driveFileId=null;
-      if(saveToDrive){const r=await uploadInvoiceToDrive(pdfB64,pdfName,"application/pdf");if(r&&r.fileId)driveFileId=r.fileId;else if(r&&r.webViewLink){const m=r.webViewLink.match(/\/d\/([^/]+)/);if(m)driveFileId=m[1];}}
+      let driveFileId=null,driveWebViewLink=null;
+      if(saveToDrive){const r=await uploadInvoiceToDrive(pdfB64,pdfName,"application/pdf");if(r){if(r.webViewLink)driveWebViewLink=r.webViewLink;if(r.fileId)driveFileId=r.fileId;else if(r.webViewLink){const m=r.webViewLink.match(/\/d\/([^/]+)/);if(m)driveFileId=m[1];}}}
       await saveInvoiceRecord(d);
+      if(driveWebViewLink)await backfillDriveUrl(driveWebViewLink);
       setLastInvoiceData({...d,pdfB64,pdfName,driveFileId});
       setShowSendModal(true);
       msg("Invoice ready to send!");
