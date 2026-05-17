@@ -54,7 +54,7 @@ function EquipmentPicker({equipment,customerName,value,onChange}){
     if(customerName&&e.customer_name!==customerName)return false;
     if(!search)return true;
     const s=search.toLowerCase();
-    return(e.model||"").toLowerCase().includes(s)||(e.serial_number||"").toLowerCase().includes(s)||(e.asset_tag||"").toLowerCase().includes(s)||(e.location||"").toLowerCase().includes(s);
+    return(e.model||"").toLowerCase().includes(s)||(e.serial_number||"").toLowerCase().includes(s)||(e.asset_tag||"").toLowerCase().includes(s)||(e.equipment_number||"").toLowerCase().includes(s)||(e.location||"").toLowerCase().includes(s);
   });
   const selected=value?equipment.find(e=>e.id===value):null;
   const handleScan=(tag)=>{setScanning(false);
@@ -67,11 +67,12 @@ function EquipmentPicker({equipment,customerName,value,onChange}){
     <div style={{display:"flex",gap:6,alignItems:"center"}}>
       <select value={value||""} onChange={e=>onChange(e.target.value||null)} style={{...IS,flex:1,cursor:"pointer"}}>
         <option value="">— None —</option>
-        {filtered.map(e=><option key={e.id} value={e.id}>{e.model||"Unknown"} — {e.serial_number||e.asset_tag||"No ID"} ({e.location||""})</option>)}
+        {filtered.map(e=><option key={e.id} value={e.id}>{e.equipment_number?e.equipment_number+" · ":""}{e.model||"Unknown"} — {e.serial_number||e.asset_tag||"No ID"} ({e.location||""})</option>)}
       </select>
       <button onClick={()=>setScanning(true)} type="button" style={{...BS,padding:"10px 14px",whiteSpace:"nowrap",fontSize:12}}>Scan</button>
     </div>
     {selected&&<div style={{marginTop:6,padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,fontSize:11,color:B.textMuted}}>
+      {selected.equipment_number&&<span style={{fontWeight:700,color:B.orange}}>{selected.equipment_number} · </span>}
       <span style={{fontWeight:700,color:B.cyan}}>{selected.model||"Unknown"}</span>
       {selected.serial_number&&<span> · SN: {selected.serial_number}</span>}
       {selected.asset_tag&&<span> · Tag: {selected.asset_tag}</span>}
@@ -85,7 +86,8 @@ function EquipmentPicker({equipment,customerName,value,onChange}){
 function EquipmentForm({initial,customers,onSave,onClose}){
   const[f,setF]=useState({
     customer_id:initial?.customer_id||"",customer_name:initial?.customer_name||"",
-    asset_tag:initial?.asset_tag||"",model:initial?.model||"",serial_number:initial?.serial_number||"",
+    asset_tag:initial?.asset_tag||"",equipment_number:initial?.equipment_number||"",
+    model:initial?.model||"",serial_number:initial?.serial_number||"",
     manufacturer:initial?.manufacturer||"",equipment_type:initial?.equipment_type||"other",
     refrigerant_type:initial?.refrigerant_type||"",install_date:initial?.install_date||"",
     warranty_expiration:initial?.warranty_expiration||"",location:initial?.location||"",
@@ -97,7 +99,7 @@ function EquipmentForm({initial,customers,onSave,onClose}){
   const selectCustomer=(id)=>{const c=customers.find(x=>x.id===id);set("customer_id",id);if(c)set("customer_name",c.name);};
   const save=async()=>{
     if(!f.customer_name.trim()){alert("Customer is required.");return;}
-    if(!f.model.trim()&&!f.serial_number.trim()&&!f.asset_tag.trim()){alert("At least one identifier (model, serial, or asset tag) is required.");return;}
+    if(!f.model.trim()&&!f.serial_number.trim()&&!f.asset_tag.trim()&&!f.equipment_number.trim()){alert("At least one identifier (model, serial, asset tag, or equipment #) is required.");return;}
     if(f.notes&&cleanText(f.notes,"Notes")===null)return;
     setSaving(true);try{await onSave(initial?{...initial,...f}:f);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}
   };
@@ -109,27 +111,32 @@ function EquipmentForm({initial,customers,onSave,onClose}){
           {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </select></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div><label style={LS}>Asset Tag</label>
-          <div style={{display:"flex",gap:6}}>
-            <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Scan or type" style={{...IS,flex:1}}/>
-            <button onClick={()=>setScanning(true)} type="button" style={{...BS,padding:"10px 12px",fontSize:11}}>Scan</button>
-          </div></div>
+        <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>(customer's name for unit)</span></label>
+          <input value={f.equipment_number} onChange={e=>set("equipment_number",e.target.value)} placeholder="e.g. WIC-04, Cooler #3" style={IS}/>
+        </div>
         <div><label style={LS}>Equipment Type</label>
           <select value={f.equipment_type} onChange={e=>set("equipment_type",e.target.value)} style={{...IS,cursor:"pointer"}}>
             {EQ_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
           </select></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div><label style={LS}>Model</label><input value={f.model} onChange={e=>set("model",e.target.value)} placeholder="e.g. Heatcraft PRO3" style={IS}/></div>
+        <div><label style={LS}>Asset Tag <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>(physical barcode/QR)</span></label>
+          <div style={{display:"flex",gap:6}}>
+            <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Scan or type" style={{...IS,flex:1}}/>
+            <button onClick={()=>setScanning(true)} type="button" style={{...BS,padding:"10px 12px",fontSize:11}}>Scan</button>
+          </div>
+        </div>
         <div><label style={LS}>Manufacturer</label><input value={f.manufacturer} onChange={e=>set("manufacturer",e.target.value)} placeholder="e.g. Heatcraft, Copeland" style={IS}/></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div><label style={LS}>Model</label><input value={f.model} onChange={e=>set("model",e.target.value)} placeholder="e.g. Heatcraft PRO3" style={IS}/></div>
         <div><label style={LS}>Serial Number</label><input value={f.serial_number} onChange={e=>set("serial_number",e.target.value)} style={IS}/></div>
-        <div><label style={LS}>Refrigerant Type</label>
-          <select value={f.refrigerant_type} onChange={e=>set("refrigerant_type",e.target.value)} style={{...IS,cursor:"pointer"}}>
-            <option value="">Select...</option>
-            {REF_TYPES.map(r=><option key={r} value={r}>{r}</option>)}
-          </select></div>
+      </div>
+      <div><label style={LS}>Refrigerant Type</label>
+        <select value={f.refrigerant_type} onChange={e=>set("refrigerant_type",e.target.value)} style={{...IS,cursor:"pointer"}}>
+          <option value="">Select...</option>
+          {REF_TYPES.map(r=><option key={r} value={r}>{r}</option>)}
+        </select>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <div><label style={LS}>Install Date</label><input type="date" value={f.install_date} onChange={e=>set("install_date",e.target.value)} style={{...IS,padding:14}}/></div>
@@ -177,10 +184,11 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-            <span style={{fontSize:18,fontWeight:800,color:B.text}}>{eq.model||"Unknown Model"}</span>
+            <span style={{fontSize:18,fontWeight:800,color:B.text}}>{eq.equipment_number||eq.model||"Unknown Model"}</span>
             <Badge color={STATUS_COLORS[eq.status]}>{STATUS_LABELS[eq.status]||eq.status}</Badge>
           </div>
-          {eq.manufacturer&&<div style={{fontSize:12,color:B.textMuted,marginTop:2}}>{eq.manufacturer}</div>}
+          {eq.equipment_number&&eq.model&&<div style={{fontSize:13,color:B.textMuted,marginTop:2,fontWeight:600}}>{eq.model}{eq.manufacturer?" — "+eq.manufacturer:""}</div>}
+          {!eq.equipment_number&&eq.manufacturer&&<div style={{fontSize:12,color:B.textMuted,marginTop:2}}>{eq.manufacturer}</div>}
           <div style={{fontSize:12,color:B.textDim,marginTop:4}}>
             {eq.serial_number&&<span>SN: <span style={{fontFamily:M,color:B.text}}>{eq.serial_number}</span> · </span>}
             {eq.asset_tag&&<span>Tag: <span style={{fontFamily:M,color:B.cyan}}>{eq.asset_tag}</span> · </span>}
@@ -286,7 +294,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
   const filtered=equipment.filter(e=>{
     if(filter!=="all"&&e.status!==filter)return false;
     if(typeFilter!=="all"&&e.equipment_type!==typeFilter)return false;
-    if(search){const s=search.toLowerCase();return(e.model||"").toLowerCase().includes(s)||(e.serial_number||"").toLowerCase().includes(s)||(e.asset_tag||"").toLowerCase().includes(s)||(e.customer_name||"").toLowerCase().includes(s)||(e.manufacturer||"").toLowerCase().includes(s)||(e.location||"").toLowerCase().includes(s);}
+    if(search){const s=search.toLowerCase();return(e.model||"").toLowerCase().includes(s)||(e.serial_number||"").toLowerCase().includes(s)||(e.asset_tag||"").toLowerCase().includes(s)||(e.equipment_number||"").toLowerCase().includes(s)||(e.customer_name||"").toLowerCase().includes(s)||(e.manufacturer||"").toLowerCase().includes(s)||(e.location||"").toLowerCase().includes(s);}
     return true;
   });
 
@@ -322,7 +330,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
 
     {/* Actions */}
     <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by model, serial, tag, customer..." style={{...IS,flex:1,minWidth:200,padding:"8px 12px",fontSize:12}}/>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by equipment #, model, serial, tag, customer..." style={{...IS,flex:1,minWidth:200,padding:"8px 12px",fontSize:12}}/>
       <button onClick={()=>setScanning(true)} style={{...BS,padding:"8px 14px",fontSize:12,whiteSpace:"nowrap"}}>Scan Tag</button>
       {canEdit&&<button onClick={()=>setCreating({})} style={{...BP,padding:"8px 14px",fontSize:12,whiteSpace:"nowrap"}}>+ Register</button>}
     </div>
@@ -350,6 +358,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                {eq.equipment_number&&<span style={{fontWeight:800,fontSize:14,color:B.orange,fontFamily:M}}>{eq.equipment_number}</span>}
                 <span style={{fontWeight:700,fontSize:14,color:B.text}}>{eq.model||"Unknown"}</span>
                 <Badge color={STATUS_COLORS[eq.status]}>{STATUS_LABELS[eq.status]}</Badge>
                 <span style={{fontSize:10,color:B.textDim,fontFamily:M}}>{EQ_LABELS[eq.equipment_type]||eq.equipment_type}</span>

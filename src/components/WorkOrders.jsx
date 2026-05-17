@@ -14,7 +14,7 @@ function EquipmentInlinePicker({customerName,equipment,onPick,onScan,onAdd,onCan
   const filtered=(equipment||[]).filter(e=>{
     if(!query)return true;
     const q=query.toLowerCase();
-    return(e.model||"").toLowerCase().includes(q)||(e.serial_number||"").toLowerCase().includes(q)||(e.asset_tag||"").toLowerCase().includes(q)||(e.location||"").toLowerCase().includes(q)||(e.location_detail||"").toLowerCase().includes(q)||(e.manufacturer||"").toLowerCase().includes(q);
+    return(e.model||"").toLowerCase().includes(q)||(e.serial_number||"").toLowerCase().includes(q)||(e.asset_tag||"").toLowerCase().includes(q)||(e.equipment_number||"").toLowerCase().includes(q)||(e.location||"").toLowerCase().includes(q)||(e.location_detail||"").toLowerCase().includes(q)||(e.manufacturer||"").toLowerCase().includes(q);
   });
   const noUnits=(equipment||[]).length===0;
   return(<div style={{marginTop:compact?6:8}}>
@@ -28,7 +28,10 @@ function EquipmentInlinePicker({customerName,equipment,onPick,onScan,onAdd,onCan
     </div>
     {filtered.length>0&&<div style={{maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
       {filtered.slice(0,10).map(e=><button key={e.id} type="button" onClick={()=>onPick(e.id)} style={{textAlign:"left",padding:"8px 10px",background:B.bg,border:"1px solid "+B.border,borderRadius:6,cursor:"pointer",fontFamily:F}}>
-        <div style={{fontSize:12,fontWeight:700,color:B.text}}>{e.model||"Unknown"}{e.manufacturer&&<span style={{color:B.textDim,fontWeight:400}}> — {e.manufacturer}</span>}</div>
+        <div style={{fontSize:12,fontWeight:700,color:B.text}}>
+          {e.equipment_number&&<span style={{color:B.orange,fontFamily:M,marginRight:6}}>{e.equipment_number}</span>}
+          {e.model||"Unknown"}{e.manufacturer&&<span style={{color:B.textDim,fontWeight:400}}> — {e.manufacturer}</span>}
+        </div>
         <div style={{fontSize:10,color:B.textMuted,marginTop:2}}>
           <span>{EQ_LABELS[e.equipment_type]||e.equipment_type}</span>
           {e.serial_number&&<span> · SN: <span style={{fontFamily:M}}>{e.serial_number}</span></span>}
@@ -49,6 +52,7 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
     customer_id:customer?.id||"",
     customer_name:wo.customer||"",
     asset_tag:initial?.asset_tag||"",
+    equipment_number:initial?.equipment_number||"",
     model:"",
     serial_number:"",
     manufacturer:"",
@@ -66,7 +70,7 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const save=async()=>{
     if(!f.customer_name.trim()){alert("Set this WO's customer first — equipment must belong to a customer.");return;}
-    if(!f.model.trim()&&!f.serial_number.trim()&&!f.asset_tag.trim()){alert("At least one of: Model, Serial #, or Asset Tag is required.");return;}
+    if(!f.model.trim()&&!f.serial_number.trim()&&!f.asset_tag.trim()&&!f.equipment_number.trim()){alert("At least one of: Model, Serial #, Asset Tag, or Equipment # is required.");return;}
     if(f.notes&&cleanText(f.notes,"Notes")===null)return;
     setSaving(true);
     try{await onSave(f);}catch(e){console.error(e);setSaving(false);return;}
@@ -77,24 +81,29 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
       {!wo.customer&&<div style={{padding:"8px 10px",background:B.orange+"15",border:"1px solid "+B.orange+"40",borderRadius:6,fontSize:11,color:B.orange}}>⚠️ Set this WO's customer first — equipment must belong to a customer.</div>}
       {wo.customer&&<div style={{fontSize:11,color:B.textMuted}}>For <strong style={{color:B.text}}>{f.customer_name}</strong></div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:9,textTransform:"none"}}>(customer's name)</span></label>
+          <input value={f.equipment_number} onChange={e=>set("equipment_number",e.target.value)} placeholder="e.g. WIC-04, Cooler #3" style={IS} autoFocus/>
+        </div>
         <div><label style={LS}>Type</label>
           <select value={f.equipment_type} onChange={e=>set("equipment_type",e.target.value)} style={{...IS,cursor:"pointer"}}>
             {EQ_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
-        <div><label style={LS}>Asset Tag</label>
-          <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Optional" style={IS}/>
-        </div>
-      </div>
-      <div><label style={LS}>Model</label>
-        <input value={f.model} onChange={e=>set("model",e.target.value)} placeholder="e.g. Heatcraft PRO3" style={IS} autoFocus/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div><label style={LS}>Serial #</label>
-          <input value={f.serial_number} onChange={e=>set("serial_number",e.target.value)} style={IS}/>
+        <div><label style={LS}>Asset Tag <span style={{color:B.textDim,fontWeight:400,fontSize:9,textTransform:"none"}}>(physical barcode)</span></label>
+          <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Optional" style={IS}/>
         </div>
         <div><label style={LS}>Manufacturer</label>
           <input value={f.manufacturer} onChange={e=>set("manufacturer",e.target.value)} placeholder="e.g. Heatcraft" style={IS}/>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><label style={LS}>Model</label>
+          <input value={f.model} onChange={e=>set("model",e.target.value)} placeholder="e.g. Heatcraft PRO3" style={IS}/>
+        </div>
+        <div><label style={LS}>Serial #</label>
+          <input value={f.serial_number} onChange={e=>set("serial_number",e.target.value)} style={IS}/>
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -170,6 +179,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
             <Badge color={B.purple}>Linked</Badge>
           </div>
           <div style={{marginTop:4}}>
+            {linked.equipment_number&&<span style={{fontWeight:800,color:B.orange,fontSize:14,fontFamily:M,marginRight:8}}>{linked.equipment_number}</span>}
             <span style={{fontWeight:700,color:B.text,fontSize:13}}>{linked.model||"Unknown"}</span>
             {linked.manufacturer&&<span style={{color:B.textDim,fontSize:11}}> — {linked.manufacturer}</span>}
           </div>
@@ -759,7 +769,10 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
         </div>
         {linkedEq
           ?<div style={{marginTop:6,padding:"6px 10px",background:B.surface,borderRadius:6,border:"1px solid "+B.border}}>
-            <div style={{fontSize:12,fontWeight:700,color:B.text}}>{linkedEq.model||"Unknown"}{linkedEq.manufacturer&&<span style={{color:B.textDim,fontWeight:400}}> — {linkedEq.manufacturer}</span>}</div>
+            <div style={{fontSize:12,fontWeight:700,color:B.text}}>
+              {linkedEq.equipment_number&&<span style={{color:B.orange,fontFamily:M,marginRight:6}}>{linkedEq.equipment_number}</span>}
+              {linkedEq.model||"Unknown"}{linkedEq.manufacturer&&<span style={{color:B.textDim,fontWeight:400}}> — {linkedEq.manufacturer}</span>}
+            </div>
             <div style={{fontSize:10,color:B.textMuted,marginTop:2}}>
               <span>{EQ_LABELS[linkedEq.equipment_type]||linkedEq.equipment_type}</span>
               {linkedEq.serial_number&&<span> · SN: <span style={{fontFamily:M}}>{linkedEq.serial_number}</span></span>}
