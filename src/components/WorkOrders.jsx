@@ -5,7 +5,206 @@ import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
 import { POReqModal } from "./PurchaseOrders";
-import { EquipmentPicker, EQ_LABELS } from "./Equipment";
+import { EquipmentPicker, BarcodeScanner, EQ_TYPES, EQ_LABELS, REF_TYPES } from "./Equipment";
+
+// ─── Inline Equipment helpers (used by WODetail and CreateWO) ─────────────────
+// Compact searchable picker that lists equipment for the WO's customer.
+function EquipmentInlinePicker({customerName,equipment,onPick,onScan,onAdd,onCancel,compact}){
+  const[query,setQuery]=useState("");
+  const filtered=(equipment||[]).filter(e=>{
+    if(!query)return true;
+    const q=query.toLowerCase();
+    return(e.model||"").toLowerCase().includes(q)||(e.serial_number||"").toLowerCase().includes(q)||(e.asset_tag||"").toLowerCase().includes(q)||(e.location||"").toLowerCase().includes(q)||(e.location_detail||"").toLowerCase().includes(q)||(e.manufacturer||"").toLowerCase().includes(q);
+  });
+  const noUnits=(equipment||[]).length===0;
+  return(<div style={{marginTop:compact?6:8}}>
+    <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+      <input value={query} onChange={e=>setQuery(e.target.value)}
+        placeholder={noUnits?(customerName?"No equipment on file for "+customerName:"No equipment — add one below"):("Search "+(equipment||[]).length+" unit"+((equipment||[]).length!==1?"s":"")+(customerName?" for "+customerName:"")+"...")}
+        style={{...IS,flex:1,minWidth:160,padding:"8px 12px",fontSize:12}} disabled={noUnits}/>
+      <button type="button" onClick={onScan} style={{...BS,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>📷 Scan</button>
+      <button type="button" onClick={onAdd} style={{...BP,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>+ Quick Add</button>
+      {onCancel&&<button type="button" onClick={onCancel} style={{...BS,padding:"8px 10px",fontSize:11}}>×</button>}
+    </div>
+    {filtered.length>0&&<div style={{maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+      {filtered.slice(0,10).map(e=><button key={e.id} type="button" onClick={()=>onPick(e.id)} style={{textAlign:"left",padding:"8px 10px",background:B.bg,border:"1px solid "+B.border,borderRadius:6,cursor:"pointer",fontFamily:F}}>
+        <div style={{fontSize:12,fontWeight:700,color:B.text}}>{e.model||"Unknown"}{e.manufacturer&&<span style={{color:B.textDim,fontWeight:400}}> — {e.manufacturer}</span>}</div>
+        <div style={{fontSize:10,color:B.textMuted,marginTop:2}}>
+          <span>{EQ_LABELS[e.equipment_type]||e.equipment_type}</span>
+          {e.serial_number&&<span> · SN: <span style={{fontFamily:M}}>{e.serial_number}</span></span>}
+          {e.asset_tag&&<span> · Tag: <span style={{fontFamily:M,color:B.cyan}}>{e.asset_tag}</span></span>}
+          {(e.location||e.location_detail)&&<span> · 📍 {e.location}{e.location_detail?" — "+e.location_detail:""}</span>}
+        </div>
+      </button>)}
+      {filtered.length>10&&<div style={{fontSize:10,color:B.textDim,textAlign:"center",padding:"4px 0"}}>+ {filtered.length-10} more — refine search</div>}
+    </div>}
+    {filtered.length===0&&query&&<div style={{fontSize:11,color:B.textDim,padding:"8px 10px",textAlign:"center"}}>No match for "{query}" — tap <strong style={{color:B.green}}>+ Quick Add</strong> to register</div>}
+  </div>);
+}
+
+// Minimal quick-add modal — auto-fills customer/location from WO; collapses optional fields.
+function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
+  const customer=(customers||[]).find(c=>c.name===wo.customer);
+  const[f,setF]=useState({
+    customer_id:customer?.id||"",
+    customer_name:wo.customer||"",
+    asset_tag:initial?.asset_tag||"",
+    model:"",
+    serial_number:"",
+    manufacturer:"",
+    equipment_type:"other",
+    refrigerant_type:"",
+    install_date:"",
+    warranty_expiration:"",
+    location:wo.location||"",
+    location_detail:wo.building||"",
+    notes:"",
+    status:"active"
+  });
+  const[saving,setSaving]=useState(false);
+  const[showMore,setShowMore]=useState(false);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const save=async()=>{
+    if(!f.customer_name.trim()){alert("Set this WO's customer first — equipment must belong to a customer.");return;}
+    if(!f.model.trim()&&!f.serial_number.trim()&&!f.asset_tag.trim()){alert("At least one of: Model, Serial #, or Asset Tag is required.");return;}
+    if(f.notes&&cleanText(f.notes,"Notes")===null)return;
+    setSaving(true);
+    try{await onSave(f);}catch(e){console.error(e);setSaving(false);return;}
+    setSaving(false);onClose();
+  };
+  return(<Modal title="Quick Add Equipment" onClose={onClose} wide>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {!wo.customer&&<div style={{padding:"8px 10px",background:B.orange+"15",border:"1px solid "+B.orange+"40",borderRadius:6,fontSize:11,color:B.orange}}>⚠️ Set this WO's customer first — equipment must belong to a customer.</div>}
+      {wo.customer&&<div style={{fontSize:11,color:B.textMuted}}>For <strong style={{color:B.text}}>{f.customer_name}</strong></div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><label style={LS}>Type</label>
+          <select value={f.equipment_type} onChange={e=>set("equipment_type",e.target.value)} style={{...IS,cursor:"pointer"}}>
+            {EQ_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+        <div><label style={LS}>Asset Tag</label>
+          <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Optional" style={IS}/>
+        </div>
+      </div>
+      <div><label style={LS}>Model</label>
+        <input value={f.model} onChange={e=>set("model",e.target.value)} placeholder="e.g. Heatcraft PRO3" style={IS} autoFocus/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><label style={LS}>Serial #</label>
+          <input value={f.serial_number} onChange={e=>set("serial_number",e.target.value)} style={IS}/>
+        </div>
+        <div><label style={LS}>Manufacturer</label>
+          <input value={f.manufacturer} onChange={e=>set("manufacturer",e.target.value)} placeholder="e.g. Heatcraft" style={IS}/>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><label style={LS}>Location <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>{wo.location?"(from WO)":""}</span></label>
+          <input value={f.location} onChange={e=>set("location",e.target.value)} placeholder="Building / Site" style={IS}/>
+        </div>
+        <div><label style={LS}>Room / Detail</label>
+          <input value={f.location_detail} onChange={e=>set("location_detail",e.target.value)} placeholder="e.g. Room 104" style={IS}/>
+        </div>
+      </div>
+      {!showMore
+        ?<button type="button" onClick={()=>setShowMore(true)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",textAlign:"left",padding:"4px 0",fontFamily:F}}>+ Add refrigerant, warranty, notes</button>
+        :<div style={{display:"flex",flexDirection:"column",gap:10,padding:10,background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><label style={LS}>Refrigerant</label>
+              <select value={f.refrigerant_type} onChange={e=>set("refrigerant_type",e.target.value)} style={{...IS,cursor:"pointer"}}>
+                <option value="">—</option>
+                {REF_TYPES.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div><label style={LS}>Warranty Expires</label>
+              <input type="date" value={f.warranty_expiration} onChange={e=>set("warranty_expiration",e.target.value)} style={{...IS,padding:10}}/>
+            </div>
+          </div>
+          <div><label style={LS}>Notes</label>
+            <textarea value={f.notes} onChange={e=>set("notes",e.target.value)} rows={2} placeholder="Optional..." style={{...IS,resize:"vertical"}}/>
+          </div>
+        </div>}
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <button type="button" onClick={onClose} style={{...BS,flex:1}}>Cancel</button>
+        <button type="button" onClick={save} disabled={saving||!f.customer_name.trim()} style={{...BP,flex:1,opacity:(saving||!f.customer_name.trim())?.6:1}}>{saving?"Saving...":"Save & Link"}</button>
+      </div>
+    </div>
+  </Modal>);
+}
+
+// Smart equipment card — shows linked unit or inline picker; supports scan + quick-add.
+function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable,msg}){
+  const[scanning,setScanning]=useState(false);
+  const[quickAdding,setQuickAdding]=useState(false);
+  const[picking,setPicking]=useState(false);
+  const linked=wo.equipment_id&&(equipment||[]).find(e=>e.id===wo.equipment_id);
+  const customerEquipment=(equipment||[]).filter(e=>!wo.customer||e.customer_name===wo.customer);
+  const link=async(equipmentId)=>{
+    try{await sb().from("work_orders").update({equipment_id:equipmentId}).eq("id",wo.id);await reloadWOs();msg("Equipment linked");setPicking(false);}
+    catch(e){console.error(e);msg("⚠️ Failed to link");}
+  };
+  const unlink=async()=>{
+    if(!window.confirm("Unlink equipment from this work order?"))return;
+    try{await sb().from("work_orders").update({equipment_id:null}).eq("id",wo.id);await reloadWOs();msg("Equipment unlinked");}
+    catch(e){console.error(e);msg("⚠️ Failed to unlink");}
+  };
+  const handleScan=async(tag)=>{
+    setScanning(false);
+    const match=(equipment||[]).find(e=>e.asset_tag===tag);
+    if(match){await link(match.id);}
+    else if(window.confirm("No equipment found with tag \""+tag+"\". Register a new unit with this tag?")){
+      setQuickAdding({asset_tag:tag});
+    }
+  };
+  const saveQuickAdd=async(eq)=>{
+    const{data:inserted,error}=await sb().from("equipment").insert(eq).select("id").single();
+    if(error){console.error(error);msg("⚠️ Failed to register equipment");throw error;}
+    if(reloadTable)await reloadTable("equipment");
+    if(inserted?.id)await link(inserted.id);
+  };
+  if(linked){
+    return(<Card style={{marginBottom:12,borderLeft:"3px solid "+B.purple}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            <span style={LS}>Linked Equipment</span>
+            <Badge color={B.purple}>Linked</Badge>
+          </div>
+          <div style={{marginTop:4}}>
+            <span style={{fontWeight:700,color:B.text,fontSize:13}}>{linked.model||"Unknown"}</span>
+            {linked.manufacturer&&<span style={{color:B.textDim,fontSize:11}}> — {linked.manufacturer}</span>}
+          </div>
+          <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>
+            {linked.serial_number&&<span>SN: <span style={{fontFamily:M}}>{linked.serial_number}</span> · </span>}
+            {linked.asset_tag&&<span>Tag: <span style={{fontFamily:M,color:B.cyan}}>{linked.asset_tag}</span> · </span>}
+            {linked.refrigerant_type&&<span>{linked.refrigerant_type} · </span>}
+            <span>{EQ_LABELS[linked.equipment_type]||linked.equipment_type}</span>
+          </div>
+          {(linked.location||linked.location_detail)&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>📍 {linked.location}{linked.location_detail?" — "+linked.location_detail:""}</div>}
+        </div>
+        {canEdit&&<div style={{display:"flex",gap:4,flexShrink:0}}>
+          <button type="button" onClick={()=>setPicking(true)} style={{...BS,padding:"5px 10px",fontSize:10}}>Change</button>
+          <button type="button" onClick={unlink} style={{...BS,padding:"5px 10px",fontSize:10,color:B.red,borderColor:B.red+"40"}}>Unlink</button>
+        </div>}
+      </div>
+      {picking&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed "+B.border}}>
+        <EquipmentInlinePicker customerName={wo.customer} equipment={customerEquipment} onPick={link} onScan={()=>{setPicking(false);setScanning(true);}} onAdd={()=>{setPicking(false);setQuickAdding(true);}} onCancel={()=>setPicking(false)} compact/>
+      </div>}
+      {scanning&&<BarcodeScanner onScan={handleScan} onClose={()=>setScanning(false)}/>}
+      {quickAdding&&<EquipmentQuickAddModal wo={wo} customers={customers} initial={typeof quickAdding==="object"?quickAdding:null} onSave={saveQuickAdd} onClose={()=>setQuickAdding(false)}/>}
+    </Card>);
+  }
+  // Not linked — show inline picker
+  return(<Card style={{marginBottom:12,borderLeft:"3px dashed "+B.purple+"66"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+      <span style={LS}>Equipment <span style={{color:B.textDim,fontWeight:400,fontSize:10,textTransform:"none",letterSpacing:0}}>(link a unit to build service history)</span></span>
+    </div>
+    {canEdit
+      ?<EquipmentInlinePicker customerName={wo.customer} equipment={customerEquipment} onPick={link} onScan={()=>setScanning(true)} onAdd={()=>setQuickAdding(true)}/>
+      :<div style={{fontSize:11,color:B.textDim,marginTop:6}}>No equipment linked</div>}
+    {scanning&&<BarcodeScanner onScan={handleScan} onClose={()=>setScanning(false)}/>}
+    {quickAdding&&<EquipmentQuickAddModal wo={wo} customers={customers} initial={typeof quickAdding==="object"?quickAdding:null} onSave={saveQuickAdd} onClose={()=>setQuickAdding(false)}/>}
+  </Card>);
+}
 
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers}){
   const reloadWOs=()=>reloadTable?reloadTable("work_orders"):loadData();
@@ -30,8 +229,15 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const[savingRef,setSavingRef]=useState(false);
   const[nteInput,setNteInput]=useState("");
   const[editNte,setEditNte]=useState(false);
+  const[fieldNoteRows,setFieldNoteRows]=useState([]);
+  const[editingNoteId,setEditingNoteId]=useState(null),[editingNoteText,setEditingNoteText]=useState("");
+  const[previousNotes,setPreviousNotes]=useState([]);
   const loadRefLog=async()=>{const{data}=await sb().from("refrigerant_log").select("*").eq("wo_id",wo.id).order("logged_at",{ascending:false});setRefLog(data||[]);};
   useEffect(()=>{loadRefLog();},[wo.id]);
+  const loadFieldNoteRows=async()=>{try{const{data,error}=await sb().from("wo_field_notes").select("*").eq("wo_id",wo.id).order("created_at",{ascending:true});if(error){console.warn("Field notes load failed (table may not exist yet):",error.message);return;}setFieldNoteRows(data||[]);}catch(e){console.warn("Field notes load error:",e);}};
+  useEffect(()=>{loadFieldNoteRows();},[wo.id]);
+  const loadPreviousNotes=async()=>{setPreviousNotes([]);try{let priorWOs=[];if(wo.equipment_id){const{data}=await sb().from("work_orders").select("id,wo_id,title,date_completed,created_at").eq("equipment_id",wo.equipment_id).neq("id",wo.id).order("created_at",{ascending:false}).limit(5);priorWOs=data||[];}else if(wo.customer&&wo.location){const{data}=await sb().from("work_orders").select("id,wo_id,title,date_completed,created_at").eq("customer",wo.customer).eq("location",wo.location).neq("id",wo.id).is("equipment_id",null).order("created_at",{ascending:false}).limit(5);priorWOs=data||[];}if(priorWOs.length===0)return;const ids=priorWOs.map(w=>w.id);const{data:notes,error}=await sb().from("wo_field_notes").select("*").in("wo_id",ids).order("created_at",{ascending:false}).limit(20);if(error){console.warn("Previous notes load failed:",error.message);return;}const byWO={};priorWOs.forEach(w=>{byWO[w.id]=w;});setPreviousNotes((notes||[]).map(n=>({...n,wo:byWO[n.wo_id]})));}catch(e){console.warn("Previous notes error:",e);}};
+  useEffect(()=>{loadPreviousNotes();},[wo.id,wo.equipment_id,wo.customer,wo.location]);
   const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("⚠️ Failed to log refrigerant");}setSavingRef(false);};
   const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("⚠️ Failed to delete");}};
   const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("⚠️ Failed to stamp");}};
@@ -59,7 +265,12 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;if(cleanText(tD,"Time Description")===null)return;setSaving(true);try{await onAddTime({wo_id:wo.id,hours:h,description:tD.trim(),logged_date:tDate});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");}catch(e){console.error(e);setSaving(false);}};
   const saveTimeEdit=async()=>{if(!editingTime||saving)return;const h=parseFloat(editingTime.hours);if(!h||h<=0)return;setSaving(true);try{await onUpdateTime(editingTime);setSaving(false);setEditingTime(null);msg("Time entry updated");}catch(e){console.error(e);setSaving(false);}};
   const deleteTimeEntry=async(te)=>{if(saving)return;if(!window.confirm("Delete this time entry ("+te.hours+"h)?"))return;setSaving(true);try{await onDeleteTime(te.id);setSaving(false);msg("Time entry deleted");}catch(e){console.error(e);setSaving(false);}};
-  const addFieldNote=async()=>{if(!note.trim()||saving)return;if(cleanText(note,"Field Note")===null)return;setSaving(true);try{const ts=new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});const newNotes=(wo.field_notes||"")+"\n["+ts+" — "+userName+"] "+note.trim();await sb().from("work_orders").update({field_notes:newNotes}).eq("id",wo.id);await reloadWOs();setSaving(false);setNote("");msg("Field note added");}catch(e){console.error(e);setSaving(false);}};
+  const addFieldNote=async()=>{if(!note.trim()||saving)return;if(cleanText(note,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").insert({wo_id:wo.id,author:userName,body:note.trim()});if(error)throw error;await loadFieldNoteRows();setNote("");msg("Field note added");}catch(e){console.error(e);msg("⚠️ Failed to add note — DB table may not exist yet");}setSaving(false);};
+  const canEditNote=(n)=>isManager||n.author===userName;
+  const startEditNote=(n)=>{setEditingNoteId(n.id);setEditingNoteText(n.body);};
+  const cancelEditNote=()=>{setEditingNoteId(null);setEditingNoteText("");};
+  const saveEditNote=async()=>{if(!editingNoteText.trim()||saving)return;if(cleanText(editingNoteText,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").update({body:editingNoteText.trim(),edited_at:new Date().toISOString(),edited_by:userName}).eq("id",editingNoteId);if(error)throw error;await loadFieldNoteRows();setEditingNoteId(null);setEditingNoteText("");msg("Note updated");}catch(e){console.error(e);msg("⚠️ Failed to update");}setSaving(false);};
+  const deleteFieldNote=async(n)=>{if(!window.confirm("Delete this note?"))return;try{const{error}=await sb().from("wo_field_notes").delete().eq("id",n.id);if(error)throw error;await loadFieldNoteRows();msg("Note deleted");}catch(e){console.error(e);msg("⚠️ Failed to delete");}};
   const[editingDetails,setEditingDetails]=useState(false),[detailsText,setDetailsText]=useState(wo.notes||"");
   const saveDetails=async()=>{if(saving)return;setSaving(true);try{await sb().from("work_orders").update({notes:detailsText}).eq("id",wo.id);await reloadWOs();setSaving(false);setEditingDetails(false);msg("Job details updated");}catch(e){console.error(e);setSaving(false);}};
   const changeStatus=async(newStatus)=>{if(saving)return;if(newStatus==="completed"){openCompleteFlow();return;}setSaving(true);try{await onUpdateWO({...wo,status:newStatus});setSaving(false);msg("Status → "+SL[newStatus]);}catch(e){console.error(e);setSaving(false);}};
@@ -137,23 +348,8 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       </div>
     </Card>
 
-    {/* Equipment link */}
-    {(()=>{const eq=wo.equipment_id&&(D_equipment||[]).find(e=>e.id===wo.equipment_id);return eq?<Card style={{marginBottom:12,borderLeft:"3px solid "+B.purple}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div><span style={LS}>Linked Equipment</span>
-          <div style={{marginTop:4}}><span style={{fontWeight:700,color:B.text,fontSize:13}}>{eq.model||"Unknown"}</span>
-            {eq.manufacturer&&<span style={{color:B.textDim,fontSize:11}}> — {eq.manufacturer}</span>}
-          </div>
-          <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>
-            {eq.serial_number&&<span>SN: <span style={{fontFamily:M}}>{eq.serial_number}</span> · </span>}
-            {eq.asset_tag&&<span>Tag: <span style={{fontFamily:M,color:B.cyan}}>{eq.asset_tag}</span> · </span>}
-            {eq.refrigerant_type&&<span>{eq.refrigerant_type} · </span>}
-            <span>{EQ_LABELS[eq.equipment_type]||eq.equipment_type}</span>
-          </div>
-        </div>
-        <Badge color={B.purple}>Equipment</Badge>
-      </div>
-    </Card>:null;})()}
+    {/* Equipment — smart linker with inline quick-add */}
+    <EquipmentLinkCard wo={wo} equipment={D_equipment} customers={customers} canEdit={canEdit} reloadWOs={reloadWOs} reloadTable={reloadTable} msg={msg}/>
 
     {/* BIG ACTION BUTTONS — the main things a tech does */}
     {canEdit&&wo.status!=="completed"&&<div style={{display:"flex",gap:8,marginBottom:12,maxWidth:640}}>
@@ -229,12 +425,66 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
     {canEdit&&<div style={{display:"none"}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData} inputId="cam-upload"/></div>}
     {canEdit&&<div style={{maxWidth:640,marginBottom:12}}><CameraUpload woId={wo.id} woName={wo.wo_id+" "+wo.title} userName={userName} onUploaded={loadData} showStageSelector/></div>}
 
-    {/* FIELD NOTES — always visible, quick add */}
+    {/* FIELD NOTES — rows-based, editable per entry */}
     <Card style={{maxWidth:640,marginBottom:12}}>
-      <span style={LS}>Field Notes</span>
-      {wo.field_notes?<p style={{margin:"4px 0 8px",color:B.textMuted,fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{wo.field_notes}</p>:<p style={{margin:"4px 0 8px",color:B.textDim,fontSize:12,fontStyle:"italic"}}>No field notes yet</p>}
-      <div style={{display:"flex",gap:6}}><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Type a note..." style={{...IS,flex:1,fontSize:14,padding:"12px 14px"}} onKeyDown={e=>e.key==="Enter"&&addFieldNote()}/><button onClick={addFieldNote} disabled={saving} style={{...BP,padding:"12px 18px",fontSize:14}}>Add</button></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={LS}>Field Notes</span>
+        {fieldNoteRows.length>0&&<span style={{fontSize:10,color:B.textDim}}>{fieldNoteRows.length} entr{fieldNoteRows.length===1?"y":"ies"}</span>}
+      </div>
+      {fieldNoteRows.length===0&&(!wo.field_notes||!wo.field_notes.trim())
+        ?<p style={{margin:"4px 0 8px",color:B.textDim,fontSize:12,fontStyle:"italic"}}>No field notes yet</p>
+        :<div style={{display:"flex",flexDirection:"column",gap:6,margin:"6px 0 10px"}}>
+          {wo.field_notes&&wo.field_notes.trim()&&<div style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px dashed "+B.border}}>
+            <div style={{fontSize:9,color:B.textDim,fontWeight:700,textTransform:"uppercase",marginBottom:4,letterSpacing:0.5}}>Legacy notes (read-only)</div>
+            <div style={{fontSize:12,color:B.textMuted,whiteSpace:"pre-wrap",lineHeight:1.5}}>{wo.field_notes}</div>
+          </div>}
+          {fieldNoteRows.map(n=>{const editing=editingNoteId===n.id;return(<div key={n.id} style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:4}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <span style={{fontSize:11,color:B.cyan,fontWeight:700}}>{n.author}</span>
+                <span style={{fontSize:10,color:B.textDim,fontFamily:M}}>{new Date(n.created_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+                {n.edited_at&&<span style={{fontSize:9,color:B.textDim,fontStyle:"italic"}} title={"Edited by "+(n.edited_by||"someone")+" on "+new Date(n.edited_at).toLocaleString()}>· edited</span>}
+              </div>
+              {canEdit&&canEditNote(n)&&!editing&&<div style={{display:"flex",gap:4,flexShrink:0}}>
+                <button onClick={()=>startEditNote(n)} style={{background:"none",border:"none",color:B.cyan,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Edit">✏️</button>
+                <button onClick={()=>deleteFieldNote(n)} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Delete">🗑</button>
+              </div>}
+            </div>
+            {editing
+              ?<div>
+                <textarea value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} rows={2} style={{...IS,fontSize:13,padding:"8px 10px",resize:"vertical",lineHeight:1.4}} autoFocus/>
+                <div style={{display:"flex",gap:6,marginTop:6}}>
+                  <button onClick={cancelEditNote} style={{...BS,flex:1,padding:"6px",fontSize:11}}>Cancel</button>
+                  <button onClick={saveEditNote} disabled={saving} style={{...BP,flex:1,padding:"6px",fontSize:11,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button>
+                </div>
+              </div>
+              :<div style={{fontSize:13,color:B.text,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{n.body}</div>}
+          </div>);})}
+        </div>}
+      {canEdit&&<div style={{display:"flex",gap:6}}>
+        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Type a note..." style={{...IS,flex:1,fontSize:14,padding:"12px 14px"}} onKeyDown={e=>e.key==="Enter"&&addFieldNote()}/>
+        <button onClick={addFieldNote} disabled={saving||!note.trim()} style={{...BP,padding:"12px 18px",fontSize:14,opacity:(saving||!note.trim())?.6:1}}>Add</button>
+      </div>}
     </Card>
+
+    {/* PREVIOUS NOTES — from past WOs on same equipment/location */}
+    {previousNotes.length>0&&<Card style={{maxWidth:640,marginBottom:12,borderLeft:"3px solid "+B.purple}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+        <span style={LS}>Previous Notes <span style={{color:B.purple,fontWeight:700}}>{wo.equipment_id?"on this unit":"at this location"}</span></span>
+        <span style={{fontSize:10,color:B.textDim}}>{previousNotes.length} from {new Set(previousNotes.map(n=>n.wo_id)).size} prior visit{new Set(previousNotes.map(n=>n.wo_id)).size!==1?"s":""}</span>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>
+        {previousNotes.slice(0,5).map(n=><div key={n.id} style={{padding:"8px 10px",background:B.bg,borderRadius:6,borderLeft:"2px solid "+B.purple+"66"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
+            <span style={{fontFamily:M,fontSize:10,color:B.cyan,fontWeight:700}}>{n.wo?.wo_id}</span>
+            <span style={{fontSize:10,color:B.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:240}}>{n.wo?.title}</span>
+            <span style={{fontSize:9,color:B.textDim,fontFamily:M,marginLeft:"auto"}}>{fmtDate(n.created_at?.slice(0,10))}</span>
+          </div>
+          <div style={{fontSize:11,color:B.textMuted,lineHeight:1.5}}><span style={{color:B.purple,fontWeight:700}}>{n.author}:</span> {n.body}</div>
+        </div>)}
+        {previousNotes.length>5&&<div style={{fontSize:10,color:B.textDim,textAlign:"center",fontStyle:"italic",padding:"4px 0"}}>+ {previousNotes.length-5} more notes from prior visits</div>}
+      </div>
+    </Card>}
 
     {/* COLLAPSIBLE SECTIONS — tap to expand, keeps page clean */}
     <div style={{maxWidth:640,display:"flex",flexDirection:"column",gap:0}}>
@@ -462,7 +712,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
   </div>);
 }
 
-function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos}){
+function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equipment,reloadTable}){
   const isManager=userRole==="admin"||userRole==="manager";
   const assignable=users.filter(u=>u.active!==false);
   const techs=assignable.filter(u=>u.role==="technician");
@@ -470,22 +720,65 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos}){
   const activeCounts={};(allWos||[]).filter(o=>o.status!=="completed").forEach(o=>{activeCounts[o.assignee]=(activeCounts[o.assignee]||0)+1;});
   const suggested=techs.length>0?techs.reduce((best,t)=>(activeCounts[t.name]||0)<(activeCounts[best.name]||0)?t:best,techs[0]):null;
   const[title,setTitle]=useState(""),[pri,setPri]=useState("medium"),[assign,setAssign]=useState(isManager?"Unassigned":userName),[due,setDue]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false),[loc,setLoc]=useState(""),[woType,setWoType]=useState("CM"),[bldg,setBldg]=useState(""),[cust,setCust]=useState(""),[custWO,setCustWO]=useState(""),[crew,setCrew]=useState([]);
+  const[equipmentId,setEquipmentId]=useState(null);
+  const[eqScanning,setEqScanning]=useState(false),[eqQuickAdding,setEqQuickAdding]=useState(false),[eqPicking,setEqPicking]=useState(false);
   const[scanning,setScanning]=useState(false);const scanRef=useRef(null);
   const handleScanWO=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanning(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fetch(SUPABASE_URL+"/functions/v1/scan-document",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({image:base64,documentType:"work_order"})});const result=await resp.json();if(result.title)setTitle(result.title);if(result.description)setNotes(result.description);if(result.customer)setCust(result.customer);if(result.location)setLoc(result.location);if(result.building)setBldg(result.building);if(result.priority)setPri(result.priority);if(result.customer_wo)setCustWO(result.customer_wo);if(result.due_date)setDue(result.due_date);}catch(err){console.error("Scan parse error:",err);alert("Could not read the scanned document. Please fill in fields manually.");}finally{setScanning(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanning(false);}if(scanRef.current)scanRef.current.value="";};
-  const go=async()=>{const finalTitle=title.trim()||custWO.trim();if(!finalTitle||saving)return;if(cleanText(finalTitle,"Title")===null||cleanText(notes,"Notes")===null)return;setSaving(true);await onSave({title:finalTitle,priority:pri,assignee:assign,crew,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust,customer_wo:custWO.trim()||null});setSaving(false);};
+  const go=async()=>{const finalTitle=title.trim()||custWO.trim();if(!finalTitle||saving)return;if(cleanText(finalTitle,"Title")===null||cleanText(notes,"Notes")===null)return;setSaving(true);await onSave({title:finalTitle,priority:pri,assignee:assign,crew,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust,customer_wo:custWO.trim()||null,equipment_id:equipmentId});setSaving(false);};
+  const customerEquipment=(equipment||[]).filter(e=>!cust||e.customer_name===cust);
+  const linkedEq=equipmentId&&(equipment||[]).find(e=>e.id===equipmentId);
+  // Pseudo-WO for the quick-add modal (passes customer/location context)
+  const pseudoWO={customer:cust,location:loc,building:bldg};
+  const pickEq=(id)=>{setEquipmentId(id);setEqPicking(false);};
+  const handleEqScan=async(tag)=>{
+    setEqScanning(false);
+    const match=(equipment||[]).find(e=>e.asset_tag===tag);
+    if(match){setEquipmentId(match.id);}
+    else if(window.confirm("No equipment found with tag \""+tag+"\". Register a new unit with this tag?")){
+      setEqQuickAdding({asset_tag:tag});
+    }
+  };
+  const saveEqQuickAdd=async(eq)=>{
+    const{data:inserted,error}=await sb().from("equipment").insert(eq).select("id").single();
+    if(error){console.error(error);alert("Failed to register equipment.");throw error;}
+    if(reloadTable)await reloadTable("equipment");
+    if(inserted?.id)setEquipmentId(inserted.id);
+  };
   return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:800,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div><input ref={scanRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleScanWO}/><button onClick={()=>scanRef.current?.click()} disabled={scanning} type="button" style={{...BS,width:"100%",padding:"12px 16px",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanning?.6:1}}>{scanning?"Scanning...":"📷 Scan Document"}</button>{scanning&&<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the document...</div>}</div>
       <div><label style={LS}>Title {custWO&&<span style={{color:B.textDim,fontWeight:400}}>(optional — defaults to Customer WO#)</span>}</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={custWO?custWO:"Walk-in Cooler Repair — Store #14"} style={IS}/></div>
-      <div><label style={LS}>Customer</label><select value={cust} onChange={e=>setCust(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">— Select Customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+      <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);if(linkedEq&&linkedEq.customer_name!==e.target.value)setEquipmentId(null);}} style={{...IS,cursor:"pointer"}}><option value="">— Select Customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
       <div><label style={LS}>Customer WO# <span style={{color:B.textDim,fontWeight:400}}>(optional — from customer's TMS)</span></label><input value={custWO} onChange={e=>setCustWO(e.target.value)} placeholder="e.g. TMS-40291" style={IS}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Location / Room</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Store #14, Room 3B" style={IS}/></div><div><label style={LS}>Building # <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={bldg} onChange={e=>setBldg(e.target.value)} placeholder="Building A" style={IS}/></div></div>
+      {/* Equipment (optional) */}
+      <div style={{padding:"10px 12px",background:B.bg,borderRadius:8,border:"1px "+(linkedEq?"solid":"dashed")+" "+B.purple+(linkedEq?"":"66")}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+          <span style={LS}>Equipment <span style={{color:B.textDim,fontWeight:400,fontSize:10,textTransform:"none",letterSpacing:0}}>(optional)</span></span>
+          {linkedEq&&<button type="button" onClick={()=>setEquipmentId(null)} style={{background:"none",border:"none",color:B.red,fontSize:10,cursor:"pointer",fontFamily:F}}>Unlink</button>}
+        </div>
+        {linkedEq
+          ?<div style={{marginTop:6,padding:"6px 10px",background:B.surface,borderRadius:6,border:"1px solid "+B.border}}>
+            <div style={{fontSize:12,fontWeight:700,color:B.text}}>{linkedEq.model||"Unknown"}{linkedEq.manufacturer&&<span style={{color:B.textDim,fontWeight:400}}> — {linkedEq.manufacturer}</span>}</div>
+            <div style={{fontSize:10,color:B.textMuted,marginTop:2}}>
+              <span>{EQ_LABELS[linkedEq.equipment_type]||linkedEq.equipment_type}</span>
+              {linkedEq.serial_number&&<span> · SN: <span style={{fontFamily:M}}>{linkedEq.serial_number}</span></span>}
+              {linkedEq.asset_tag&&<span> · Tag: <span style={{fontFamily:M,color:B.cyan}}>{linkedEq.asset_tag}</span></span>}
+            </div>
+          </div>
+          :!cust
+            ?<div style={{fontSize:11,color:B.textDim,marginTop:6,fontStyle:"italic"}}>Select a customer to pick or add equipment.</div>
+            :<EquipmentInlinePicker customerName={cust} equipment={customerEquipment} onPick={pickEq} onScan={()=>setEqScanning(true)} onAdd={()=>setEqQuickAdding(true)} compact/>}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Type</label><select value={woType} onChange={e=>setWoType(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="PM">PM (Preventive)</option><option value="CM">CM (Corrective)</option></select></div></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/></div><div><label style={LS}>Assignee</label>{isManager?<><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{suggested&&assign==="Unassigned"&&<button onClick={()=>setAssign(suggested.name)} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginTop:4,fontFamily:F}}>💡 Suggest: {suggested.name} ({(allWos||[]).filter(o=>o.assignee===suggested.name&&o.status!=="completed").length} active)</button>}</>:<div style={{...IS,background:B.surfaceActive,color:B.text}}>{userName}</div>}</div></div>
       <div><label style={LS}>Additional Crew <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>{crew.map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.purple+"22",color:B.purple,fontSize:11,fontWeight:600}}>{t}<button onClick={()=>setCrew(crew.filter(x=>x!==t))} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}</div><select onChange={e=>{if(!e.target.value)return;setCrew([...crew,e.target.value]);e.target.value="";}} style={{...IS,cursor:"pointer"}}><option value="">+ Add technician to crew</option>{assignable.filter(u=>u.name!==assign&&!crew.includes(u.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
       <div><label style={LS}>Details</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} placeholder="Describe the work..." style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
       <div style={{display:"flex",gap:8}}><button onClick={onCancel} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Creating...":"Create"}</button></div>
-    </div></Card></div>);
+    </div></Card>
+    {eqScanning&&<BarcodeScanner onScan={handleEqScan} onClose={()=>setEqScanning(false)}/>}
+    {eqQuickAdding&&<EquipmentQuickAddModal wo={pseudoWO} customers={customers} initial={typeof eqQuickAdding==="object"?eqQuickAdding:null} onSave={saveEqQuickAdd} onClose={()=>setEqQuickAdding(false)}/>}
+  </div>);
 }
 
 function SwipeCard({wo,onStatusChange,children}){
@@ -513,7 +806,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   const custList=[...new Set(orders.map(o=>o.customer).filter(Boolean))].sort();
   const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
-  if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders}/>;
+  if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders} equipment={equipment} reloadTable={reloadTable}/>;
   if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers}/>;}
   const today=new Date().toISOString().slice(0,10);
   const poByWO={},phByWO={};pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
