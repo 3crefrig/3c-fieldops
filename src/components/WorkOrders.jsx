@@ -162,7 +162,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
     if(inserted?.id)await link(inserted.id);
   };
   if(linked){
-    return(<Card style={{marginBottom:12,borderLeft:"3px solid "+B.purple}}>
+    return(<Card style={{maxWidth:640,marginBottom:12,borderLeft:"3px solid "+B.purple}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
         <div style={{minWidth:0,flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -194,7 +194,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
     </Card>);
   }
   // Not linked — show inline picker
-  return(<Card style={{marginBottom:12,borderLeft:"3px dashed "+B.purple+"66"}}>
+  return(<Card style={{maxWidth:640,marginBottom:12,borderLeft:"3px dashed "+B.purple+"66"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
       <span style={LS}>Equipment <span style={{color:B.textDim,fontWeight:400,fontSize:10,textTransform:"none",letterSpacing:0}}>(link a unit to build service history)</span></span>
     </div>
