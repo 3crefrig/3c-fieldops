@@ -92,7 +92,32 @@ serve(async (req) => {
       }
     }
 
-    // 5. Customer feedback — just avg rating + count, not full text
+    // 5. Field notes from prior WOs — tech-written observations carry over to this visit.
+    // Conservative budget: last 3 WOs only, max 5 notes total, truncate each to 150 chars.
+    let priorFieldNotes: Array<{ author: string; body: string; wo_id: string }> = [];
+    if (woDbIds.length > 0) {
+      try {
+        const { data: notes } = await sb.from("wo_field_notes")
+          .select("author,body,wo_id,created_at")
+          .in("wo_id", woDbIds.slice(0, 3))
+          .order("created_at", { ascending: false })
+          .limit(5);
+        if (notes) {
+          const woMap: Record<string, string> = {};
+          (recentWOs || []).forEach((w: any) => { woMap[w.id] = w.wo_id; });
+          priorFieldNotes = notes.map((n: any) => ({
+            author: n.author,
+            body: (n.body || "").slice(0, 150),
+            wo_id: woMap[n.wo_id] || ""
+          }));
+        }
+      } catch (e) {
+        // Table may not exist yet (pre-migration); skip silently.
+        console.warn("wo_field_notes lookup skipped:", (e as Error).message);
+      }
+    }
+
+    // 6. Customer feedback — just avg rating + count, not full text
     const { data: feedback } = await sb.from("feedback")
       .select("star_rating")
       .eq("customer_name", customer_name);
@@ -123,6 +148,13 @@ serve(async (req) => {
 
     if (partsSummary.length > 0) {
       context += `\nCommon parts: ${partsSummary.map(p => p.name + " (×" + p.count + ")").join(", ")}\n`;
+    }
+
+    if (priorFieldNotes.length > 0) {
+      context += `\nTech notes from prior visits:\n`;
+      priorFieldNotes.forEach(n => {
+        context += `- [${n.wo_id}] ${n.author}: ${n.body}\n`;
+      });
     }
 
     if (avgHours > 0) context += `Avg duration: ${avgHours.toFixed(1)}h\n`;
