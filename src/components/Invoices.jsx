@@ -501,6 +501,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
               <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
                 <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">📊</button>
                 <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">📄</button>
+                {inv.status==="draft"&&<button onClick={()=>setEditingInv(inv)} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Edit</button>}
                 {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}
                 <button onClick={()=>del(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
@@ -520,6 +521,63 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       </div>
     </div>}
     {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData}/>}
+    {editingInv&&<Modal title={"Edit INV-"+editingInv.invoice_num} onClose={()=>setEditingInv(null)} wide>
+      <InvoiceEditForm inv={editingInv} onCancel={()=>setEditingInv(null)} onSave={async(updates)=>{
+        const laborTotal=(editingInv.tier_data||[]).reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
+        const customItemsTotal=(updates.custom_items||[]).reduce((s,it)=>s+parseFloat(it.amount||0),0);
+        const newAmount=laborTotal+parseFloat(updates.parts_total||0)+customItemsTotal;
+        await onUpdateInvoice({...editingInv,...updates,amount:newAmount,pdf_drive_url:null});
+        setEditingInv(null);
+        msg("Invoice "+editingInv.invoice_num+" updated");
+      }}/>
+    </Modal>}
+  </div>);
+}
+
+function InvoiceEditForm({inv,onSave,onCancel}){
+  const[jobDesc,setJobDesc]=useState(inv.job_desc||"");
+  const[poNumber,setPoNumber]=useState(inv.po_number||"");
+  const[notes,setNotes]=useState(inv.notes||"");
+  const[partsTotal,setPartsTotal]=useState(inv.parts_total||0);
+  const[customItems,setCustomItems]=useState(inv.custom_items||[]);
+  const[saving,setSaving]=useState(false);
+  const addItem=()=>setCustomItems([...customItems,{description:"",amount:0}]);
+  const updateItem=(i,field,val)=>setCustomItems(customItems.map((it,idx)=>idx===i?{...it,[field]:field==="amount"?(parseFloat(val)||0):val}:it));
+  const removeItem=(i)=>setCustomItems(customItems.filter((_,idx)=>idx!==i));
+  const laborTotal=(inv.tier_data||[]).reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
+  const customItemsTotal=customItems.reduce((s,it)=>s+parseFloat(it.amount||0),0);
+  const newAmount=laborTotal+parseFloat(partsTotal||0)+customItemsTotal;
+  const save=async()=>{if(saving)return;setSaving(true);try{await onSave({job_desc:jobDesc.trim(),po_number:poNumber.trim(),notes:notes.trim(),parts_total:parseFloat(partsTotal)||0,custom_items:customItems.filter(it=>(it.description||"").trim()||parseFloat(it.amount||0)>0)});}catch(e){console.error(e);}setSaving(false);};
+  return(<div style={{display:"flex",flexDirection:"column",gap:14}}>
+    <div style={{padding:10,background:B.bg,borderRadius:6,fontSize:11,color:B.textDim}}>
+      <div><strong style={{color:B.text}}>{inv.customer}</strong>{inv.date_issued&&<span> · Issued {fmtDate(inv.date_issued)}</span>}</div>
+      <div style={{marginTop:4}}>Labor (computed from time entries, not editable): <span style={{fontFamily:M,color:B.cyan,fontWeight:700}}>${laborTotal.toFixed(2)}</span></div>
+      {inv.wo_ids&&inv.wo_ids.length>0&&<div style={{marginTop:2}}>{inv.wo_ids.length} linked WO{inv.wo_ids.length!==1?"s":""}: <span style={{fontFamily:M,color:B.text}}>{inv.wo_ids.join(", ")}</span></div>}
+    </div>
+    <div><label style={LS}>Job Description</label><input value={jobDesc} onChange={e=>setJobDesc(e.target.value)} placeholder="Brief job description" style={IS}/></div>
+    <div><label style={LS}>Customer PO #</label><input value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="Customer PO ref" style={{...IS,fontFamily:M}}/></div>
+    <div><label style={LS}>Work Performed / Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={5} placeholder="Describe work performed" style={{...IS,resize:"vertical",fontFamily:F}}/></div>
+    <div><label style={LS}>Parts Total ($)</label><input type="number" step="0.01" value={partsTotal} onChange={e=>setPartsTotal(e.target.value)} style={{...IS,fontFamily:M}}/></div>
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <label style={LS}>Other Charges / Line Items</label>
+        <button onClick={addItem} style={{...BS,fontSize:11,padding:"4px 10px"}}>+ Add</button>
+      </div>
+      {customItems.length===0&&<div style={{fontSize:11,color:B.textDim,padding:"6px 0"}}>No additional line items. Click +Add to add one.</div>}
+      {customItems.map((it,i)=>(<div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+        <input value={it.description} onChange={e=>updateItem(i,"description",e.target.value)} placeholder="Description" style={{...IS,flex:1}}/>
+        <input type="number" step="0.01" value={it.amount} onChange={e=>updateItem(i,"amount",e.target.value)} placeholder="0.00" style={{...IS,width:110,fontFamily:M,textAlign:"right"}}/>
+        <button onClick={()=>removeItem(i)} title="Remove" style={{background:"none",border:"1px solid "+B.red+"44",color:B.red,fontSize:14,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontFamily:F}}>×</button>
+      </div>))}
+    </div>
+    <div style={{padding:12,background:B.bg,borderRadius:6,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,borderLeft:"3px solid "+B.green}}>
+      <strong style={{color:B.text}}>New Invoice Total</strong>
+      <span style={{fontFamily:M,fontSize:18,fontWeight:800,color:B.green}}>${newAmount.toFixed(2)}</span>
+    </div>
+    <div style={{display:"flex",gap:8}}>
+      <button onClick={onCancel} style={{...BS,flex:1}}>Cancel</button>
+      <button onClick={save} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save Changes"}</button>
+    </div>
   </div>);
 }
 
@@ -543,7 +601,7 @@ function getBiWeeklyRange(anchorDateStr){
 }
 
 function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
-  const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWOs,setSelWOs]=useState([]),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1);
+  const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWOs,setSelWOs]=useState([]),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1),[selProject,setSelProject]=useState("");
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
   const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
@@ -551,6 +609,9 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const[skipLabor,setSkipLabor]=useState(false);
   const[lineDesc,setLineDesc]=useState("");
   const[linkedPOs,setLinkedPOs]=useState([]);
+  const[selSurplus,setSelSurplus]=useState([]);
+  const surplusPOs=(pos||[]).filter(p=>p.surplus_pool);
+  const toggleSurplus=(po)=>setSelSurplus(prev=>prev.includes(po.id)?prev.filter(x=>x!==po.id):[...prev,po.id]);
   const addCustomItem=()=>setCustomItems([...customItems,{description:"",amount:0}]);
   const updateCustomItem=(i,k,v)=>{const n=[...customItems];n[i]={...n[i],[k]:k==="description"?v:parseFloat(v)||0};setCustomItems(n);};
   const removeCustomItem=(i)=>setCustomItems(customItems.filter((_,j)=>j!==i));
@@ -619,7 +680,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       em_hours:breakdown.em.hours,em_total:Math.round(breakdown.em.hours*blendedRate*100)/100,
       description:(dateFrom&&dateTo)?dateFrom.replace(/-/g,"/")+' - '+dateTo.replace(/-/g,"/")+' Coverage for repairs and preventive maintenance':'Coverage for repairs and preventive maintenance'
     }:null;
-    const customItemsData=customItems.filter(it=>it.description&&it.amount>0).map(it=>({description:it.description,amount:Math.round(it.amount*100)/100}));
+    const userCustomItems=customItems.filter(it=>it.description&&it.amount>0).map(it=>({description:it.description,amount:Math.round(it.amount*100)/100}));
+    // Include surplus parts the user picked from the pool — they become regular line items on this invoice.
+    const surplusItems=selSurplus.map(id=>{const po=surplusPOs.find(p=>p.id===id);if(!po)return null;return{description:"[Surplus "+po.po_id+"] "+(po.description||""),amount:Math.round(parseFloat(po.amount||0)*100)/100};}).filter(Boolean);
+    const customItemsData=[...userCustomItems,...surplusItems];
     const customItemsTotal=customItemsData.reduce((s,it)=>s+it.amount,0);
     return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,customItems:customItemsData,customItemsTotal,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
   };
@@ -631,6 +695,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     await Promise.all(filteredWOs.map(w=>sb().from("work_orders").update({invoiced:true}).eq("id",w.id)));
+    // Clear surplus_pool flag on any surplus POs consumed by this invoice — they've been billed now.
+    if(selSurplus.length>0){await Promise.all(selSurplus.map(id=>sb().from("purchase_orders").update({surplus_pool:false}).eq("id",id)));if(reloadTable)reloadTable("purchase_orders");}
     if(customer)await sb().from("customers").update({labor_tiers:tiers.map(t=>({name:t.name,rate:t.rate}))}).eq("id",customer.id);
     if(reloadTable){reloadTable("work_orders");reloadTable("customers");}
   };
@@ -689,7 +755,33 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWOs([]);setTierAssign({});setSkipLabor(false);setCustomItems([]);}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-        {cust&&<div style={{display:"flex",gap:4}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWOs([]);}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
+        <div style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px dashed "+B.cyan+"55"}}>
+          <div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>🏗️ Start from a Project (optional)</div>
+          <select value={selProject} onChange={e=>{
+            const pid=e.target.value;setSelProject(pid);
+            if(!pid)return;
+            const proj=(projects||[]).find(p=>p.id===pid);if(!proj)return;
+            if(proj.customer)setCust(proj.customer);
+            setMode("wo");
+            // Auto-select all completed unbilled WOs under this project
+            const projWOs=(wos||[]).filter(w=>w.project_id===pid&&w.status==="completed").filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});
+            setSelWOs(projWOs.map(w=>w.id));
+            // If project has a customer PO, prefill it
+            if(proj.customer_po)setPoNum(proj.customer_po);
+            setJobDesc(proj.name||"");
+            // If project WOs have line items, prefill custom items
+            if(lineItems){
+              const projLI=[];
+              projWOs.forEach(ww=>{const woLI=(lineItems||[]).filter(li=>li.wo_id===ww.id);if(woLI.length>0)projLI.push(...woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));});
+              if(projLI.length>0){setCustomItems(projLI);setSkipLabor(true);}
+            }
+          }} style={{...IS,cursor:"pointer",fontSize:12,padding:"6px 10px"}}>
+            <option value="">— Pick a project to auto-fill —</option>
+            {(projects||[]).filter(p=>p.status!=="archived").map(p=>{const projWOs=(wos||[]).filter(w=>w.project_id===p.id&&w.status==="completed");const unbilled=projWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});return <option key={p.id} value={p.id}>{p.name}{p.customer?" — "+p.customer:""} ({unbilled.length} unbilled WO{unbilled.length!==1?"s":""})</option>;})}
+          </select>
+          {selProject&&<div style={{marginTop:6,fontSize:10,color:B.cyan}}>✓ Customer, WOs, line items, and customer PO# auto-filled from project</div>}
+        </div>
+        {cust&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWOs([]);setSelProject("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
         {cust&&mode==="wo"&&(()=>{
           const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};
           const avail=custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});
@@ -737,7 +829,23 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:12,color:B.textDim}}>Create an invoice with flat-rate line items only — no work order or time entries required. Ideal for project milestones, mobilization, equipment charges.</div>
           <div><label style={LS}>Work Description <span style={{color:B.textDim,fontWeight:400}}>(appears on invoice)</span></label><textarea value={lineDesc} onChange={e=>setLineDesc(e.target.value)} placeholder="Brief description of work for the customer..." rows={2} style={{...IS,resize:"vertical",minHeight:40}}/></div>
         </div>}
-        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(mode==="lineonly"){setStep(2);return;}if(filteredWOs.length===0){msg(mode==="wo"?"Select at least one work order":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||(mode!=="lineonly"&&filteredWOs.length===0)}>{mode==="lineonly"?"Next: Add Line Items":"Next: Set Labor Rates"}</button>
+        {cust&&surplusPOs.length>0&&<div style={{padding:12,background:B.purple+"08",borderRadius:6,border:"1px dashed "+B.purple+"55"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div><div style={{fontSize:12,fontWeight:700,color:B.purple}}>📦 Surplus Parts Available ({surplusPOs.length})</div><div style={{fontSize:10,color:B.textDim,marginTop:2}}>Material from previous jobs that wasn't used — bill them on this invoice instead of eating the cost.</div></div>
+            {selSurplus.length>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.purple}}>${selSurplus.reduce((s,id)=>{const p=surplusPOs.find(x=>x.id===id);return s+parseFloat(p?.amount||0);},0).toFixed(2)} added</span>}
+          </div>
+          <div style={{maxHeight:180,overflowY:"auto",border:"1px solid "+B.border,borderRadius:4,background:B.bg}}>
+            {surplusPOs.map(po=>{const checked=selSurplus.includes(po.id);return<div key={po.id} onClick={()=>toggleSurplus(po)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderBottom:"1px solid "+B.border+"40",cursor:"pointer",background:checked?B.purple+"15":"transparent"}}>
+              <input type="checkbox" checked={checked} readOnly style={{accentColor:B.purple,pointerEvents:"none"}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,fontWeight:600,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><span style={{fontFamily:M,color:B.cyan}}>{po.po_id}</span> · {po.description}</div>
+                {po.surplus_notes&&<div style={{fontSize:10,color:B.textDim,marginTop:1,fontStyle:"italic"}}>{po.surplus_notes}</div>}
+              </div>
+              <span style={{fontFamily:M,fontSize:11,fontWeight:700,color:checked?B.purple:B.text,flexShrink:0}}>${parseFloat(po.amount||0).toFixed(2)}</span>
+            </div>;})}
+          </div>
+        </div>}
+        <button onClick={()=>{if(!cust){msg("Select a customer");return;}if(mode==="lineonly"){setStep(2);return;}if(filteredWOs.length===0&&selSurplus.length===0){msg(mode==="wo"?"Select at least one work order or surplus part":"No completed WOs in date range");return;}setStep(2);}} style={{...BP}} disabled={!cust||(mode!=="lineonly"&&filteredWOs.length===0&&selSurplus.length===0)}>{mode==="lineonly"?"Next: Add Line Items":"Next: Set Labor Rates"}</button>
       </div>
     </Card>}
 

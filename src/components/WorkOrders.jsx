@@ -4,7 +4,7 @@ import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyStat
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
-import { POReqModal } from "./PurchaseOrders";
+import { POReqModal, POEditForm } from "./PurchaseOrders";
 import { EquipmentPicker, BarcodeScanner, EQ_TYPES, EQ_LABELS, REF_TYPES } from "./Equipment";
 
 // ─── Inline Equipment helpers (used by WODetail and CreateWO) ─────────────────
@@ -219,7 +219,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
 function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers}){
   const reloadWOs=()=>reloadTable?reloadTable("work_orders"):loadData();
   const D_equipment=equipment||[];
-  const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false);
+  const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false),[editingPO,setEditingPO]=useState(null);
   const[jobIntel,setJobIntel]=useState(null),[intelLoading,setIntelLoading]=useState(false),[intelOpen,setIntelOpen]=useState(false);
   const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
@@ -540,7 +540,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
 
       <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
       {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span></div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge></div></div>})}
+        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const isEmpty=parseFloat(po.amount||0)===0;const canRemove=canEdit&&isEmpty;const canEditPO=canEdit;return<div key={po.id} onClick={canEditPO?()=>setEditingPO(po):undefined} title={canEditPO?"Click to edit PO details (description, amount, status, notes, surplus)":undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:canEditPO?"pointer":"default"}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span>{po.surplus_pool&&<span title={po.surplus_notes||"Available to bill on a future job"} style={{marginLeft:8,fontSize:9,padding:"2px 6px",borderRadius:10,background:B.purple+"22",color:B.purple,fontWeight:700}}>📦 Surplus</span>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge>{canEditPO&&<button onClick={(e)=>{e.stopPropagation();setEditingPO(po);}} title="Edit PO" style={{background:"none",border:"1px solid "+B.border,color:B.textDim,fontSize:10,padding:"2px 8px",borderRadius:4,cursor:"pointer",fontFamily:F,fontWeight:600}}>✎ Edit</button>}{canRemove&&<button onClick={async(e)=>{e.stopPropagation();if(!window.confirm("Remove empty PO "+po.po_id+" from this work order?\n\nThis PO has $0 charge and will be deleted."))return;const{error}=await sb().from("purchase_orders").delete().eq("id",po.id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");msg("PO "+po.po_id+" removed");}} title="Remove empty PO from this WO" style={{background:"none",border:"1px solid "+B.red+"55",color:B.red+"cc",fontSize:10,padding:"2px 8px",borderRadius:4,cursor:"pointer",fontFamily:F,fontWeight:600}}>× Remove</button>}</div></div>})}
         {canEdit&&<div style={{display:"flex",gap:8,marginTop:10}}>
           <button onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
           <button onClick={()=>setShowReceipt(true)} style={{...BS,flex:1,padding:12}}>🧾 Scan Receipt</button>
@@ -602,6 +602,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
     {/* MODALS */}
     {showTime&&<Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/></div><div><label style={LS}>Description</label><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>setShowPO(false)} userName={userName} userRole={userRole}/>}
+    {editingPO&&<Modal title={"Edit PO "+editingPO.po_id} onClose={()=>setEditingPO(null)}><POEditForm po={editingPO} onClose={()=>setEditingPO(null)} onSave={async(u)=>{const{id,...rest}=u;const{error}=await sb().from("purchase_orders").update(rest).eq("id",id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");setEditingPO(null);msg("PO "+u.po_id+" updated");}}/></Modal>}
     {showReceipt&&<Modal title="Scan Receipt / Invoice" onClose={()=>{setShowReceipt(false);setReceiptData(null);}} wide>
       {!receiptData?<div style={{display:"flex",flexDirection:"column",gap:14,alignItems:"center"}}>
         <div style={{fontSize:40,marginBottom:4}}>🧾</div>
@@ -871,6 +872,62 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     </div></div>);
 }
 
+function TMSQueue({orders,wlp}){
+  // Batch entry queue: ALL WOs missing customer_wo OR tms_entered, sorted newest first.
+  // Inline input for customer_wo with save on blur/Enter, plus checkbox to mark TMS entered.
+  const[localVals,setLocalVals]=useState({});
+  const[saving,setSaving]=useState({});
+  const[hideEntered,setHideEntered]=useState(false);
+  const list=[...orders].sort((a,b)=>{const da=a.date_completed||a.created_at||"";const db=b.date_completed||b.created_at||"";return db.localeCompare(da);});
+  const visible=hideEntered?list.filter(w=>!w.tms_entered):list;
+  const setLocal=(id,val)=>setLocalVals(v=>({...v,[id]:val}));
+  const saveCustWO=async(wo)=>{const newVal=(localVals[wo.id]??wo.customer_wo??"").trim();if(newVal===(wo.customer_wo||""))return;setSaving(s=>({...s,[wo.id]:"customer_wo"}));try{await wlp.onUpdateWO({...wo,customer_wo:newVal||null});}catch(e){console.error(e);}setSaving(s=>{const n={...s};delete n[wo.id];return n;});setLocalVals(v=>{const n={...v};delete n[wo.id];return n;});};
+  const toggleTMS=async(wo)=>{setSaving(s=>({...s,[wo.id]:"tms_entered"}));try{await wlp.onUpdateWO({...wo,tms_entered:!wo.tms_entered});}catch(e){console.error(e);}setSaving(s=>{const n={...s};delete n[wo.id];return n;});};
+  const totalNeeded=list.filter(w=>!w.tms_entered).length;
+  const totalMissingCustWO=list.filter(w=>!w.customer_wo).length;
+  return(<div>
+    <Card style={{padding:14,marginBottom:12,background:B.orange+"11",borderLeft:"3px solid "+B.orange}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:800,color:B.text}}>📥 TMS Queue — Batch Entry</div>
+          <div style={{fontSize:11,color:B.textDim,marginTop:3}}>Rip through customer WO# entry. Type the number, Tab/Enter to save, check the box when you've also entered it in the customer's TMS system.</div>
+        </div>
+        <div style={{display:"flex",gap:12,fontFamily:M,fontSize:11}}>
+          <div><span style={{color:B.textDim}}>Missing #</span> <strong style={{color:B.red}}>{totalMissingCustWO}</strong></div>
+          <div><span style={{color:B.textDim}}>Need TMS</span> <strong style={{color:B.orange}}>{totalNeeded}</strong></div>
+          <label style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:B.textDim,fontSize:11,fontFamily:F}}><input type="checkbox" checked={hideEntered} onChange={e=>setHideEntered(e.target.checked)}/>Hide entered</label>
+        </div>
+      </div>
+    </Card>
+    {visible.length===0&&<Card style={{textAlign:"center",padding:24}}><div style={{fontSize:24,marginBottom:6}}>✅</div><div style={{fontSize:13,color:B.textDim}}>All customer WOs entered in TMS</div></Card>}
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {visible.map(wo=>{const localV=localVals[wo.id]??(wo.customer_wo||"");const dirty=localV.trim()!==(wo.customer_wo||"");const sv=saving[wo.id];return(<Card key={wo.id} style={{padding:"10px 12px",borderLeft:"3px solid "+(wo.tms_entered?B.green:(wo.customer_wo?B.cyan:B.orange))}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{flexShrink:0,minWidth:0,flex:"0 0 220px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:12}}>{wo.wo_id}</span>
+              <Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge>
+            </div>
+            <div style={{fontSize:12,fontWeight:600,color:B.text,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
+            <div style={{fontSize:10,color:B.textDim,marginTop:1}}>{wo.customer||"—"}{(wo.date_completed||wo.created_at)&&<span> · {fmtDate((wo.date_completed||wo.created_at||"").slice(0,10))}</span>}</div>
+          </div>
+          <div style={{flex:1,minWidth:160,display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:10,color:B.textDim,whiteSpace:"nowrap"}}>Cust WO#</span>
+            <input value={localV} onChange={e=>setLocal(wo.id,e.target.value)} onBlur={()=>saveCustWO(wo)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur();}}} placeholder="Type customer WO#" style={{...IS,fontFamily:M,padding:"6px 10px",fontSize:13,flex:1,borderColor:dirty?B.orange:B.border}}/>
+            {sv==="customer_wo"&&<span style={{fontSize:10,color:B.cyan}}>...</span>}
+            {!sv&&dirty&&<span style={{fontSize:10,color:B.orange}}>•</span>}
+            {!sv&&!dirty&&(wo.customer_wo)&&<span style={{fontSize:11,color:B.green}} title="Saved">✓</span>}
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",flexShrink:0,padding:"4px 8px",borderRadius:4,background:wo.tms_entered?B.green+"22":"transparent",border:"1px solid "+(wo.tms_entered?B.green:B.border)}}>
+            <input type="checkbox" checked={!!wo.tms_entered} disabled={sv==="tms_entered"} onChange={()=>toggleTMS(wo)}/>
+            <span style={{fontSize:11,fontWeight:600,color:wo.tms_entered?B.green:B.textDim}}>{sv==="tms_entered"?"...":(wo.tms_entered?"In TMS":"Mark TMS")}</span>
+          </label>
+        </div>
+      </Card>);})}
+    </div>
+  </div>);
+}
+
 function WOOverview({orders,wlp,pos,time}){
   const now=new Date();
   const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay());weekStart.setHours(0,0,0,0);
@@ -907,7 +964,7 @@ function WOOverview({orders,wlp,pos,time}){
       <span style={{fontFamily:M,fontSize:12,color:B.cyan}}>{thisWeek.length} orders</span>
     </div>
     <div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["active","Active"],["done","Done"],["tms","TMS Needed"],["stale","Stale 30d+"]].map(([k,l])=>{const accent=k==="tms"?B.orange:k==="stale"?B.red:B.cyan;return<button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+(filter===k?accent:B.border),background:filter===k?accent+"22":"transparent",color:filter===k?accent:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="tms"&&tmsPending>0?" ("+tmsPending+")":""}{k==="stale"&&staleWOs.length>0?" ("+staleWOs.length+")":""}</button>})}</div>
-    {filteredWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>{filter==="tms"?"All customer WOs entered in TMS":"No work orders"}</div></Card>:<WOList orders={filteredWeek} {...wlp}/>}
+    {filter==="tms"?<TMSQueue orders={orders.filter(o=>!o.tms_entered)} wlp={wlp}/>:(filteredWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>No work orders</div></Card>:<WOList orders={filteredWeek} {...wlp}/>)}
     {past.length>0&&<div style={{marginTop:20}}>
       <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📁</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>

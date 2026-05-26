@@ -153,12 +153,21 @@ function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole}){
 
 function POEditForm({po,onSave,onClose}){
   const[desc,setDesc]=useState(po.description),[amt,setAmt]=useState(String(po.amount)),[notes,setNotes]=useState(po.notes||""),[status,setStatus]=useState(po.status),[saving,setSaving]=useState(false);
-  const go=async()=>{if(saving)return;setSaving(true);try{await onSave({...po,description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim(),status});setSaving(false);}catch(e){console.error(e);setSaving(false);}};
+  const[surplusPool,setSurplusPool]=useState(!!po.surplus_pool),[surplusNotes,setSurplusNotes]=useState(po.surplus_notes||"");
+  const go=async()=>{if(saving)return;setSaving(true);try{await onSave({...po,description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim(),status,surplus_pool:surplusPool,surplus_notes:surplusPool?surplusNotes.trim()||null:null});setSaving(false);}catch(e){console.error(e);setSaving(false);}};
   return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
     <div><label style={LS}>Description</label><input value={desc} onChange={e=>setDesc(e.target.value)} style={IS}/></div>
     <div><label style={LS}>Amount ($)</label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" style={{...IS,fontFamily:M}}/></div>
     <div><label style={LS}>Status</label><select value={status} onChange={e=>setStatus(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="revised">Revised</option></select></div>
     <div><label style={LS}>Notes</label><input value={notes} onChange={e=>setNotes(e.target.value)} style={IS}/></div>
+    <div style={{padding:"10px 12px",borderRadius:6,border:"1px dashed "+B.purple+"66",background:B.purple+"08"}}>
+      <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+        <input type="checkbox" checked={surplusPool} onChange={e=>setSurplusPool(e.target.checked)}/>
+        <span style={{fontSize:12,fontWeight:700,color:B.purple}}>📦 Surplus — material was purchased but not used</span>
+      </label>
+      <div style={{fontSize:10,color:B.textDim,marginTop:4,marginLeft:24}}>Mark this PO as available to bill on a future job. It will show up in the Surplus Parts picker when creating a new invoice.</div>
+      {surplusPool&&<div style={{marginTop:8}}><label style={LS}>Surplus Notes <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>(optional — where stored, qty remaining, etc.)</span></label><input value={surplusNotes} onChange={e=>setSurplusNotes(e.target.value)} placeholder="e.g. 5 contactors left, stored on Truck 3" style={IS}/></div>}
+    </div>
     <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
   </div>);
 }
