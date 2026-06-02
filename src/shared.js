@@ -58,6 +58,10 @@ export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString(
 
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
+/* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
+   wins where supported so the bottom of the app isn't hidden behind mobile/tablet
+   browser toolbars — otherwise trailing buttons become unreachable when scrolling. */
+.app-root{height:100vh;height:100dvh}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
