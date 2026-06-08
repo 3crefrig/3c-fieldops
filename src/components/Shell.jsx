@@ -11,7 +11,21 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
   const[offline,setOffline]=useState(!navigator.onLine);
   const[showMoreTabs,setShowMoreTabs]=useState(false);
   const[openNavGroup,setOpenNavGroup]=useState(null);
+  const[viewportH,setViewportH]=useState(null);
   useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  // Bind the shell to the *visual* viewport height. CSS dvh handles the collapsing
+  // browser toolbar, but it does NOT shrink when the on-screen keyboard opens and some
+  // tablet webviews ignore dvh entirely — so trailing buttons (e.g. "Create" at the
+  // bottom of the New Work Order form) end up behind the keyboard/toolbar and can't be
+  // scrolled into view. visualViewport.height tracks the truly-visible area in all cases.
+  useEffect(()=>{const vv=window.visualViewport;let raf=0;
+    const measure=()=>{raf=0;setViewportH(Math.round(vv?vv.height:window.innerHeight));};
+    const onChange=()=>{if(!raf)raf=requestAnimationFrame(measure);};
+    measure();
+    if(vv)vv.addEventListener("resize",onChange);
+    window.addEventListener("resize",onChange);window.addEventListener("orientationchange",onChange);
+    return()=>{if(raf)cancelAnimationFrame(raf);if(vv)vv.removeEventListener("resize",onChange);window.removeEventListener("resize",onChange);window.removeEventListener("orientationchange",onChange);};
+  },[]);
   useEffect(()=>{const on=()=>setOffline(false);const off=()=>setOffline(true);window.addEventListener("online",on);window.addEventListener("offline",off);return()=>{window.removeEventListener("online",on);window.removeEventListener("offline",off);};},[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);_ROLES=getRoles();setThemeState(t);};
   // Keyboard shortcuts — Alt+T for theme, number keys for tabs
@@ -34,7 +48,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     el.addEventListener("touchstart",ts,{passive:true});el.addEventListener("touchmove",tm,{passive:true});el.addEventListener("touchend",te);return()=>{el.removeEventListener("touchstart",ts);el.removeEventListener("touchmove",tm);el.removeEventListener("touchend",te);indicator.remove();};},[onRefresh]);
   // Ensure wheel/trackpad scroll always works even when hovering over overflow:hidden children
   useEffect(()=>{const el=contentRef.current;if(!el)return;const onWheel=(e)=>{const t=e.target;let n=t;let scrollable=false;while(n&&n!==el){if(n.scrollHeight>n.clientHeight&&(getComputedStyle(n).overflowY==="auto"||getComputedStyle(n).overflowY==="scroll")){scrollable=true;break;}n=n.parentElement;}if(!scrollable){el.scrollTop+=e.deltaY;e.preventDefault();}};el.addEventListener("wheel",onWheel,{passive:false});return()=>el.removeEventListener("wheel",onWheel);},[]);
-  return(<div className="app-root" style={{background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+  return(<div className="app-root" style={{background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden",height:viewportH?viewportH+"px":undefined}}>
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
