@@ -59,6 +59,28 @@ Core: `work_orders`, `purchase_orders`, `time_entries`, `photos`, `users`, `cust
 
 Supporting: `schedule`, `recurring_templates`, `notifications`, `email_templates`, `email_contacts`, `wo_activity`
 
+RFQ: `rfqs`, `rfq_items`, `rfq_specs` (+ `rfq_items_public` view — price-free)
+
+## RFQ Automation (Request for Quotation)
+
+Upstream of POs: a manager/tech drafts a part-pricing request to a vendor, it renders as a branded `.docx`, and a manager reviews → approves → emails it to the vendor. Migration `20260708000000_rfq_automation.sql`.
+
+- **Tables**: `rfqs` (rfq_ref unique, vendor, status draft→pending_approval→sent→quoted→closed, docx_path, created_by/approved_by), `rfq_items` (line items; `unit_price` blank on request, vendor fills), `rfq_specs` (optional label/value).
+- **Role enforcement is at the DB layer, not just UI**:
+  - `current_app_role()` / `current_app_user_id()` — SECURITY DEFINER helpers that resolve the caller's app role/id from `public.users` by JWT email (roles are NOT in the JWT).
+  - Base `rfq_items` (with `unit_price`) is SELECT-able only by managers/admins. Technicians read their own items through the `rfq_items_public` view, which omits `unit_price` entirely.
+  - Technicians can create/edit/delete only their own `draft` RFQs and cannot advance status (send is manager-gated in RLS *and* in the `send-rfq` function).
+- **Edge functions** (in `supabase/functions/`, must be deployed — see below):
+  - `generate-rfq-docx` — Deno + `npm:docx`. Renders the exact 3C RFQ format, uploads to the public `rfq-docs` Storage bucket, writes `rfqs.docx_path`. Fetches the letterhead logo and **fails loudly (502)** if it can't be loaded.
+  - `send-rfq` — verifies the caller is manager/admin from their JWT, requires the RFQ to be approved + have a vendor email + docx, then emails the `.docx` via the existing `send-email` function and sets status `sent` + `sent_at`. Called with the user's **access token** (not the anon key).
+- **RFQ ref format**: `3C-RFQ-<descriptor>` (slugified tag) or `3C-RFQ-0042` (zero-padded sequence) when no tag; `-2/-3…` on collision (`genRfqRef` in `shared.js`).
+
+### Manual steps to finish deploying RFQs
+1. **Deploy the edge functions** (not auto-deployed): `npx supabase functions deploy generate-rfq-docx` and `npx supabase functions deploy send-rfq` (with `SUPABASE_ACCESS_TOKEN` set), or via the Management API.
+2. **Logo (optional but recommended)**: the docx uses the existing public 3C logo by default (aspect-ratio preserved, no distortion). To use the dedicated rectangular ~8.7:1 letterhead logo (`R1_transparent_bg.png`), upload it to Storage and set the `RFQ_LOGO_URL` secret to its public URL.
+3. **Secrets**: `send-rfq` and `generate-rfq-docx` reuse existing secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`). Outbound email reuses the already-wired `send-email` (Gmail). Only optional new secret: `RFQ_LOGO_URL`.
+4. The migration is already applied to project `gwwijjkahwieschfdfbq` (additive only — no existing table/data changed).
+
 ## Status Values
 
 - **WO status**: `pending` (orange), `in_progress` (cyan), `completed` (green)

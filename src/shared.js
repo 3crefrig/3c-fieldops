@@ -50,6 +50,18 @@ export const BP=new Proxy({},{get:(_,p)=>_BP()[p],ownKeys:()=>Object.keys(_BP())
 export const BS=new Proxy({},{get:(_,p)=>_BS()[p],ownKeys:()=>Object.keys(_BS()),getOwnPropertyDescriptor:(_,p)=>({value:_BS()[p],enumerable:true,configurable:true})});
 
 export function genPO(list){const n=new Date(),pfx=String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0");const mx=list.filter(p=>p.po_id&&p.po_id.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.po_id.slice(4));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+// Slugify free text for use in an RFQ reference (letters/digits, dash-separated).
+export function slugify(s){return String(s||"").trim().replace(/[^A-Za-z0-9]+/g,"-").replace(/^-+|-+$/g,"").replace(/-{2,}/g,"-");}
+// Build a unique RFQ ref: 3C-RFQ-<descriptor> (slugified) or a zero-padded
+// sequence 3C-RFQ-0042 when no descriptor is given. Appends -2, -3, … on collision.
+export function genRfqRef(list,descriptor){
+  const existing=new Set((list||[]).map(r=>r.rfq_ref).filter(Boolean));
+  let base;const slug=slugify(descriptor);
+  if(slug){base="3C-RFQ-"+slug;}
+  else{let mx=0;(list||[]).forEach(r=>{const m=/^3C-RFQ-(\d{4})$/.exec(r.rfq_ref||"");if(m){const n=parseInt(m[1]);if(n>mx)mx=n;}});base="3C-RFQ-"+String(mx+1).padStart(4,"0");}
+  if(!existing.has(base))return base;
+  let i=2;while(existing.has(base+"-"+i))i++;return base+"-"+i;
+}
 export function genProjectPO(list){const n=new Date(),pfx="PPO-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0");const mx=list.filter(p=>p.po_id&&p.po_id.startsWith(pfx)).reduce((m,p)=>{const s=parseInt(p.po_id.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
 // Format a date string for display. Handles YYYY-MM-DD (date-only, parsed as
 // local to avoid UTC timezone shifting the day) and full ISO timestamps.
