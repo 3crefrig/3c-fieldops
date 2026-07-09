@@ -98,6 +98,8 @@ The project **Files** tab (ProjectDetail, tab key still `drawings` internally) l
 - `upFile(file)` client-side uploads via `sb().storage`; category chosen from a dropdown (`FILE_CATS`). Storage RLS: public read, authenticated insert/delete. List shows a type icon, category chip, size, uploader, date; managers can delete (also removes the storage object).
 - **Photos** tab (camera → `drive-upload` → `project_photos`) is unchanged and separate.
 
+**Completion photo prompt:** when any user checks a **milestone** complete (`toggleMilestone`, available to techs too), a modal prompts them to snap photos "for records." Those photos upload via the same `upPhoto(file,{chamberId,milestoneId,caption})` path, tagged with the milestone's `chamber_id` + `milestone_id` (migration `20260709030000` added `project_photos.milestone_id`) and captioned `✓ <milestone title>`. The modal shows thumbnails of photos already tied to that milestone; "Skip"/"Done" dismisses. Photos also appear normally in the Photos tab under their chamber.
+
 ## New-Tech Onboarding Email
 
 `src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).
