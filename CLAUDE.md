@@ -89,6 +89,15 @@ Upstream of POs: a manager/tech drafts a part-pricing request to a vendor, it re
 - **Wired events** (in App.jsx actions): WO created/assigned → assignee; PO approval-needed → managers/admins; PO approved/rejected → requester.
 - **Gmail folder for `[3C Alert]` emails:** the sender can't set a recipient's folder, so each tech adds a one-time Gmail filter (search `subject:[3C Alert]` → Create filter → Apply label + Skip inbox). Workspace admins can push this as an org filter for @3crefrigeration.com accounts.
 
+## Project Files
+
+The project **Files** tab (ProjectDetail, tab key still `drawings` internally) lets managers/techs attach **any file type** (PDF, images, drawings, specs, manuals, submittals, contracts, permits) to a project so techs can open them on their phone. Migration `20260709020000_project_files.sql`.
+
+- Uploads go to the **public `project-files` Storage bucket** (path `{project_id}/{ts}_{safeName}`, 25MB cap) → a direct public URL that opens on any device (no Google-Drive access wall — the old `drive-upload` `webViewLink` often forced a "request access" screen).
+- Rows live in `project_drawings` (added columns `mime_type`, `size_bytes`, `category`). Old Drive-hosted drawings still render (generic icon, no category chip).
+- `upFile(file)` client-side uploads via `sb().storage`; category chosen from a dropdown (`FILE_CATS`). Storage RLS: public read, authenticated insert/delete. List shows a type icon, category chip, size, uploader, date; managers can delete (also removes the storage object).
+- **Photos** tab (camera → `drive-upload` → `project_photos`) is unchanged and separate.
+
 ## New-Tech Onboarding Email
 
 `src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).
