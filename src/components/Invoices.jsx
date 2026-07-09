@@ -428,6 +428,36 @@ async function openInvoicePDF(inv,ctx){
   if(!w){const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();}
 }
 
+// Returns a source for an inline PDF preview: { url (embeddable), downloadUrl }.
+// Uses the Drive copy's /preview when available, otherwise a freshly-built blob URL.
+async function invoicePreviewSource(inv,ctx){
+  if(inv?.pdf_drive_url){
+    const embed=inv.pdf_drive_url.replace(/\/view(\?[^#]*)?(#.*)?$/,"/preview");
+    return{url:embed,downloadUrl:inv.pdf_drive_url};
+  }
+  const d=rebuildInvoiceData(inv,ctx);
+  const doc=await buildInvoicePDF(d);
+  const url=doc.output("bloburl");
+  return{url,downloadUrl:url};
+}
+
+// Full-screen-ish modal that renders a PDF inline (iframe) instead of forcing a
+// download. Click the backdrop or Close to dismiss; "Open in new tab" as fallback.
+function PdfPreviewModal({url,downloadUrl,title,onClose}){
+  return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1100,display:"flex",flexDirection:"column",background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",padding:"max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom))",boxSizing:"border-box",animation:"fadeIn .15s ease-out"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:B.surface,borderRadius:12,border:"1px solid "+B.border,flex:1,display:"flex",flexDirection:"column",overflow:"hidden",maxWidth:1000,width:"100%",margin:"0 auto",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 16px",borderBottom:"1px solid "+B.border}}>
+        <span style={{fontSize:14,fontWeight:800,color:B.text,fontFamily:M,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Invoice PDF"}</span>
+        <div style={{display:"flex",gap:8,flexShrink:0}}>
+          <a href={downloadUrl||url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"6px 12px",fontSize:12}}>Open in new tab ↗</a>
+          <button onClick={onClose} style={{...BP,padding:"6px 12px",fontSize:12}}>Close</button>
+        </div>
+      </div>
+      <iframe title="PDF preview" src={url} style={{flex:1,width:"100%",border:"none",background:"#fff"}}/>
+    </div>
+  </div>);
+}
+
 function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const PAGE_SIZE=50;
   const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
@@ -1174,4 +1204,4 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
   </Modal>);
 }
 
-export { InvoiceDashboard, InvoiceGenerator, buildInvoiceExcel, buildInvoicePDF, uploadInvoiceToDrive, rebuildInvoiceData, openInvoicePDF };
+export { InvoiceDashboard, InvoiceGenerator, buildInvoiceExcel, buildInvoicePDF, uploadInvoiceToDrive, rebuildInvoiceData, openInvoicePDF, invoicePreviewSource, PdfPreviewModal };

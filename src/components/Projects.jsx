@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, SC, SL, PSC, PSL, ROLES, cleanText, calcWOHours, fmtHours, fmtDate, autoCorrect, genProjectPO } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast } from "./ui";
 import { WODetail } from "./WorkOrders";
-import { openInvoicePDF } from "./Invoices";
+import { invoicePreviewSource, PdfPreviewModal } from "./Invoices";
 
 function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
   const[showCreate,setShowCreate]=useState(false),[name,setName]=useState(""),[desc,setDesc]=useState(""),[cust,setCust]=useState(""),[loc,setLoc]=useState(""),[budget,setBudget]=useState(""),[saving,setSaving]=useState(false);
@@ -25,7 +25,7 @@ function ProjectList({projects,onSelect,onCreate,users,customers,userRole}){
   </div>);
 }
 function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole,allWOs,onCreateWO,onUpdateWO,onDeleteWO,allPOs,onCreatePO,allTime,customers,lineItems,photos:woPhotos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,equipment,loadData,reloadTable,invoices}){
-  const[tab,setTab]=useState("overview"),[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
+  const[tab,setTab]=useState("overview"),[toast,setToast]=useState(""),[saving,setSaving]=useState(false),[pdfPreview,setPdfPreview]=useState(null);
   const[editBudget,setEditBudget]=useState(false),[localBudget,setLocalBudget]=useState(project.budget||0);
   const[editCustPO,setEditCustPO]=useState(false),[localCustPO,setLocalCustPO]=useState(project.customer_po||"");
   const[selWO,setSelWO]=useState(null);
@@ -192,7 +192,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
         <div style={{background:B.bg,borderRadius:6,padding:"10px 12px"}}><div style={{fontSize:10,color:B.textDim,fontWeight:600}}>OUTSTANDING</div><div style={{fontSize:16,fontWeight:800,fontFamily:M,color:invoicedOutstanding>0?B.cyan:B.textDim,marginTop:2}}>{"$"+invoicedOutstanding.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div><div style={{fontSize:9,color:B.textDim}}>{projectInvoices.filter(i=>i.status!=="paid").length} unpaid</div></div>
       </div>}
       {projectInvoices.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No invoices linked to this project</div>}
-      {projectInvoices.map(inv=>{const st=invStatusKey(inv);const days=invDaysOut(inv.date_issued);const linkedWOs=pWOs.filter(w=>(inv.wo_ids||[]).includes(w.wo_id)||(inv.wo_ids||[]).includes(w.id));return<Card key={inv.id} onClick={async()=>{msg("Generating PDF...");try{await openInvoicePDF(inv,{customers,pos:allPOs,wos:allWOs});}catch(e){msg("PDF error: "+(e.message||"failed"));}}} className="card-hover" style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(ISC[st]||B.border),cursor:"pointer"}} title="Click to view PDF">
+      {projectInvoices.map(inv=>{const st=invStatusKey(inv);const days=invDaysOut(inv.date_issued);const linkedWOs=pWOs.filter(w=>(inv.wo_ids||[]).includes(w.wo_id)||(inv.wo_ids||[]).includes(w.id));return<Card key={inv.id} onClick={async()=>{msg("Opening preview...");try{const src=await invoicePreviewSource(inv,{customers,pos:allPOs,wos:allWOs});setPdfPreview({...src,title:"INV-"+inv.invoice_num});}catch(e){msg("PDF error: "+(e.message||"failed"));}}} className="card-hover" style={{padding:"12px 16px",marginBottom:6,borderLeft:"3px solid "+(ISC[st]||B.border),cursor:"pointer"}} title="Click to preview PDF">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -224,6 +224,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
     </Card>)}{notes.length===0&&<div style={{textAlign:"center",padding:30,color:B.textDim,fontSize:12}}>No notes</div>}</div>}
     {tab==="team"&&<div><span style={LS}>Assign technicians</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>{(users||[]).filter(u=>u.active!==false).map(u=>{const a=(project.assigned_techs||[]).includes(u.name);return<Card key={u.id} onClick={()=>toggleTech(u.name)} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",border:a?"2px solid "+B.cyan:"1px solid "+B.border}}><div style={{width:24,height:24,borderRadius:6,border:"2px solid "+(a?B.cyan:B.border),background:a?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{a&&<span style={{color:B.bg,fontSize:14,fontWeight:800}}>✓</span>}</div><div><div style={{fontSize:13,fontWeight:600,color:B.text}}>{u.name}</div><div style={{fontSize:10,color:B.textDim}}>{u.role}</div></div></Card>;})}</div></div>}
     {isMgr&&<div style={{marginTop:20}}><button onClick={async()=>{if(!window.confirm("Delete project?"))return;await onDelete(project.id);onBack();}} style={{width:"100%",padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete Project</button></div>}
+    {pdfPreview&&<PdfPreviewModal url={pdfPreview.url} downloadUrl={pdfPreview.downloadUrl} title={pdfPreview.title} onClose={()=>setPdfPreview(null)}/>}
   </div>);
 }
 function Projects({projects,users,customers,userName,userRole,onAdd,onUpdate,onDelete,allWOs,onCreateWO,onUpdateWO,onDeleteWO,allPOs,onCreatePO,allTime,lineItems,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,equipment,loadData,reloadTable,invoices}){
