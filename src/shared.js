@@ -68,6 +68,20 @@ export function genProjectPO(list){const n=new Date(),pfx="PPO-"+String(n.getFul
 export function fmtDate(s,opts){if(!s)return"";const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);if(m)return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString("en-US",opts);return new Date(s).toLocaleDateString("en-US",opts);}
 export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString("en-US",{month:"numeric",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});}
 
+// --- Role-tailored alerts / notifications ---
+// Customers whose completed WOs are NOT invoiced per-order (they close as projects /
+// contract billing). These are excluded from the "ready to invoice" alert.
+// Matched loosely so minor punctuation/casing variations still hit.
+export const isInvoiceExcludedCustomer=(name)=>{const n=(name||"").toLowerCase();return n.includes("school of medicine")||(n.includes("duke")&&n.includes("facilities maintenance"));};
+// A completed WO that a human should invoice: done, not yet invoiced, not part of a
+// project (projects invoice separately), and not an excluded (project-billed) customer.
+export const woReadyToInvoice=(wo)=>!!wo&&wo.status==="completed"&&!wo.invoiced&&!wo.project_id&&!isInvoiceExcludedCustomer(wo.customer);
+// due_date is free text ("TBD", "", or YYYY-MM-DD) — overdue only when it's a real past date.
+export const woOverdue=(wo,todayStr)=>{if(!wo||wo.status==="completed")return false;const d=wo.due_date;if(!/^\d{4}-\d{2}-\d{2}$/.test(d||""))return false;return d<(todayStr||new Date().toISOString().slice(0,10));};
+// Role-tailored bell visibility: admins see everything; managers see manager+technician+
+// global; technicians see technician+global. (for_role null = everyone.)
+export const visibleNotifs=(notifs,role)=>{if(!Array.isArray(notifs))return[];if(role==="admin")return notifs;return notifs.filter(n=>{const r=n.for_role;if(!r)return true;if(role==="manager")return r==="manager"||r==="technician";return r==="technician";});};
+
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
 /* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
