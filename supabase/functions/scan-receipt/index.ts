@@ -56,7 +56,8 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        // Haiku 4.5 — vision-capable, ~65% cheaper per scan than Sonnet.
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
         messages: [
           {
@@ -117,8 +118,7 @@ If a field cannot be determined, use null. For amounts, use numbers not strings.
       });
     }
 
-    // Try to match to an existing PO
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Try to match to an existing PO (sb client already created above)
     let matchedPO = null;
 
     // First try matching by PO number if found on receipt

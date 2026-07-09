@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { B, F, BS, haptic, setTheme, getTheme, getRoles, ROLES, GlobalStyles } from "../shared";
 import { Logo, Badge, GlobalSearch } from "./ui";
 import { NotifBell } from "./CameraUpload";
+import { registerPush, pushSupported, pushPermission } from "../push";
 
 let _ROLES = ROLES;
 
@@ -11,6 +12,11 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
   const[offline,setOffline]=useState(!navigator.onLine);
   const[showMoreTabs,setShowMoreTabs]=useState(false);
   const[openNavGroup,setOpenNavGroup]=useState(null);
+  const[pushState,setPushState]=useState(()=>pushSupported()?pushPermission():"unsupported");
+  const[pushDismissed,setPushDismissed]=useState(()=>{try{return localStorage.getItem("push-banner-dismissed")==="1";}catch(e){return false;}});
+  const[pushBusy,setPushBusy]=useState(false);
+  const enablePush=async()=>{if(pushBusy||!user?.id)return;setPushBusy(true);const r=await registerPush(user.id);setPushBusy(false);setPushState(pushSupported()?pushPermission():"unsupported");if(r?.ok)haptic(40);};
+  const dismissPush=()=>{setPushDismissed(true);try{localStorage.setItem("push-banner-dismissed","1");}catch(e){}};
   useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
   useEffect(()=>{const on=()=>setOffline(false);const off=()=>setOffline(true);window.addEventListener("online",on);window.addEventListener("offline",off);return()=>{window.removeEventListener("online",on);window.removeEventListener("offline",off);};},[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);_ROLES=getRoles();setThemeState(t);};
@@ -85,6 +91,12 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
         {tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:isMobile?"8px 10px":"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:isMobile?9:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}
       </div>);
     })()}
+    {pushSupported()&&pushState==="default"&&!pushDismissed&&<div style={{background:B.cyanGlow,borderBottom:"1px solid "+B.cyan+"40",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontSize:12,flexWrap:"wrap"}}>
+      <span style={{fontSize:16}}>🔔</span>
+      <span style={{flex:1,minWidth:160,color:B.text}}>Turn on job alerts to get a notification when work is assigned to you.</span>
+      <button onClick={enablePush} disabled={pushBusy} style={{background:B.cyan,color:B.bg,border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,opacity:pushBusy?.6:1}}>{pushBusy?"Enabling…":"Enable"}</button>
+      <button onClick={dismissPush} aria-label="Dismiss" style={{background:"none",border:"none",color:B.textDim,fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
+    </div>}
     <div ref={contentRef} className="tab-content" key={tab+theme} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?"calc(74px + env(safe-area-inset-bottom))":20,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box",minHeight:0}}>{children}</div>
     {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"4px 0",paddingBottom:"max(4px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48,transition:"color .15s"}}><span>{t.icon}</span><span style={{fontSize:10,fontWeight:tab===t.key?700:500,fontFamily:F}}>{t.label}</span></button>)}<button onClick={()=>setShowMoreTabs(!showMoreTabs)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:showMoreTabs?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48}}><span>•••</span><span style={{fontSize:10,fontWeight:500,fontFamily:F}}>More</span></button></div>}
     {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:8,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.icon} {t.label}</button>)}</div>}

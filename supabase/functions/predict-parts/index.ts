@@ -87,7 +87,7 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 800,
         system: `You are a parts prediction assistant for 3C Refrigeration, a commercial HVAC/R service company. Given a work order description and context, predict what parts/materials the technician will likely need.
 
