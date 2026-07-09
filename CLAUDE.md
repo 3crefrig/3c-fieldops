@@ -81,6 +81,29 @@ Upstream of POs: a manager/tech drafts a part-pricing request to a vendor, it re
 3. **Secrets**: `send-rfq` and `generate-rfq-docx` reuse existing secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`). Outbound email reuses the already-wired `send-email` (Gmail). Only optional new secret: `RFQ_LOGO_URL`.
 4. The migration is already applied to project `gwwijjkahwieschfdfbq` (additive only — no existing table/data changed).
 
+## Notifications & Alerts
+
+- **In-app notifications** — `notifications` table + `NotifBell`; `notify(type,title,message,for_role)` inserts them.
+- **Web Push (free)** — `push_subscriptions` table (RLS via `current_app_*`), `send-push` edge function (`jsr:@negrel/webpush` + VAPID; secret `VAPID_KEYS_JSON`). `sw.js` has `push`/`notificationclick` handlers. Client: `src/push.js` `registerPush(userId)` subscribes + stores; a Shell banner ("Turn on job alerts") prompts users, and App silently refreshes the subscription on login if already granted. **Each user must tap "Allow" once** (per-device; iOS needs 16.4+ and Add-to-Home-Screen).
+- **`send-push` payload:** `{title, body, url?, userIds?, userNames?, roles?, emailFallback?}` — also `{action:"pubkey"}` returns the client key. It pushes to every subscribed device of the target users; users with **no** push subscription get a filterable **`[3C Alert]`** email instead (only when `emailFallback:true`), so push users get zero inbox clutter.
+- **Wired events** (in App.jsx actions): WO created/assigned → assignee; PO approval-needed → managers/admins; PO approved/rejected → requester.
+- **Gmail folder for `[3C Alert]` emails:** the sender can't set a recipient's folder, so each tech adds a one-time Gmail filter (search `subject:[3C Alert]` → Create filter → Apply label + Skip inbox). Workspace admins can push this as an org filter for @3crefrigeration.com accounts.
+
+## New-Tech Onboarding Email
+
+`src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).
+
+## AI Models / Cost
+
+All AI runs on the Anthropic API via edge functions. Model tiers (as of 2026-07-09):
+- **Haiku 4.5** (`claude-haiku-4-5-20251001`, ~$1/$5 per MTok): `scan-document`, `scan-receipt`, `process-inbox`, `job-intelligence`, `predict-parts`, `summarize-work`, `email-to-proposal`.
+- **Sonnet 4** (`claude-sonnet-4-20250514`, ~$3/$15, retires 2026-06-15): `ai-troubleshoot`, `generate-proposal` (kept on Sonnet for advice/proposal quality — migrate to `claude-sonnet-4-6` before retirement).
+- All AI is **opt-in per action** (button taps / manual inbox scan). Actual spend is near $0/mo at current usage; projected only a few $/mo even at healthy usage. Keep new AI features on Haiku unless quality demands Sonnet ([[feedback_ai_token_budget]]).
+
+## Staged: rename_tech()
+
+`public.rename_tech(user_id, old_name, new_name, new_email)` (migration `20260709010000`) renames a user account and relabels ALL historical attribution (assignee/crew/technician/actor/requested_by/uploaded_by/assigned_techs/schedule/recurring across ~593 rows). Verified via dry-run+rollback. Staged for the Emanuel Segura → Javier switch — call it once Javier's Gmail + full name are known.
+
 ## Status Values
 
 - **WO status**: `pending` (orange), `in_progress` (cyan), `completed` (green)
