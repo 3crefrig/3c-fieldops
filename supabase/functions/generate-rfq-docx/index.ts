@@ -140,7 +140,7 @@ serve(async (req) => {
       );
     }
     const size = pngSize(logoBytes);
-    const logoW = 200; // px — letterhead width
+    const logoW = 260; // px — letterhead width (fits the left cell of the 2-col header)
     const logoH = size ? Math.round(logoW * (size.h / size.w)) : 40;
 
     // ── Letterhead: logo (left) / company block (right) ──────

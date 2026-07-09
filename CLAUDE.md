@@ -77,7 +77,7 @@ Upstream of POs: a manager/tech drafts a part-pricing request to a vendor, it re
 
 ### Manual steps to finish deploying RFQs
 1. **Deploy the edge functions** (not auto-deployed): `npx supabase functions deploy generate-rfq-docx` and `npx supabase functions deploy send-rfq` (with `SUPABASE_ACCESS_TOKEN` set), or via the Management API.
-2. **Logo (optional but recommended)**: the docx uses the existing public 3C logo by default (aspect-ratio preserved, no distortion). To use the dedicated rectangular ~8.7:1 letterhead logo (`R1_transparent_bg.png`), upload it to Storage and set the `RFQ_LOGO_URL` secret to its public URL.
+2. **Logo — DONE**: the rectangular R1 letterhead logo (8.72:1, autocropped transparent) is uploaded to `rfq-docs/assets/logo.png` (public) and the `RFQ_LOGO_URL` secret points at it. The docx letterhead renders it at 260px wide. To swap logos later: re-upload that path (or repoint the secret) and redeploy `generate-rfq-docx`.
 3. **Secrets**: `send-rfq` and `generate-rfq-docx` reuse existing secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`). Outbound email reuses the already-wired `send-email` (Gmail). Only optional new secret: `RFQ_LOGO_URL`.
 4. The migration is already applied to project `gwwijjkahwieschfdfbq` (additive only — no existing table/data changed).
 
