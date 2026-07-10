@@ -73,7 +73,7 @@ function RFQForm({initial,onSave,onClose,signerName}){
       <div>
         <label style={LS}>Requested Items <span style={{color:B.red}}>*</span></label>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {items.map((it,idx)=><div key={idx} style={{display:"grid",gridTemplateColumns:"1.4fr 0.6fr 1fr 1.6fr 28px",gap:6,alignItems:"center"}}>
+          {items.map((it,idx)=><div key={idx} style={{display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"1fr 1fr 28px":"1.4fr 0.6fr 1fr 1.6fr 28px",gap:6,alignItems:"center"}}>
             <input value={it.item} onChange={e=>setItem(idx,"item",e.target.value)} placeholder="Item" style={{...IS,padding:"8px 10px",fontSize:12}}/>
             <input value={it.qty} onChange={e=>setItem(idx,"qty",e.target.value)} type="number" step="any" placeholder="Qty" style={{...IS,padding:"8px 10px",fontSize:12,fontFamily:M}}/>
             <input value={it.part_no} onChange={e=>setItem(idx,"part_no",e.target.value)} placeholder="Part No." style={{...IS,padding:"8px 10px",fontSize:12}}/>
