@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // 2) Ready to invoice (managers) — recent, non-project, billable customer
     const { data: custs } = await db.from("customers").select("name,auto_invoice");
     const autoNames = new Set((custs || []).filter((c: any) => c.auto_invoice).map((c: any) => c.name));
-    const { data: done } = await db.from("work_orders").select("id,wo_id,customer,date_completed").eq("status", "completed").eq("invoiced", false).is("project_id", null);
+    const { data: done } = await db.from("work_orders").select("id,wo_id,customer,date_completed").eq("status", "completed").or("invoiced.is.null,invoiced.eq.false").is("project_id", null);
     for (const w of done || []) if (isDate(w.date_completed) && w.date_completed >= cutDate(30) && (w.customer || "").trim() !== "" && !excl(w.customer) && !autoNames.has(w.customer))
       await notif("wo_needs_invoice", "Ready to Invoice", `${w.wo_id} — ${w.customer} is complete and needs invoicing`, "manager");
 
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Completed WO missing hours/signature (managers)
-    const { data: cg } = await db.from("work_orders").select("id,wo_id,title,customer,signature,date_completed").eq("status", "completed").eq("invoiced", false).is("project_id", null);
+    const { data: cg } = await db.from("work_orders").select("id,wo_id,title,customer,signature,date_completed").eq("status", "completed").or("invoiced.is.null,invoiced.eq.false").is("project_id", null);
     const rel = (cg || []).filter((w: any) => isDate(w.date_completed) && w.date_completed >= cutDate(30) && (w.customer || "").trim() !== "" && !excl(w.customer));
     if (rel.length) {
       const { data: times } = await db.from("time_entries").select("wo_id,hours").in("wo_id", rel.map((w: any) => w.id));
