@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { jsPDF } from "jspdf";
-import { B, F, M, IS, LS, BP, BS, ROLES, calcWOHours, fmtHours } from "../shared";
+import { B, F, M, IS, LS, BP, BS, ROLES, calcWOHours, fmtHours, getPartsMarkup, getCustomerTiers } from "../shared";
 import { Card, StatCard } from "./ui";
 
-function Reports({wos,pos,timeEntries,users,customers}){
+function Reports({wos,pos,timeEntries,users,customers,invoices}){
   const[range,setRange]=useState("month");const[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
   // Date range presets
   const now=new Date();const todayStr=now.toISOString().slice(0,10);
@@ -83,11 +83,15 @@ function Reports({wos,pos,timeEntries,users,customers}){
       <span style={LS}>Revenue by Customer</span>
       <div style={{marginTop:8}}>{[...new Set(fWOs.map(w=>w.customer).filter(Boolean))].map(c=>{
         const cWOs=fWOs.filter(w=>w.customer===c);const cTime=fTime.filter(t=>cWOs.some(w=>w.id===t.wo_id));const hrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
-        const cust=(customers||[]).find(x=>x.name===c);const rate=cust?.billing_rate_override||120;const rev=hrs*rate;
-        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poCost=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const cmk=cust?.parts_markup!=null?parseFloat(cust.parts_markup):35;const poSpend=Math.round(poCost*(1+cmk/100)*100)/100;
+        const cust=(customers||[]).find(x=>x.name===c);
+        // Actual invoiced revenue for this customer in range (falls back to a labor estimate if none invoiced yet).
+        const cInv=(invoices||[]).filter(i=>i.customer===c&&inRange(i.date_issued||i.created_at?.slice(0,10)));
+        const invoicedRev=cInv.reduce((s,i)=>s+parseFloat(i.amount||0),0);
+        const estRate=(getCustomerTiers(cust)[0]||{}).rate||120;const rev=invoicedRev>0?invoicedRev:hrs*estRate;const isEst=invoicedRev<=0;
+        const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poCost=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const cmk=getPartsMarkup(cust);const poSpend=Math.round(poCost*(1+cmk/100)*100)/100;
         return(<div key={c} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
           <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{c}</div><div style={{fontSize:10,color:B.textDim}}>{cWOs.length} jobs · {fmtHours(hrs)}</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.green}}>${rev.toLocaleString()}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
+          <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:isEst?B.textMuted:B.green}}>${rev.toLocaleString()}{isEst&&<span style={{fontSize:8,color:B.textDim,fontWeight:400}}> est</span>}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
         </div>);
       })}</div>
     </Card>

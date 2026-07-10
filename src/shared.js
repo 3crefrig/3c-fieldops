@@ -68,6 +68,21 @@ export function genProjectPO(list){const n=new Date(),pfx="PPO-"+String(n.getFul
 export function fmtDate(s,opts){if(!s)return"";const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);if(m)return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString("en-US",opts);return new Date(s).toLocaleDateString("en-US",opts);}
 export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString("en-US",{month:"numeric",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});}
 
+// --- Billing rates: single source of truth ---
+// 3C's standard labor tiers + parts markup. A customer's own labor_tiers /
+// parts_markup override these; this is the fallback so a NEW customer's first
+// invoice isn't silently wrong. (Previously these numbers were re-hardcoded in
+// Invoices, Reports, Proposals, and tryAutoInvoice and drifted: 25/30/35 markup,
+// $120/$135 tiers scattered.)
+export const DEFAULT_LABOR_TIERS=[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
+export const DEFAULT_PARTS_MARKUP=35;
+export const getCustomerTiers=(customer)=>{
+  if(customer&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0)
+    return customer.labor_tiers.map(t=>({name:t.name,rate:parseFloat(t.rate)||0}));
+  return DEFAULT_LABOR_TIERS.map(t=>({...t}));
+};
+export const getPartsMarkup=(customer)=>customer&&customer.parts_markup!=null&&customer.parts_markup!==""?parseFloat(customer.parts_markup):DEFAULT_PARTS_MARKUP;
+
 // --- Role-tailored alerts / notifications ---
 // Customers whose completed WOs are NOT invoiced per-order (they close as projects /
 // contract billing). These are excluded from the "ready to invoice" alert.

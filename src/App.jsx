@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice , fnFetch } from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup } from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
@@ -210,12 +210,9 @@ function App(){
     const totalHrs=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);
     const woPOs=data.pos.filter(p=>p.wo_id===completedWO.id&&p.status==="approved");
     const partsCost=woPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-    const mkup=cust.parts_markup!=null?parseFloat(cust.parts_markup):35;
+    const mkup=getPartsMarkup(cust);
     const partsTotal=Math.round(partsCost*(1+mkup/100)*100)/100;
-    let defaultTiers;
-    if(cust.labor_tiers&&Array.isArray(cust.labor_tiers)&&cust.labor_tiers.length>0){defaultTiers=cust.labor_tiers.map(t=>({name:t.name,rate:t.rate}));}
-    else{defaultTiers=cust.name.includes("DUMC")||cust.name.includes("Medical")?[{name:"Journeyman Mechanic",rate:60},{name:"Senior Technician",rate:75},{name:"Licensed Technician",rate:90}]:[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];}
-    const tiers=defaultTiers.map((t,i)=>({...t,hours:i===0?totalHrs:0}));
+    const tiers=getCustomerTiers(cust).map((t,i)=>({...t,hours:i===0?totalHrs:0}));
     const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
     const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data:invAll}=await sb().from("invoices").select("invoice_num");const mxInv=(invAll||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);const invNum=pfx+String(mxInv+1).padStart(2,"0");
     await sb().from("invoices").insert({invoice_num:invNum,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:[completedWO.wo_id],tier_data:tiers,job_desc:completedWO.title,po_number:completedWO.customer_wo||"",notes:""});

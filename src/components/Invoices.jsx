@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours , fnFetch } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -412,7 +412,7 @@ function rebuildInvoiceData(inv,{customers,pos,wos}){
   const issued=inv.date_issued?new Date(inv.date_issued):new Date();
   const due=new Date(issued);due.setDate(due.getDate()+netDays);
   const invPOs=(pos||[]).filter(p=>inv.wo_ids&&inv.wo_ids.some(wid=>{const wo=(wos||[]).find(w=>w.wo_id===wid||w.id===wid);return wo&&p.wo_id===wo.id;})&&p.status==="approved");
-  const mkup=c?.parts_markup!=null?parseFloat(c.parts_markup):35;
+  const mkup=getPartsMarkup(c);
   const partsDetail=invPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+mkup/100)*100)/100}));
   const customItems=Array.isArray(inv.custom_items)?inv.custom_items:[];
   const customItemsTotal=customItems.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
@@ -678,10 +678,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
   // Default tiers based on customer
   const totalLogged=Object.values(techHours).reduce((s,h)=>s+h,0);
-  const buildTiers=(c)=>{let base;if(customer?.labor_tiers&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0){base=customer.labor_tiers.map(t=>({name:t.name,rate:t.rate,hours:0}));}else{base=[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}];}
+  const buildTiers=(c)=>{const base=getCustomerTiers(customer).map(t=>({...t,hours:0}));
     if(base.length>0)base[0].hours=totalLogged;
     return base;};
-  const[tiers,setTiers]=useState(()=>cust?buildTiers(cust):[{name:"Senior Technician",rate:120,hours:0},{name:"Licensed Technician",rate:135,hours:0}]);
+  const[tiers,setTiers]=useState(()=>buildTiers(cust));
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
 
   // Auto-fill job desc and PO from customer settings (if available)

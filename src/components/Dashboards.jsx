@@ -151,7 +151,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
-    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
+    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers} invoices={D.invoices}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="feedback"&&<FeedbackDashboard D={D}/>}
     {tab==="team"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{D.users.filter(u=>u.role==="technician"&&u.active!==false).map(t=>{const to=D.wos.filter(o=>o.assignee===t.name);return(<Card key={t.id} style={{padding:"14px 18px"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:42,height:42,borderRadius:8,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div><div style={{fontSize:11,color:B.textDim}}>{to.filter(o=>o.status==="in_progress").length} active · {to.filter(o=>o.status==="completed").length} done · {fmtHours(to.reduce((s,o)=>s+calcWOHours(o.id,D.time),0))}</div></div>{(D.onlineUsers||[]).includes(t.name)?<Badge color={B.green}>Online</Badge>:<Badge color={B.textDim}>Offline</Badge>}</div></Card>);})}</div>}
@@ -179,7 +179,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
-    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers}/>}
+    {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers} invoices={D.invoices}/>}
     {tab==="billing"&&<BillingExport wos={D.wos} pos={D.pos} timeEntries={D.time} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user}/>}
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user} lineItems={D.lineItems||[]} projects={D.projects||[]} reloadTable={A.reloadTable} loadData={A.loadData}/>}
     {tab==="feedback"&&<FeedbackDashboard D={D}/>}
