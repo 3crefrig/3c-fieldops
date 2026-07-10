@@ -27,7 +27,7 @@ const STATUS_LABELS={active:"Active",decommissioned:"Decommissioned",pending_ins
 
 // ─── Barcode / QR Scanner ─────────────────────────────
 function BarcodeScanner({onScan,onClose}){
-  const scannerRef=useRef(null);const containerRef=useRef(null);const[error,setError]=useState("");
+  const scannerRef=useRef(null);const containerRef=useRef(null);const[error,setError]=useState("");const[manual,setManual]=useState("");
   useEffect(()=>{
     const scannerId="eq-scanner-"+Date.now();
     if(containerRef.current)containerRef.current.id=scannerId;
@@ -43,6 +43,10 @@ function BarcodeScanner({onScan,onClose}){
       <div ref={containerRef} style={{width:"100%",maxWidth:400,minHeight:250,borderRadius:10,overflow:"hidden",background:B.bg}}/>
       {error&&<div style={{color:B.orange,fontSize:12,textAlign:"center",padding:8}}>{error}</div>}
       <div style={{fontSize:11,color:B.textDim,textAlign:"center"}}>Point camera at barcode or QR code on equipment</div>
+      <div style={{display:"flex",gap:6,width:"100%",maxWidth:400,marginTop:4}}>
+        <input value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&manual.trim()){scannerRef.current?.stop().catch(()=>{});onScan(manual.trim());}}} placeholder="Or type the asset tag…" style={{...IS,flex:1}}/>
+        <button onClick={()=>{if(manual.trim()){scannerRef.current?.stop().catch(()=>{});onScan(manual.trim());}}} disabled={!manual.trim()} style={{...BP,opacity:manual.trim()?1:0.5,whiteSpace:"nowrap"}}>Find</button>
+      </div>
     </div>
   </Modal>);
 }
