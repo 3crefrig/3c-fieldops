@@ -63,19 +63,22 @@ async function getServer() {
 const __CORS_G={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
 async function __guard(req: Request, allowUser=true): Promise<Response|null>{
   if(req.method==="OPTIONS")return null;
-  const token=(req.headers.get("Authorization")||"").replace(/^Bearers+/i,"").trim();
+  const hdr=(req.headers.get("Authorization")||"").trim();
+  const token=hdr.replace(/^[Bb]earer[ ]+/,"").trim();
   const svc=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
   const deny=(s: number,m: string)=>new Response(JSON.stringify({error:m}),{status:s,headers:{...__CORS_G,"Content-Type":"application/json"}});
-  if(token&&svc&&token===svc)return null;
-  if(!allowUser)return deny(401,"service credential required");
   if(!token)return deny(401,"auth required");
+  if(svc&&token===svc)return null;
+  let claims: any=null;
+  try{const seg=(token.split(".")[1]||"").replace(/-/g,"+").replace(/_/g,"/");claims=JSON.parse(atob(seg+"=".repeat((4-seg.length%4)%4)));}catch(_x){}
+  if(!claims)return deny(401,"invalid token");
+  if(claims.role==="service_role")return null;
+  if(!allowUser)return deny(401,"service credential required");
+  if(claims.role!=="authenticated")return deny(401,"invalid token");
+  const email=String(claims.email||"").toLowerCase();
+  if(!email)return deny(401,"invalid token");
   try{
     const base=Deno.env.get("SUPABASE_URL")||"";
-    const u=await fetch(base+"/auth/v1/user",{headers:{Authorization:"Bearer "+token,apikey:Deno.env.get("SUPABASE_ANON_KEY")||""}});
-    if(!u.ok)return deny(401,"invalid token");
-    const user=await u.json();
-    const email=(user?.email||"").toLowerCase();
-    if(!email)return deny(401,"invalid token");
     const q=await fetch(base+"/rest/v1/users?select=role&active=not.is.false&email=ilike."+encodeURIComponent(email),{headers:{apikey:svc,Authorization:"Bearer "+svc}});
     const rows=await q.json();
     if(!Array.isArray(rows)||rows.length===0)return deny(403,"not a registered user");
