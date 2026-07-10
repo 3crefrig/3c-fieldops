@@ -131,6 +131,26 @@ All AI runs on the Anthropic API via edge functions. Model tiers (as of 2026-07-
 - **PO status**: `pending` (orange), `approved` (green), `rejected` (red), `revised` (purple)
 - **Roles**: `admin`, `manager`, `technician` — each with distinct color gradients and dashboard views
 
+## Security model (hardened 2026-07-10)
+
+- **RLS is real now** (migration `20260710010000`). Anon has ZERO direct table access. Authenticated access is scoped by `current_app_role()`: money/office tables (invoices, scheduled_emails, estimates, proposals, workflows, agreements, feedback, wo_line_items, wo_drafts…) are manager+; POs are own-only for technicians; `users` writes are admin-only (+ first-run bootstrap via `users_table_empty()`); app-data tables require any registered user. **Public surfaces use SECURITY DEFINER RPCs**, not table reads: `portal_customer_data(cust)`, `proposal_by_token(tok)`, `proposal_respond(tok,action,reason,opt)`, `feedback_request_by_token(tok)`. Don't re-grant anon table access.
+- **Edge functions require a real caller.** Every function has an auth guard that decodes the (gateway-verified) JWT: allows `role=service_role` (internal calls + cron) or `role=authenticated` matching an active `users` row; rejects the anon key and junk. `send-scheduled-emails`/`process-workflows`/`daily-sweeps` are service-only. `submit-feedback` stays public (token-validated). **Client calls go through `fnFetch(name,payload)` in shared.js** (sends the user's access token) — never `fetch(...anon key...)`. `send-email`/`drive-upload` source was recovered from the deployed eszip into the repo.
+- **Storage**: `project-files`/`rfq-docs` uploads require a registered user, deletes manager+; reads still public by UUID URL (private+signed-URL is a tracked follow-up).
+
+## Cron & Vault
+
+- **Service key is in Supabase Vault** as `service_role_key` (read via `vault.decrypted_secrets`). `ALTER DATABASE` GUC isn't permitted through the Management API, so Vault is the auth source for cron.
+- **pg_cron jobs** (migration `20260710030000`): `send-scheduled-emails-5min` (invoice email dispatcher — was missing, scheduled invoices silently never sent), `process-workflows-5min` (wait-node resume), `daily-sweeps-11utc` (7am ET notification sweeps). Check with `select * from cron.job` / `cron.job_run_details`.
+- **`daily-sweeps` edge function** replaced the 11 client-side mount-effect checks (overdue, ready-to-invoice, unassigned, stale PO, completion gaps, stale drafts, deadlines, warranties, agreements). The `notif_daily_dedupe` partial unique index (migration `20260710000000`) makes notification inserts idempotent per (type,message,utc-day). Only `checkRecurringPMs` remains client-side. Event-driven alerts still fire from action handlers.
+
+## Billing rates (single source of truth)
+
+`shared.js` `getCustomerTiers(customer)` / `getPartsMarkup(customer)` / `DEFAULT_LABOR_TIERS` / `DEFAULT_PARTS_MARKUP` — used by the invoice generator, `tryAutoInvoice`, and Reports. Customer labor tiers are editable in the Customer form. Reports "Revenue by Customer" sums actual invoiced amounts (marks hours-based estimates "est"). Don't re-hardcode $120/$135 or a markup number.
+
+## Offline
+
+`offlineStore.queueMutation` is wired into `addTime`/`updateTime`/`deleteTime`/`updateWO`: when `navigator.onLine===false` the write is queued (IndexedDB) + optimistically applied; the `online`/visibility handlers replay it. Photos + office actions remain online-only.
+
 ## Supabase Credentials
 - Project ID: gwwijjkahwieschfdfbq
 - URL: https://gwwijjkahwieschfdfbq.supabase.co
