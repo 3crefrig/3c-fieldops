@@ -668,23 +668,20 @@ function ProposalPortal({token}){
   const[loading,setLoading]=useState(true);const[prop,setProp]=useState(null);const[est,setEst]=useState(null);const[error,setError]=useState(null);
   const[rejReason,setRejReason]=useState("");const[showReject,setShowReject]=useState(false);const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(null);const[selectedOpt,setSelectedOpt]=useState(null);
 
-  useEffect(()=>{(async()=>{const{data,error:e}=await sb().from("proposals").select("*").eq("approval_token",token).single();
-    if(e||!data){setError("This proposal link is invalid or has expired.");setLoading(false);return;}
-    if(data.estimate_id){const{data:estData}=await sb().from("estimates").select("*").eq("id",data.estimate_id).single();setEst(estData);}
-    setProp(data);setLoading(false);
+  useEffect(()=>{(async()=>{const{data,error:e}=await sb().rpc("proposal_by_token",{tok:token});
+    if(e||!data||!data.proposal){setError("This proposal link is invalid or has expired.");setLoading(false);return;}
+    if(data.estimate)setEst(data.estimate);
+    setProp(data.proposal);setLoading(false);
   })();},[token]);
 
   const approve=async()=>{if(submitting)return;setSubmitting(true);try{
-    await sb().from("proposals").update({status:"approved",approved_at:new Date().toISOString(),approved_by:"Customer"}).eq("id",prop.id);
-    // If estimate exists, mark it approved + save selected option
-    if(est){const upd={status:"approved",approved_at:new Date().toISOString()};if(selectedOpt!==null)upd.selected_option=selectedOpt;await sb().from("estimates").update(upd).eq("id",est.id);}
-    const optLabel=est?.estimate_type==="multi_option"&&selectedOpt!==null?(est.options||[])[selectedOpt]?.label:"";
-    await sb().from("notifications").insert({type:"proposal_approved",title:"Proposal Approved",message:prop.proposal_num+" approved by "+prop.customer_name+(optLabel?" — "+optLabel:""),for_role:"admin"});
+    const{data:r}=await sb().rpc("proposal_respond",{tok:token,action:"approve",selected_opt:est?.estimate_type==="multi_option"?selectedOpt:null});
+    if(!r?.ok){console.error(r?.error);setSubmitting(false);return;}
     setDone("approved");setSubmitting(false);}catch(e){console.error(e);setSubmitting(false);}};
 
   const reject=async()=>{if(submitting)return;setSubmitting(true);try{
-    await sb().from("proposals").update({status:"rejected",rejected_at:new Date().toISOString(),rejection_reason:rejReason}).eq("id",prop.id);
-    await sb().from("notifications").insert({type:"proposal_rejected",title:"Proposal Rejected",message:prop.proposal_num+" rejected by "+prop.customer_name+(rejReason?": "+rejReason.slice(0,80):""),for_role:"admin"});
+    const{data:r}=await sb().rpc("proposal_respond",{tok:token,action:"reject",reason:rejReason});
+    if(!r?.ok){console.error(r?.error);setSubmitting(false);return;}
     setDone("rejected");setSubmitting(false);}catch(e){console.error(e);setSubmitting(false);}};
 
   if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;

@@ -12,12 +12,10 @@ function FeedbackForm({token}){
   const[name,setName]=useState("");const[email,setEmail]=useState("");
   const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(false);
 
-  useEffect(()=>{(async()=>{const{data,error:e}=await sb().from("feedback_requests").select("*").eq("token",token).single();
+  useEffect(()=>{(async()=>{const{data,error:e}=await sb().rpc("feedback_request_by_token",{tok:token});
     if(e||!data){setError("This feedback link is invalid or has expired.");setLoading(false);return;}
     if(data.completed){setError("Feedback has already been submitted. Thank you!");setLoading(false);return;}
-    // Check if customer is key account
-    const{data:cust}=await sb().from("customers").select("is_key_account").eq("name",data.customer_name).single();
-    setRequest({...data,isKeyAccount:cust?.is_key_account||false});setLoading(false);
+    setRequest({...data,isKeyAccount:data.is_key_account||false});setLoading(false);
   })();},[token]);
 
   const submit=async()=>{if(!stars||submitting)return;setSubmitting(true);

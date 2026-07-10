@@ -6,7 +6,7 @@ function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="http
 
 function CustomerPortal({customerSlug}){
   const[data,setData]=useState(null),[loading,setLoading]=useState(true);
-  useEffect(()=>{const load=async()=>{const client=sb();const name=decodeURIComponent(customerSlug);const{data:wos}=await client.from("work_orders").select("*").eq("customer",name).order("date_completed",{ascending:false});const{data:time}=await client.from("time_entries").select("*");setData({wos:wos||[],time:time||[],name});setLoading(false);};load();},[customerSlug]);
+  useEffect(()=>{const load=async()=>{const name=decodeURIComponent(customerSlug);const{data:pd}=await sb().rpc("portal_customer_data",{cust:name});setData({wos:pd?.wos||[],time:pd?.time||[],name});setLoading(false);};load();},[customerSlug]);
   if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(!data||data.wos.length===0)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text}}><Logo/><div style={{marginTop:20,fontSize:14,color:B.textDim}}>No work orders found for this customer.</div></div>;
   const active=data.wos.filter(o=>o.status!=="completed");const done=data.wos.filter(o=>o.status==="completed");
