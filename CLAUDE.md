@@ -118,7 +118,7 @@ The project **Files** tab (ProjectDetail, tab key still `drawings` internally) l
 
 All AI runs on the Anthropic API via edge functions. Model tiers (as of 2026-07-09):
 - **Haiku 4.5** (`claude-haiku-4-5-20251001`, ~$1/$5 per MTok): `scan-document`, `scan-receipt`, `process-inbox`, `job-intelligence`, `predict-parts`, `summarize-work`, `email-to-proposal`.
-- **Sonnet 4** (`claude-sonnet-4-20250514`, ~$3/$15, retires 2026-06-15): `ai-troubleshoot`, `generate-proposal` (kept on Sonnet for advice/proposal quality — migrate to `claude-sonnet-4-6` before retirement).
+- **Sonnet 4.6** (`claude-sonnet-4-6`, ~$3/$15): `ai-troubleshoot`, `generate-proposal` (migrated 2026-07-10 after Sonnet 4 retirement broke both — they were down 6/15→7/10; verified live post-fix).
 - All AI is **opt-in per action** (button taps / manual inbox scan). Actual spend is near $0/mo at current usage; projected only a few $/mo even at healthy usage. Keep new AI features on Haiku unless quality demands Sonnet ([[feedback_ai_token_budget]]).
 
 ## Staged: rename_tech()
