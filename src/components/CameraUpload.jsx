@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb } from "../shared";
+import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch } from "../shared";
 
 const PHOTO_STAGES=[{key:"before",label:"Before",icon:"📸",color:"#FFA040"},{key:"during",label:"During",icon:"🔧",color:"#00D4F5"},{key:"after",label:"After",icon:"✅",color:"#26D9A2"},{key:"general",label:"General",icon:"📷",color:"#8B929A"}];
 
@@ -23,7 +23,7 @@ export function CameraUpload({woId,woName,onUploaded,userName,inputId,equipmentI
         URL.revokeObjectURL(url);
       }
       const folderPath=equipmentId?"3C FieldOps/Equipment":"3C FieldOps/Work Orders/"+(woName||woId);
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64:finalB64,fileName:Date.now()+"_"+file.name,mimeType:finalMime,folderPath})});
+      const resp=await fnFetch("drive-upload",{fileBase64:finalB64,fileName:Date.now()+"_"+file.name,mimeType:finalMime,folderPath});
       const result=await resp.json();
       if(result.success){
         const record={filename:file.name,photo_url:result.thumbnailUrl,uploaded_by:userName,drive_synced:true,photo_stage:stage};

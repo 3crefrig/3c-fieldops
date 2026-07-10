@@ -22,7 +22,34 @@ Rules:
 - No prices, internal notes, or tech names
 - Be specific about what was done, not vague`;
 
+
+// ── Auth guard (2026-07-10 security hardening): service-role callers or
+//    registered app users only. OPTIONS passes through to the CORS handler.
+const __CORS_G={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
+async function __guard(req: Request, allowUser=true): Promise<Response|null>{
+  if(req.method==="OPTIONS")return null;
+  const token=(req.headers.get("Authorization")||"").replace(/^Bearers+/i,"").trim();
+  const svc=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
+  const deny=(s: number,m: string)=>new Response(JSON.stringify({error:m}),{status:s,headers:{...__CORS_G,"Content-Type":"application/json"}});
+  if(token&&svc&&token===svc)return null;
+  if(!allowUser)return deny(401,"service credential required");
+  if(!token)return deny(401,"auth required");
+  try{
+    const base=Deno.env.get("SUPABASE_URL")||"";
+    const u=await fetch(base+"/auth/v1/user",{headers:{Authorization:"Bearer "+token,apikey:Deno.env.get("SUPABASE_ANON_KEY")||""}});
+    if(!u.ok)return deny(401,"invalid token");
+    const user=await u.json();
+    const email=(user?.email||"").toLowerCase();
+    if(!email)return deny(401,"invalid token");
+    const q=await fetch(base+"/rest/v1/users?select=role&active=not.is.false&email=ilike."+encodeURIComponent(email),{headers:{apikey:svc,Authorization:"Bearer "+svc}});
+    const rows=await q.json();
+    if(!Array.isArray(rows)||rows.length===0)return deny(403,"not a registered user");
+    return null;
+  }catch(_e){return deny(401,"auth check failed");}
+}
+
 serve(async (req) => {
+  const __d=await __guard(req, true); if(__d) return __d;
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

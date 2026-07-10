@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate , fnFetch } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -13,9 +13,7 @@ function EmailPicker({onSelect,onClose}){
     setLoading(true);setError("");
     try{
       const user=await sb().auth.getUser();
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/email-to-proposal",{method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
-        body:JSON.stringify({action:"list",user_id:user?.data?.user?.id||null})});
+      const resp=await fnFetch("email-to-proposal",{action:"list",user_id:user?.data?.user?.id||null});
       const result=await resp.json();
       if(result.success){setEmails(result.emails||[]);}
       else if(result.error==="cooldown"){
@@ -31,9 +29,7 @@ function EmailPicker({onSelect,onClose}){
   const extract=async(emailId)=>{
     setExtracting(emailId);
     try{
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/email-to-proposal",{method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
-        body:JSON.stringify({action:"extract",messageId:emailId})});
+      const resp=await fnFetch("email-to-proposal",{action:"extract",messageId:emailId});
       const result=await resp.json();
       if(result.success)onSelect(result.extraction,result.matched_customer,result.email_subject);
       else setError("Extraction failed");
@@ -273,9 +269,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
     try{
       // Collect selected snippet content for context
       const snippetTexts=selectedSnippets.length>0?selectedSnippets:undefined;
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-proposal",{method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
-        body:JSON.stringify({customer_name:cust,project_title:title,scope_description:scope,customer_type:custType,location,scope_snippets:snippetTexts,estimate_summary:estimate?`Labor: $${estimate.labor_total}, Parts: $${estimate.parts_total}, Total: $${estimate.grand_total}`:null})});
+      const resp=await fnFetch("generate-proposal",{customer_name:cust,project_title:title,scope_description:scope,customer_type:custType,location,scope_snippets:snippetTexts,estimate_summary:estimate?`Labor: $${estimate.labor_total}, Parts: $${estimate.parts_total}, Total: $${estimate.grand_total}`:null});
       const result=await resp.json();
       if(result.success&&result.ai_sections){
         const ai=result.ai_sections;const tpl=result.template_sections;
@@ -612,7 +606,7 @@ function ProposalDashboard({D,userName}){
     if(!toEmail){msg("No email found for "+prop.customer_name);return;}
     const portalUrl=window.location.origin+"/#/proposal/"+prop.approval_token;
     const body="<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px'><p>Dear "+( cust?.contact_name||"Valued Customer")+",</p><p>Thank you for the opportunity to provide a proposal for your refrigeration/HVAC service needs. Please review our proposal at the link below:</p><p style='text-align:center;margin:24px 0'><a href='"+portalUrl+"' style='display:inline-block;padding:14px 28px;background:#00D4F5;color:#101214;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px'>View Proposal</a></p><p>This proposal"+(prop.expires_at?" is valid until "+new Date(prop.expires_at).toLocaleDateString():"")+". Please don't hesitate to reach out with any questions.</p><p>Best regards,<br/>3C Refrigeration Team</p></div>";
-    try{await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:toEmail,subject:"Proposal from 3C Refrigeration — "+prop.title,body})});
+    try{await fnFetch("send-email",{to:toEmail,subject:"Proposal from 3C Refrigeration — "+prop.title,body});
       await sb().from("proposals").update({status:"sent",sent_to:toEmail,sent_at:new Date().toISOString()}).eq("id",prop.id);await load();msg("Proposal sent to "+toEmail);
     }catch(e){msg("Send failed");}};
 

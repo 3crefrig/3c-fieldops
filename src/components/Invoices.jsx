@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours , fnFetch } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -399,7 +399,7 @@ async function uploadInvoiceToDrive(fileBase64,fileName,mimeType){
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const folderPath="3C FieldOps/Invoices/"+now.getFullYear()+"/"+monthNames[now.getMonth()];
   try{
-    const resp=await fetch(SUPABASE_URL+"/functions/v1/drive-upload",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({fileBase64,fileName,mimeType,folderPath})});
+    const resp=await fnFetch("drive-upload",{fileBase64,fileName,mimeType,folderPath});
     const result=await resp.json();
     return result.success?result:null;
   }catch(e){console.warn("Drive upload failed:",e);return null;}
@@ -480,7 +480,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:inv.customer,sent_to:toEmail,token});
       const feedbackUrl=window.location.origin+"/#/feedback/"+token;
       const body="<div style='font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px'><p>Hi,</p><p>Thank you for choosing 3C Refrigeration. We recently completed work on your behalf (Invoice "+inv.invoice_num+") and would love to hear how we did.</p><p style='text-align:center;margin:24px 0'><a href='"+feedbackUrl+"' style='display:inline-block;padding:14px 28px;background:#00D4F5;color:#101214;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px'>Share Your Feedback</a></p><p style='color:#666;font-size:13px'>It only takes 30 seconds and helps us improve our service.</p><p>Best regards,<br/>3C Refrigeration Team</p></div>";
-      await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:toEmail,subject:"How was our service? — 3C Refrigeration",body})});
+      await fnFetch("send-email",{to:toEmail,subject:"How was our service? — 3C Refrigeration",body});
     }}catch(e){console.error("Feedback request error:",e);}
   };
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
@@ -1134,7 +1134,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
         // Send immediately
         const payload={to:emailTo.trim(),cc:emailCC.trim()||undefined,subject,body:fullBody};
         if(d.pdfB64&&d.pdfName)payload.attachment={name:d.pdfName,content:d.pdfB64,type:"application/pdf"};
-        const resp=await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(payload)});
+        const resp=await fnFetch("send-email",payload);
         const result=await resp.json();
         if(result.success)msg("Invoice sent!");else msg("Error: "+(result.error||"Failed"));
       }

@@ -111,3 +111,11 @@ input[type="date"],input[type="time"]{cursor:pointer;position:relative}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;opacity:0;cursor:pointer}
 select{cursor:pointer}
 `}</style>;
+
+// Authenticated edge-function call: sends the signed-in user's access token
+// (functions now reject the bare anon key — 2026-07-10 security hardening).
+export async function fnFetch(name,payload){
+  let token=SUPABASE_ANON_KEY;
+  try{const{data:{session}}=await sb().auth.getSession();if(session?.access_token)token=session.access_token;}catch(e){}
+  return fetch(SUPABASE_URL+"/functions/v1/"+name,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(payload)});
+}

@@ -1,6 +1,6 @@
 // Client-side Web Push registration. Subscribes the device to push and stores
 // the subscription in push_subscriptions so the send-push function can reach it.
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY } from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY , fnFetch } from "./shared";
 
 function urlB64ToUint8(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -36,11 +36,7 @@ export async function registerPush(userId, { promptIfNeeded = true } = {}) {
       if (p !== "granted") return { ok: false, reason: p };
     }
     const reg = await navigator.serviceWorker.ready;
-    const resp = await fetch(SUPABASE_URL + "/functions/v1/send-push", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + SUPABASE_ANON_KEY },
-      body: JSON.stringify({ action: "pubkey" }),
-    });
+    const resp = await fnFetch("send-push",{ action: "pubkey" });
     const { applicationServerKey } = await resp.json();
     if (!applicationServerKey) return { ok: false, reason: "no-key" };
     let sub = await reg.pushManager.getSubscription();

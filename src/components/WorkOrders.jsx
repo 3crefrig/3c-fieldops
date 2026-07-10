@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput } from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -380,7 +380,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       <Card style={{borderLeft:"3px solid "+B.cyan,cursor:"pointer"}} onClick={async()=>{
         if(jobIntel){setIntelOpen(!intelOpen);return;}
         setIntelOpen(true);setIntelLoading(true);
-        try{const resp=await fetch(SUPABASE_URL+"/functions/v1/job-intelligence",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({customer_name:wo.customer,location:wo.location||"",building:wo.building||"",equipment_id:wo.equipment_id||null,wo_title:wo.title})});
+        try{const resp=await fnFetch("job-intelligence",{customer_name:wo.customer,location:wo.location||"",building:wo.building||"",equipment_id:wo.equipment_id||null,wo_title:wo.title});
           const data=await resp.json();if(data.success)setJobIntel(data.result);else console.warn("Intel error:",data.error);
         }catch(e){console.error("Intel fetch error:",e);}setIntelLoading(false);
       }}>
@@ -405,7 +405,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
       {!partsPred&&!partsLoading?<button onClick={async()=>{
         setPartsLoading(true);
         try{const eq=wo.equipment_id&&(D_equipment||[]).find(e=>e.id===wo.equipment_id);
-          const resp=await fetch(SUPABASE_URL+"/functions/v1/predict-parts",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""})});
+          const resp=await fnFetch("predict-parts",{wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""});
           const data=await resp.json();if(data.success)setPartsPred(data.result);
         }catch(e){console.error("Parts predict error:",e);}setPartsLoading(false);
       }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>🔮 Suggest Parts</button>
@@ -613,7 +613,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
           const file=e.target.files?.[0];if(!file)return;setScanningReceipt(true);
           try{const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
             const{data:{session}}=await sb().auth.getSession();const authToken=session?.access_token||SUPABASE_ANON_KEY;
-            const resp=await fetch(SUPABASE_URL+"/functions/v1/scan-receipt",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+authToken},body:JSON.stringify({imageBase64:b64,mimeType:file.type,woId:wo.id})});
+            const resp=await fnFetch("scan-receipt",{imageBase64:b64,mimeType:file.type,woId:wo.id});
             const result=await resp.json();
             if(result.success)setReceiptData(result);else{msg("Scan failed: "+(result.error||"Unknown error"));}
           }catch(err){msg("Error: "+err.message);}setScanningReceipt(false);
@@ -674,7 +674,7 @@ function WODetail({wo,onBack,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCrea
           </div>)}
           <div style={{display:"flex",justifyContent:"flex-end",paddingTop:6,fontSize:13,fontWeight:800,color:B.green,fontFamily:M}}>Total: ${lineItemsTotal.toLocaleString(undefined,{minimumFractionDigits:2})}</div>
         </div>}
-        <div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><label style={LS}>Work Summary <span style={{color:B.textDim,fontWeight:400}}>(edit as needed)</span></label>{woTime.length>=3&&<button onClick={async()=>{if(summarizing)return;setSummarizing(true);try{const payload={title:wo.title};if(wo.notes&&wo.notes!=="No details.")payload.notes=wo.notes;if(wo.field_notes)payload.field_notes=wo.field_notes;if(wo.customer)payload.customer=wo.customer;if(wo.location)payload.location=wo.location+(wo.building?" Bldg "+wo.building:"");payload.time_entries=woTime.map(t=>({description:t.description,hours:t.hours})).filter(t=>t.description);const r=await fetch(SUPABASE_URL+"/functions/v1/summarize-work",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(payload)});const d=await r.json();if(d.success&&d.result?.summary)setWorkPerformed(d.result.summary);}catch(e){console.error(e);}setSummarizing(false);}} disabled={summarizing} style={{background:"none",border:"1px solid "+B.purple+"44",color:B.purple,fontSize:10,fontWeight:600,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:F,opacity:summarizing?.5:1}}>{summarizing?"Summarizing...":"Summarize with AI"}</button>}</div><textarea value={workPerformed} onChange={e=>setWorkPerformed(e.target.value)} rows={2} placeholder="Work summary for customer record..." style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:13,padding:12}}/></div>
+        <div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><label style={LS}>Work Summary <span style={{color:B.textDim,fontWeight:400}}>(edit as needed)</span></label>{woTime.length>=3&&<button onClick={async()=>{if(summarizing)return;setSummarizing(true);try{const payload={title:wo.title};if(wo.notes&&wo.notes!=="No details.")payload.notes=wo.notes;if(wo.field_notes)payload.field_notes=wo.field_notes;if(wo.customer)payload.customer=wo.customer;if(wo.location)payload.location=wo.location+(wo.building?" Bldg "+wo.building:"");payload.time_entries=woTime.map(t=>({description:t.description,hours:t.hours})).filter(t=>t.description);const r=await fnFetch("summarize-work",payload);const d=await r.json();if(d.success&&d.result?.summary)setWorkPerformed(d.result.summary);}catch(e){console.error(e);}setSummarizing(false);}} disabled={summarizing} style={{background:"none",border:"1px solid "+B.purple+"44",color:B.purple,fontSize:10,fontWeight:600,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:F,opacity:summarizing?.5:1}}>{summarizing?"Summarizing...":"Summarize with AI"}</button>}</div><textarea value={workPerformed} onChange={e=>setWorkPerformed(e.target.value)} rows={2} placeholder="Work summary for customer record..." style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:13,padding:12}}/></div>
         <div><label style={LS}>Completion Date {woTime.length>0&&<span style={{color:B.textDim,fontWeight:400,textTransform:"none",letterSpacing:0}}>(defaults to first time charge)</span>}</label><input type="date" value={compDate} onChange={e=>setCompDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div>
         <div><span style={LS}>Technician Signature <span style={{color:B.red}}>*</span></span><div style={{marginTop:4}}><SignaturePad onSign={setSigCanvas}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}><div style={{fontSize:11,color:B.textDim}}>Draw your signature above</div><button onClick={()=>{if(sigCanvas&&sigCanvas._clear)sigCanvas._clear();setSigErr("");}} style={{background:"none",border:"none",color:B.orange,fontSize:12,cursor:"pointer",fontFamily:F}}>Clear</button></div></div>
         {sigErr&&<div style={{color:B.red,fontSize:13,fontWeight:600,padding:"8px 12px",background:B.red+"11",borderRadius:6}}>{sigErr}</div>}
@@ -736,7 +736,7 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
   const[equipmentId,setEquipmentId]=useState(null);
   const[eqScanning,setEqScanning]=useState(false),[eqQuickAdding,setEqQuickAdding]=useState(false),[eqPicking,setEqPicking]=useState(false);
   const[scanning,setScanning]=useState(false);const scanRef=useRef(null);
-  const handleScanWO=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanning(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fetch(SUPABASE_URL+"/functions/v1/scan-document",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({image:base64,documentType:"work_order"})});const result=await resp.json();if(result.title)setTitle(result.title);if(result.description)setNotes(result.description);if(result.customer)setCust(result.customer);if(result.location)setLoc(result.location);if(result.building)setBldg(result.building);if(result.priority)setPri(result.priority);if(result.customer_wo)setCustWO(result.customer_wo);if(result.due_date)setDue(result.due_date);}catch(err){console.error("Scan parse error:",err);alert("Could not read the scanned document. Please fill in fields manually.");}finally{setScanning(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanning(false);}if(scanRef.current)scanRef.current.value="";};
+  const handleScanWO=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanning(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,documentType:"work_order"});const result=await resp.json();if(result.title)setTitle(result.title);if(result.description)setNotes(result.description);if(result.customer)setCust(result.customer);if(result.location)setLoc(result.location);if(result.building)setBldg(result.building);if(result.priority)setPri(result.priority);if(result.customer_wo)setCustWO(result.customer_wo);if(result.due_date)setDue(result.due_date);}catch(err){console.error("Scan parse error:",err);alert("Could not read the scanned document. Please fill in fields manually.");}finally{setScanning(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanning(false);}if(scanRef.current)scanRef.current.value="";};
   const go=async()=>{const finalTitle=title.trim()||custWO.trim();if(!finalTitle||saving)return;if(cleanText(finalTitle,"Title")===null||cleanText(notes,"Notes")===null)return;setSaving(true);await onSave({title:finalTitle,priority:pri,assignee:assign,crew,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust,customer_wo:custWO.trim()||null,equipment_id:equipmentId});setSaving(false);};
   const customerEquipment=(equipment||[]).filter(e=>!cust||e.customer_name===cust);
   const linkedEq=equipmentId&&(equipment||[]).find(e=>e.id===equipmentId);
@@ -1046,11 +1046,7 @@ function TroubleshootAssistant({wo,onClose}){
         wo_history:woHistory.length?woHistory:undefined,
       };
       if(imageB64){body.image=imageB64;body.mimeType=imageMime;}
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/ai-troubleshoot",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+authToken},
-        body:JSON.stringify(body),
-      });
+      const resp=await fnFetch("ai-troubleshoot",body);
       const data=await resp.json();
       if(data.success){setResult(data.result);
         // Cache text-based results for 7 days

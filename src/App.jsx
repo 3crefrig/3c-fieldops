@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice } from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice , fnFetch } from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
@@ -174,7 +174,7 @@ function App(){
             paused=true;
           }else if(next.type==="action"){const cfg=next.config||{};
             if(cfg.action_type==="create_notification"){await sb().from("notifications").insert({type:"workflow",title:cfg.title||"Workflow Alert",message:cfg.message||"",for_role:cfg.for_role||null});log.push({node_id:next.id,action:"notification",timestamp:new Date().toISOString()});}
-            else if(cfg.action_type==="send_email"&&cfg.to_email){try{await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:cfg.to_email,subject:cfg.subject||"Notification",body:cfg.body||""})});log.push({node_id:next.id,action:"email",timestamp:new Date().toISOString()});}catch(e){}}
+            else if(cfg.action_type==="send_email"&&cfg.to_email){try{await fnFetch("send-email",{to:cfg.to_email,subject:cfg.subject||"Notification",body:cfg.body||""});log.push({node_id:next.id,action:"email",timestamp:new Date().toISOString()});}catch(e){}}
             else if(cfg.action_type==="log_activity"&&triggerData.id){await sb().from("wo_activity").insert({wo_id:triggerData.id,action:"workflow",details:cfg.message||"Automated action",actor:"Workflow"});log.push({node_id:next.id,action:"log",timestamp:new Date().toISOString()});}
             await visit(next.id);}
         }};
@@ -186,14 +186,14 @@ function App(){
   // Send the branded onboarding email to a user via the existing send-email function.
   const sendOnboarding=async(user)=>{
     if(!user?.email)return{ok:false,error:"no email"};
-    try{const resp=await fetch(SUPABASE_URL+"/functions/v1/send-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({to:user.email,subject:"Welcome to 3C FieldOps — Getting Started",body:buildOnboardingEmail(user,window.location.origin)})});
+    try{const resp=await fnFetch("send-email",{to:user.email,subject:"Welcome to 3C FieldOps — Getting Started",body:buildOnboardingEmail(user,window.location.origin)});
       const r=await resp.json().catch(()=>({}));
       if(!resp.ok||r.success===false)return{ok:false,error:r.error||("HTTP "+resp.status)};
       return{ok:true};
     }catch(e){return{ok:false,error:e.message};}
   };
   // Fire a Web Push to a target audience (best-effort; never blocks the mutation).
-  const pushSend=(payload)=>{try{fetch(SUPABASE_URL+"/functions/v1/send-push",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify(payload)}).catch(()=>{});}catch(e){}};
+  const pushSend=(payload)=>{try{fnFetch("send-push",payload).catch(()=>{});}catch(e){}};
 
   // Auto-invoice: creates a draft invoice for a single completed WO
   const tryAutoInvoice=async(completedWO)=>{
@@ -297,7 +297,7 @@ function App(){
       const rfqId=inserted.id;
       if(items&&items.length){const rows=items.map((it,i)=>({rfq_id:rfqId,line_no:i+1,item:it.item,qty:it.qty,part_no:it.part_no,description:it.description}));const{error:e2}=await sb().from("rfq_items").insert(rows);if(e2){alert("RFQ saved but line items failed: "+e2.message);throw e2;}}
       if(specs&&specs.length){const rows=specs.map(s=>({rfq_id:rfqId,label:s.label,value:s.value}));const{error:e3}=await sb().from("rfq_specs").insert(rows);if(e3){alert("RFQ saved but specs failed: "+e3.message);throw e3;}}
-      try{await fetch(SUPABASE_URL+"/functions/v1/generate-rfq-docx",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({rfq_id:rfqId})});}catch(e){console.warn("RFQ docx generation deferred:",e);}
+      try{await fnFetch("generate-rfq-docx",{rfq_id:rfqId});}catch(e){console.warn("RFQ docx generation deferred:",e);}
       await reloadTable("rfq_items");await reloadTable("rfq_specs");
       notify("rfq_created","RFQ Created",ref+(rfq.to_vendor?" — "+rfq.to_vendor:""),"manager");
     }),
@@ -307,13 +307,13 @@ function App(){
       if(error){alert("Failed to update RFQ. "+error.message);throw error;}
       if(items){const{error:ed2}=await sb().from("rfq_items").delete().eq("rfq_id",id);if(ed2){alert("Line items update failed: "+ed2.message);throw ed2;}if(items.length){const rows=items.map((it,i)=>({rfq_id:id,line_no:i+1,item:it.item,qty:it.qty,part_no:it.part_no,description:it.description}));const{error:e2}=await sb().from("rfq_items").insert(rows);if(e2){alert("Line items update failed: "+e2.message);throw e2;}}}
       if(specs){const{error:ed3}=await sb().from("rfq_specs").delete().eq("rfq_id",id);if(ed3){alert("Specs update failed: "+ed3.message);throw ed3;}if(specs.length){const rows=specs.map(s=>({rfq_id:id,label:s.label,value:s.value}));const{error:e3}=await sb().from("rfq_specs").insert(rows);if(e3){alert("Specs update failed: "+e3.message);throw e3;}}}
-      try{await fetch(SUPABASE_URL+"/functions/v1/generate-rfq-docx",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({rfq_id:id})});}catch(e){console.warn("RFQ docx regeneration deferred:",e);}
+      try{await fnFetch("generate-rfq-docx",{rfq_id:id});}catch(e){console.warn("RFQ docx regeneration deferred:",e);}
       await reloadTable("rfq_items");await reloadTable("rfq_specs");
     }),
     deleteRFQ:withTableSync("rfqs",async(id)=>{const{error}=await sb().from("rfqs").delete().eq("id",id);if(error){alert("Failed to delete RFQ. "+error.message);throw error;}}),
     approveRFQ:withTableSync("rfqs",async(rfq)=>{const{error}=await sb().from("rfqs").update({status:"pending_approval",approved_by:appUser.id}).eq("id",rfq.id);if(error){alert("Failed to approve RFQ. "+error.message);throw error;}notify("rfq_approved","RFQ Approved",(rfq.rfq_ref||"")+" is approved and ready to send","manager");}),
-    regenerateRFQDocx:async(rfq)=>{setSyncing(true);try{const resp=await fetch(SUPABASE_URL+"/functions/v1/generate-rfq-docx",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},body:JSON.stringify({rfq_id:rfq.id})});const r=await resp.json().catch(()=>({}));if(!resp.ok||!r.success){alert("Document generation failed: "+(r.error||resp.status));}await reloadTable("rfqs");}catch(e){alert("Document generation error: "+(e.message||e));}finally{setSyncing(false);}},
-    sendRFQ:async(rfq)=>{setSyncing(true);try{const{data:{session}}=await sb().auth.getSession();const token=session?.access_token;if(!token){alert("Session expired — please sign in again.");return{ok:false};}const resp=await fetch(SUPABASE_URL+"/functions/v1/send-rfq",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({rfq_id:rfq.id})});const r=await resp.json().catch(()=>({}));if(!resp.ok||!r.success){alert("Send failed: "+(r.error||resp.status));return{ok:false,error:r.error};}await reloadTable("rfqs");notify("rfq_sent","RFQ Sent",(rfq.rfq_ref||"")+" → "+rfq.vendor_email,"manager");return{ok:true};}catch(e){alert("Send error: "+(e.message||e));return{ok:false,error:e.message};}finally{setSyncing(false);}},
+    regenerateRFQDocx:async(rfq)=>{setSyncing(true);try{const resp=await fnFetch("generate-rfq-docx",{rfq_id:rfq.id});const r=await resp.json().catch(()=>({}));if(!resp.ok||!r.success){alert("Document generation failed: "+(r.error||resp.status));}await reloadTable("rfqs");}catch(e){alert("Document generation error: "+(e.message||e));}finally{setSyncing(false);}},
+    sendRFQ:async(rfq)=>{setSyncing(true);try{const{data:{session}}=await sb().auth.getSession();const token=session?.access_token;if(!token){alert("Session expired — please sign in again.");return{ok:false};}const resp=await fnFetch("send-rfq",{rfq_id:rfq.id});const r=await resp.json().catch(()=>({}));if(!resp.ok||!r.success){alert("Send failed: "+(r.error||resp.status));return{ok:false,error:r.error};}await reloadTable("rfqs");notify("rfq_sent","RFQ Sent",(rfq.rfq_ref||"")+" → "+rfq.vendor_email,"manager");return{ok:true};}catch(e){alert("Send error: "+(e.message||e));return{ok:false,error:e.message};}finally{setSyncing(false);}},
   };
 
   if(loading)return(<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,animation:"fadeIn .4s ease-out"}}><GlobalStyles/><Logo size="large"/><div style={{marginTop:24}}><Spinner/></div><div style={{color:B.textDim,fontSize:12,marginTop:12,fontWeight:500,letterSpacing:0.3}}>Connecting...</div></div>);

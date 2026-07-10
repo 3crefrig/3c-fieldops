@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic, fnFetch } from "../shared";
 import { Card, Badge, Modal, Spinner } from "./ui";
 
 // ── Scan Inbox Button with 2hr cooldown ──────────────────────
@@ -42,12 +42,8 @@ function ScanInboxButton({onComplete}){
       const{data:{user}}=await sb().auth.getUser();
       if(user)await sb().from("email_refresh_log").insert({user_id:user.id});
 
-      // Call process-inbox edge function
-      const resp=await fetch(SUPABASE_URL+"/functions/v1/process-inbox",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY},
-        body:"{}"
-      });
+      // Call process-inbox edge function (authenticated — anon key is rejected)
+      const resp=await fnFetch("process-inbox",{});
       const data=await resp.json();
       if(data.success){
         setResult({
