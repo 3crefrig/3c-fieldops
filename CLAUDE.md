@@ -81,6 +81,16 @@ Upstream of POs: a manager/tech drafts a part-pricing request to a vendor, it re
 3. **Secrets**: `send-rfq` and `generate-rfq-docx` reuse existing secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`). Outbound email reuses the already-wired `send-email` (Gmail). Only optional new secret: `RFQ_LOGO_URL`.
 4. The migration is already applied to project `gwwijjkahwieschfdfbq` (additive only — no existing table/data changed).
 
+## Supply House Audit (3-way match)
+
+Catches supplier billing errors on POs (~27% of trade invoices contain errors): PO ↔ pickup tickets ↔ vendor bill, line-by-line. Migration `20260717000000_supply_house_audit.sql`; UI in `src/components/VendorAudit.jsx`; "Supply Audit" tab (key `audit`, 🧾) in the Management group for managers/admins. Shipped + live-tested (desktop & mobile) 2026-07-17.
+
+- **Capture**: techs snap the counter ticket at pickup (🧾 buttons on POMgmt cards and in POReqModal's existing-PO rows; also "Add Pickup Ticket" on the audit tab). `scan-document` type `pickup_ticket` (Haiku, image or PDF) extracts part_no/qty/price lines; image stored in the public `vendor-docs` bucket; rows in `po_tickets`/`po_ticket_items`.
+- **Audit**: "Audit a Vendor Bill" scans the bill (`vendor_invoice` type, now with part_no + PDF support), auto-links the PO printed on it, and `auditBill()` matches every bill line against ticket lines: part# exact → fuzzy description (≥0.45 token overlap — survives OCR part# misreads); qty aggregated across multiple pickups; price tolerance max($1, 1%). Exceptions: `price_mismatch`, `qty_over`, `no_ticket`; informational: `qty_under`, `price_unverified` (priceless counter tickets never false-flag). Saved to `vendor_bills`/`vendor_bill_items` with per-line expected price/qty + variance $.
+- **Review**: bill statuses `review → clean/disputed/resolved`; per-line Accept (note via prompt); flagged bills notify managers (`vendor_bill_flagged`, bell + push). Duplicate guards: unique (vendor, ticket#) and (vendor, bill#) — double-billing/double-entry rejected at the DB with a friendly inline message.
+- **RLS**: tickets mgr/admin all + technician own (`created_by`); bills mgr/admin only. Storage policies `vd_insert`/`vd_delete` mirror project-files.
+- **Deferred tier 2** (memory `supply-house-audit`): statement reconciliation, per-vendor+part price memory, returns/credit log, dispute email generator, email bill ingest.
+
 ## Notifications & Alerts
 
 - **In-app notifications** — `notifications` table + `NotifBell`; `notify(type,title,message,for_role)` inserts them.
