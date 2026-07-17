@@ -19,6 +19,7 @@ const VALID_DOCUMENT_TYPES = [
   "work_order",
   "vendor_invoice",
   "purchase_receipt",
+  "pickup_ticket",
 ] as const;
 
 type DocumentType = (typeof VALID_DOCUMENT_TYPES)[number];
@@ -83,6 +84,7 @@ Extract the following fields from this vendor invoice:
   "due_date_confidence": 0.0,
   "line_items": [
     {
+      "part_no": "manufacturer or vendor part/SKU number, null if none shown",
       "description": "item or service description",
       "quantity": 0,
       "unit_price": 0.00,
@@ -102,7 +104,42 @@ Extract the following fields from this vendor invoice:
   "po_number_confidence": 0.0,
   "ship_to_address": "shipping / delivery address",
   "ship_to_address_confidence": 0.0
-}`;
+}
+Extract EVERY line item on the document — do not truncate or summarize the list.`;
+
+    case "pickup_ticket":
+      return `${shared}
+This is a supply house counter / will-call pickup ticket (also called a packing slip or sales ticket) for parts picked up at a wholesale distributor branch. Extract:
+{
+  "vendor_name": "supply house / distributor name (e.g. Johnstone Supply, United Refrigeration)",
+  "vendor_name_confidence": 0.0,
+  "ticket_number": "ticket / order / transaction number",
+  "ticket_number_confidence": 0.0,
+  "date": "YYYY-MM-DD",
+  "date_confidence": 0.0,
+  "po_number": "customer PO or job reference printed on the ticket, if any",
+  "po_number_confidence": 0.0,
+  "line_items": [
+    {
+      "part_no": "part/SKU/catalog number, null if none shown",
+      "description": "item description",
+      "quantity": 0,
+      "unit_price": 0.00,
+      "amount": 0.00
+    }
+  ],
+  "line_items_confidence": 0.0,
+  "subtotal": 0.00,
+  "subtotal_confidence": 0.0,
+  "tax": 0.00,
+  "tax_confidence": 0.0,
+  "total": 0.00,
+  "total_confidence": 0.0
+}
+Notes:
+- Extract EVERY line item — do not truncate or summarize the list.
+- Counter tickets sometimes omit prices; use null (confidence 0) for missing prices, never guess.
+- quantity should be the quantity actually picked up (some tickets show ordered vs shipped columns — use shipped/picked).`;
 
     case "purchase_receipt":
       return `${shared}
@@ -233,6 +270,7 @@ serve(async (req) => {
       "image/png",
       "image/gif",
       "image/webp",
+      "application/pdf",
     ];
     if (!validMimeTypes.includes(mediaType)) {
       return errorResponse(
@@ -240,6 +278,7 @@ serve(async (req) => {
         400
       );
     }
+    const isPdf = mediaType === "application/pdf";
 
     // --- Call Claude Vision --------------------------------------------
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
@@ -256,19 +295,32 @@ serve(async (req) => {
       body: JSON.stringify({
         // Haiku 4.5 — vision-capable and much cheaper per scan than Sonnet.
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1200,
+        // Invoices/tickets can run dozens of line items — give them headroom.
+        max_tokens:
+          documentType === "vendor_invoice" || documentType === "pickup_ticket"
+            ? 4000
+            : 1200,
         messages: [
           {
             role: "user",
             content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: image,
-                },
-              },
+              isPdf
+                ? {
+                    type: "document",
+                    source: {
+                      type: "base64",
+                      media_type: "application/pdf",
+                      data: image,
+                    },
+                  }
+                : {
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: mediaType,
+                      data: image,
+                    },
+                  },
               {
                 type: "text",
                 text: prompt,

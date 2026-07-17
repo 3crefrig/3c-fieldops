@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText , fnFetch } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Logo } from "./ui";
+import { TicketCaptureModal } from "./VendorAudit";
 import { jsPDF } from "jspdf";
 
 let _logoB64Cache=null;
@@ -130,9 +131,10 @@ async function generatePOPdf(po,wo){
   doc.save("PO-"+po.po_id+".pdf");
 }
 
-function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole}){
+function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole,userId}){
   const isMgr=userRole==="admin"||userRole==="manager";
   const[desc,setDesc]=useState(""),[amt,setAmt]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false);
+  const[ticketFor,setTicketFor]=useState(null);
   const[scanningReceipt,setScanningReceipt]=useState(false);const scanReceiptRef=useRef(null);
   const[scanningInvoice,setScanningInvoice]=useState(false);const scanInvoiceRef=useRef(null);
   const handleScanReceipt=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanningReceipt(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,documentType:"purchase_receipt"});const result=await resp.json();if(result.description)setDesc(result.description);if(result.amount)setAmt(String(result.amount));if(result.vendor||result.notes)setNotes(result.vendor||result.notes||"");}catch(err){console.error("Scan parse error:",err);alert("Could not read the receipt. Please fill in fields manually.");}finally{setScanningReceipt(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanningReceipt(false);}if(scanReceiptRef.current)scanReceiptRef.current.value="";};
@@ -140,7 +142,8 @@ function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole}){
   const existing=pos.filter(p=>p.wo_id===wo.id);
   const go=async()=>{if(!desc.trim()||saving)return;if(cleanText(desc,"PO Description")===null||cleanText(notes,"PO Notes")===null)return;setSaving(true);try{await onCreatePO({wo_id:wo.id,description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim()});setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
   return(<Modal title="Purchase Order" onClose={onClose} wide>
-    {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
+    {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,gap:6}}><div style={{flex:1,minWidth:0}}><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><button onClick={()=>setTicketFor(po)} title="Snap the supply house pickup ticket for this PO" style={{...BS,padding:"4px 8px",fontSize:11,minHeight:28,flexShrink:0}}>🧾 Ticket</button><Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
+    {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={()=>{}}/>}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div><input ref={scanReceiptRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleScanReceipt}/><input ref={scanInvoiceRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleScanInvoice}/><div style={{display:"flex",gap:8}}><button onClick={()=>scanReceiptRef.current?.click()} disabled={scanningReceipt} type="button" style={{...BS,flex:1,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanningReceipt?.6:1}}>{scanningReceipt?"Scanning...":"📷 Scan Receipt"}</button><button onClick={()=>scanInvoiceRef.current?.click()} disabled={scanningInvoice} type="button" style={{...BS,flex:1,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanningInvoice?.6:1}}>{scanningInvoice?"Scanning...":"📄 Scan Vendor Invoice"}</button></div>{(scanningReceipt||scanningInvoice)&&<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the {scanningReceipt?"receipt":"invoice"}...</div>}</div>
       <div><label style={LS}>Parts/Materials <span style={{color:B.red}}>*</span></label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
@@ -190,9 +193,9 @@ function StandalonePOModal({onCreatePO,onClose}){
     </div></Modal>);
 }
 
-function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO}){
+function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userId}){
   const PAGE_SIZE=50;
-  const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState(""),[confirmDelete,setConfirmDelete]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[showCreate,setShowCreate]=useState(false);
+  const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState(""),[confirmDelete,setConfirmDelete]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[showCreate,setShowCreate]=useState(false),[ticketFor,setTicketFor]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   const approve=async(po)=>{if(!parseFloat(po.amount)){msg("⚠️ Set an amount before approving — click Edit first");return;}await onUpdatePO({...po,status:"approved"});msg("PO "+po.po_id+" approved");};
@@ -215,6 +218,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO}){
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+              {(()=>{const tc=(tickets||[]).filter(t=>t.po_id===po.id).length;return<button onClick={()=>setTicketFor(po)} title="Capture a supply house pickup ticket against this PO" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,...(tc>0?{color:B.cyan,borderColor:B.cyan+"50"}:{})}}>🧾{tc>0?" "+tc:" Ticket"}</button>;})()}
               <button onClick={()=>generatePOPdf(po,wo)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>📄 PO Form</button>
               <button onClick={()=>setEditing(po)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>
               {po.status==="pending"&&<><button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.red}}>Reject</button></>}
@@ -234,6 +238,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO}){
       </div>
     </Modal>}
     {showCreate&&<StandalonePOModal onCreatePO={onCreatePO} onClose={()=>setShowCreate(false)}/>}
+    {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={()=>msg("Pickup ticket saved on "+ticketFor.po_id)}/>}
   </div>);
 }
 
