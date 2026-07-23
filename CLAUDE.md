@@ -120,6 +120,12 @@ The project **Files** tab (ProjectDetail, tab key still `drawings` internally) l
 
 **Completion photo prompt:** when any user checks a **milestone** complete (`toggleMilestone`, available to techs too), a modal prompts them to snap photos "for records." Those photos upload via the same `upPhoto(file,{chamberId,milestoneId,caption})` path, tagged with the milestone's `chamber_id` + `milestone_id` (migration `20260709030000` added `project_photos.milestone_id`) and captioned `✓ <milestone title>`. The modal shows thumbnails of photos already tied to that milestone; "Skip"/"Done" dismisses. Photos also appear normally in the Photos tab under their chamber.
 
+## Knowledge Base photos (2026-07-23)
+
+KB articles support photos rendered **inline in the text**: type `[photo:N]` anywhere in Scope/Symptoms, Procedure/Fix Steps, or Notes/Content and photo #N renders at that spot (numbering = upload order, oldest first; the gallery and editor thumbnails show each photo's number). Captions supported (inline caption input in the editor; ✎ in the detail gallery). Photos/files upload straight to the **public `kb-files` Storage bucket** (same pattern as project-files — no Google Drive access wall; old Drive-hosted kb_files rows still render). Photos can be added while drafting a NEW article (held in `pendingFiles`, attached on save). Migration `20260723000000_kb_photos.sql` (additive): `kb-files` bucket, `kbf_insert`/`kbf_delete` storage policies, `kb_files.caption`. Deleting a photo renumbers the ones after it — check `[photo:N]` refs after deleting.
+
+First SOP using this: "Semi-Hermetic Compressor — Valve Plate Inspection & Repair" (7 labeled diagrams; source SVGs + PNGs + article text in `../sop-assets/`).
+
 ## New-Tech Onboarding Email
 
 `src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).
