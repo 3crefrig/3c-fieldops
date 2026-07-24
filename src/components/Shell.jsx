@@ -59,7 +59,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       // Group tabs into sections for cleaner navigation (6+ tabs triggers grouping)
       const TAB_GROUPS=[
         {label:"Operations",icon:"⚡",keys:["overview","today","inbox","orders","planner","time","calendar"]},
-        {label:"Finance",icon:"💰",keys:["billing","invoices","proposals","agreements","feedback","reports"]},
+        {label:"Finance",icon:"💰",keys:["billing","invoices","parts","proposals","agreements","feedback","reports"]},
         {label:"Management",icon:"👥",keys:["pos","rfqs","audit","customers","equipment","users","recurring","team","projects"]},
         {label:"System",icon:"⚙️",keys:["settings","kb","guide"]},
       ];

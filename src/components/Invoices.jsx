@@ -1020,6 +1020,7 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
   const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
   const total=laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0);
   const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/")+" - "+d.dateTo.replace(/-/g,"/")):"";
+  const intro=d.emailIntro||("Below I've attached the invoice for work completed through the following dates "+dateRange+".");
 
   let tiersHTML=d.tiers.filter(t=>(t.hours||0)>0).map(t=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${(t.hours||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${t.name}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">$${(t.rate||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${((t.hours||0)*(t.rate||0)).toFixed(2)}</td></tr>`).join("");
 
@@ -1041,7 +1042,7 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
 </div>
 <div style="padding:20px;">
   <p style="font-size:14px;line-height:1.6;">${variant.greeting}</p>
-  <p style="font-size:14px;line-height:1.6;">Below I've attached the invoice for work completed through the following dates ${dateRange}.</p>
+  <p style="font-size:14px;line-height:1.6;">${intro}</p>
 
   <table style="border-collapse:collapse;width:100%;margin:16px 0;">
     <tr style="background:#00D4F5;color:#fff;">
@@ -1066,6 +1067,8 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
       <th style="padding:8px 12px;border:1px solid #ddd;font-size:11px;text-align:right;color:#666;">AMOUNT</th>
     </tr>
     ${tiersHTML}
+    ${(d.partsTotal||0)>0?`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">Parts & Materials</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(d.partsTotal||0).toFixed(2)}</td></tr>`:""}
+    ${(d.customItems||[]).map(it=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${it.description}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(parseFloat(it.amount)||0).toFixed(2)}</td></tr>`).join("")}
     <tr style="background:#f0f7ff;">
       <td colspan="3" style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:14px;">Total</td>
       <td style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:16px;color:#00B050;">$${total.toFixed(2)}</td>
@@ -1088,7 +1091,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
   const d=data;
   const[emailTo,setEmailTo]=useState(d.customerEmail||""),[emailCC,setEmailCC]=useState((d.ccEmails||[]).join(", "));
   const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/").replace(/^20/,"")+" - "+d.dateTo.replace(/-/g,"/").replace(/^20/,"")):"";
-  const defaultSubject=d.invoiceNum+" "+(d.customerDisplayName||"")+" PM & Repairs Invoice "+dateRange;
+  const defaultSubject=d.subjectOverride||(d.invoiceNum+" "+(d.customerDisplayName||"")+" PM & Repairs Invoice "+dateRange);
   const[subject,setSubject]=useState(defaultSubject);
   const[variantIdx,setVariantIdx]=useState(()=>Math.floor(Math.random()*EMAIL_VARIANTS.length));
   const[customBody,setCustomBody]=useState("");
@@ -1168,10 +1171,11 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
         <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>EMAIL PREVIEW</div>
         <div style={{fontSize:13,color:"#333",lineHeight:1.6}}>
           <p>{variant.greeting}</p>
-          <p>Below I've attached the invoice for work completed through the following dates {dateRange}.</p>
+          <p>{d.emailIntro||("Below I've attached the invoice for work completed through the following dates "+dateRange+".")}</p>
           <div style={{background:"#f5f7fc",borderRadius:6,padding:12,margin:"8px 0",fontSize:12}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700}}>Invoice #{d.invoiceNum}</span><span style={{fontWeight:700,color:"#00B050"}}>${(d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0)+(d.partsTotal||0)+(d.customItemsTotal||0)).toFixed(2)}</span></div>
             {d.tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{(t.hours||0).toFixed(2)}h {t.name} @ ${t.rate}</span><span>${((t.hours||0)*(t.rate||0)).toFixed(2)}</span></div>)}
+            {(d.customItems||[]).map((it,ci)=><div key={"ci"+ci} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{it.description}</span><span>${(parseFloat(it.amount)||0).toFixed(2)}</span></div>)}
             {d.breakdownData&&<div style={{borderTop:"1px solid #ddd",marginTop:6,paddingTop:6,fontSize:11,color:"#555"}}>
               {d.breakdownData.pm_hours>0&&<div>PM: {d.breakdownData.pm_hours.toFixed(2)}h — ${d.breakdownData.pm_total.toFixed(2)}</div>}
               {d.breakdownData.cm_hours>0&&<div>CM: {d.breakdownData.cm_hours.toFixed(2)}h — ${d.breakdownData.cm_total.toFixed(2)}</div>}
@@ -1204,4 +1208,4 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
   </Modal>);
 }
 
-export { InvoiceDashboard, InvoiceGenerator, buildInvoiceExcel, buildInvoicePDF, uploadInvoiceToDrive, rebuildInvoiceData, openInvoicePDF, invoicePreviewSource, PdfPreviewModal };
+export { InvoiceDashboard, InvoiceGenerator, buildInvoiceExcel, buildInvoicePDF, uploadInvoiceToDrive, rebuildInvoiceData, openInvoicePDF, invoicePreviewSource, PdfPreviewModal, SendInvoiceModal };
