@@ -126,7 +126,7 @@ KB articles support photos rendered **inline in the text**: type `[photo:N]` any
 
 Published SOPs using this (2026-07-23, both live in prod DB):
 1. **"Valve Plate Inspection & Replacement — Semi-Hermetic Compressors"** — 10 inline photos (4 from Copeland AE4-1373, 6 custom diagrams) + field-notes PDF. Storage: `kb-files/kb/vp-sop/`. Source assets in `../sop-assets/`.
-2. **"Full Disassembly, Inspection & Reassembly — Semi-Hermetic Compressors"** — 8 inline diagrams (custom, rendered from SVG via @resvg). Storage: `kb-files/kb/fd-sop/`. Source SVGs in the session scratchpad were verified against Copeland AE4-1219 R18 / AE4-1294 and Carlyle 020-611 (PDFs fetched during research).
+2. **"Full Disassembly, Inspection & Reassembly — Semi-Hermetic Compressors"** — 8 custom diagrams (rendered from SVG via @resvg) + **3 real Carlyle manufacturer diagrams** extracted from the 020-611 service guide PDF (`pdf-to-img` @ 5x, cropped with `sharp`): #9 06D cross-section (§2.6), #10 06E exploded view (§2.9), #11 Fig.10 pump-end bearing head photo. Storage: `kb-files/kb/fd-sop/`. Custom SVGs verified against Copeland AE4-1219 R18 / AE4-1294 and Carlyle 020-611. The 3 OEM figures are Carrier/Carlyle copyright, used as internal technical reference (captioned with source).
 
 Torque-spec note: the valve-plate SOP's head-torque figure and text were corrected against AE4-1219 R18 — the 103 ft-lb 1/2"-bolt spec belongs to Discus III/Digital 4D/6D*N/*X heads (NOT 2D/3D), 2D/3D & E/L/M/N are 44 ft-lb (3/8" bolts), H/K only (not L) are 25 ft-lb, Carlyle 06E is 85–100 ft-lb.
 
