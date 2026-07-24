@@ -141,7 +141,9 @@ async function buildInvoiceExcel(d){
     ws.getCell("F"+r).fill=shadeFill;
     r++;
     d.customItems.forEach(it=>{
+      if(it.qty!=null&&it.qty!==""){ws.getCell("A"+r).value=parseFloat(it.qty)||0;ws.getCell("A"+r).font={name:"Palatino Linotype",size:10};ws.getCell("A"+r).alignment={horizontal:"center"};}
       ws.getCell("B"+r).value=it.description;ws.getCell("B"+r).font={name:"Palatino Linotype",size:10};
+      if(it.rate!=null&&it.rate!==""){ws.getCell("E"+r).value=parseFloat(it.rate)||0;ws.getCell("E"+r).numFmt=numFmt;ws.getCell("E"+r).font={name:"Palatino Linotype",size:10};}
       ws.getCell("F"+r).value=it.amount;ws.getCell("F"+r).numFmt=numFmt;ws.getCell("F"+r).font={name:"Palatino Linotype",size:10};ws.getCell("F"+r).fill=shadeFill;
       customItemRows.push(r);
       r++;
@@ -351,12 +353,22 @@ async function buildInvoicePDF(d){
     y+=9;
     doc.setFontSize(9.5);
     d.customItems.forEach((it,i)=>{
-      if(i%2===0)R(lm,y-1,cw,8,light);
+      // Items with structured qty/rate (parts sales) fill the QTY and RATE columns;
+      // plain {description, amount} items render description-only as before.
+      const hasQty=it.qty!=null&&it.qty!=="";
+      const hasRate=it.rate!=null&&it.rate!=="";
+      const descW=(hasRate?pw-rm-40:pw-rm-6)-(lm+24);
+      const dl=doc.splitTextToSize(it.description||"",descW).slice(0,2);
+      const rh=dl.length>1?12:8;
+      pageBreak(rh+2);
+      if(i%2===0)R(lm,y-1,cw,rh,light);
       doc.setFont("helvetica","normal");doc.setTextColor(...dark);
-      txt(it.description,lm+24,y+4);
+      if(hasQty)txt(String(parseFloat(it.qty)||0),lm+6,y+4);
+      dl.forEach((ln,li)=>{txt(ln,lm+24,y+4+li*4.5);});
+      if(hasRate)txt("$"+(parseFloat(it.rate)||0).toFixed(2),pw-rm-34,y+4);
       doc.setFont("helvetica","bold");
-      txt("$"+it.amount.toLocaleString("en-US",{minimumFractionDigits:2}),pw-rm-2,y+4,{align:"right"});
-      y+=8;
+      txt("$"+(parseFloat(it.amount)||0).toLocaleString("en-US",{minimumFractionDigits:2}),pw-rm-2,y+4,{align:"right"});
+      y+=rh;
     });
     y+=2;L(y,[220,225,235],0.2);y+=4;
   }
@@ -572,7 +584,9 @@ function InvoiceEditForm({inv,onSave,onCancel}){
   const[customItems,setCustomItems]=useState(inv.custom_items||[]);
   const[saving,setSaving]=useState(false);
   const addItem=()=>setCustomItems([...customItems,{description:"",amount:0}]);
-  const updateItem=(i,field,val)=>setCustomItems(customItems.map((it,idx)=>idx===i?{...it,[field]:field==="amount"?(parseFloat(val)||0):val}:it));
+  // On amount edits, keep a structured item's rate consistent (rate = amount / qty)
+  // so the PDF's QTY × RATE columns never contradict the line total.
+  const updateItem=(i,field,val)=>setCustomItems(customItems.map((it,idx)=>{if(idx!==i)return it;const n={...it,[field]:field==="amount"?(parseFloat(val)||0):val};if(field==="amount"&&n.rate!=null&&(parseFloat(n.qty)||0)>0)n.rate=Math.round(n.amount/(parseFloat(n.qty)||1)*100)/100;return n;}));
   const removeItem=(i)=>setCustomItems(customItems.filter((_,idx)=>idx!==i));
   const laborTotal=(inv.tier_data||[]).reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
   const customItemsTotal=customItems.reduce((s,it)=>s+parseFloat(it.amount||0),0);
@@ -1068,7 +1082,7 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
     </tr>
     ${tiersHTML}
     ${(d.partsTotal||0)>0?`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">Parts & Materials</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(d.partsTotal||0).toFixed(2)}</td></tr>`:""}
-    ${(d.customItems||[]).map(it=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${it.description}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(parseFloat(it.amount)||0).toFixed(2)}</td></tr>`).join("")}
+    ${(d.customItems||[]).map(it=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${it.qty!=null&&it.qty!==""?it.qty:""}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${it.description}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">${it.rate!=null&&it.rate!==""?"$"+(parseFloat(it.rate)||0).toFixed(2):""}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(parseFloat(it.amount)||0).toFixed(2)}</td></tr>`).join("")}
     <tr style="background:#f0f7ff;">
       <td colspan="3" style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:14px;">Total</td>
       <td style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:16px;color:#00B050;">$${total.toFixed(2)}</td>
@@ -1175,7 +1189,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
           <div style={{background:"#f5f7fc",borderRadius:6,padding:12,margin:"8px 0",fontSize:12}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700}}>Invoice #{d.invoiceNum}</span><span style={{fontWeight:700,color:"#00B050"}}>${(d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0)+(d.partsTotal||0)+(d.customItemsTotal||0)).toFixed(2)}</span></div>
             {d.tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{(t.hours||0).toFixed(2)}h {t.name} @ ${t.rate}</span><span>${((t.hours||0)*(t.rate||0)).toFixed(2)}</span></div>)}
-            {(d.customItems||[]).map((it,ci)=><div key={"ci"+ci} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{it.description}</span><span>${(parseFloat(it.amount)||0).toFixed(2)}</span></div>)}
+            {(d.customItems||[]).map((it,ci)=><div key={"ci"+ci} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555"}}><span>{it.qty!=null&&it.qty!==""?it.qty+" × ":""}{it.description}{it.rate!=null&&it.rate!==""?" @ $"+(parseFloat(it.rate)||0).toFixed(2):""}</span><span>${(parseFloat(it.amount)||0).toFixed(2)}</span></div>)}
             {d.breakdownData&&<div style={{borderTop:"1px solid #ddd",marginTop:6,paddingTop:6,fontSize:11,color:"#555"}}>
               {d.breakdownData.pm_hours>0&&<div>PM: {d.breakdownData.pm_hours.toFixed(2)}h — ${d.breakdownData.pm_total.toFixed(2)}</div>}
               {d.breakdownData.cm_hours>0&&<div>CM: {d.breakdownData.cm_hours.toFixed(2)}h — ${d.breakdownData.cm_total.toFixed(2)}</div>}

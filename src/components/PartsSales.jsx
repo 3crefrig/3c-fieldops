@@ -85,8 +85,8 @@ function PartsSales({D,A,user}){
       const q=parseFloat(l.qty)||1;
       let s=(l.description||"").trim();
       if((l.part_no||"").trim())s+=" ["+l.part_no.trim()+"]";
-      if(q!==1)s=q+" × "+s+" @ "+money(l.unit_price);
-      return{description:s,amount:r2(q*(parseFloat(l.unit_price)||0))};
+      // Structured qty/rate render in the invoice's QTY and RATE columns.
+      return{description:s,qty:q,rate:r2(l.unit_price),amount:r2(q*(parseFloat(l.unit_price)||0))};
     });
     const customItemsTotal=r2(customItemsData.reduce((s,it)=>s+it.amount,0));
     const description=[shipTo.trim()?"Shipped to: "+shipTo.trim():null,notes.trim()||null].filter(Boolean).join("\n");
