@@ -192,3 +192,27 @@ create policy "vd_insert" on storage.objects for insert to authenticated
 drop policy if exists "vd_delete" on storage.objects;
 create policy "vd_delete" on storage.objects for delete to authenticated
   using (bucket_id = 'vendor-docs' and public.current_app_role() in ('admin','manager'));
+
+-- ── Realtime: live cross-device updates (tech captures a ticket in the
+--    field → manager's audit tab refreshes). The supabase_realtime
+--    publication is NOT "for all tables" in this project, so new tables
+--    must be added explicitly or the client subscriptions never fire.
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.po_tickets;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.po_ticket_items;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.vendor_bills;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.vendor_bill_items;
+  exception when duplicate_object then null;
+  end;
+end $$;
