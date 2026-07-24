@@ -124,7 +124,11 @@ The project **Files** tab (ProjectDetail, tab key still `drawings` internally) l
 
 KB articles support photos rendered **inline in the text**: type `[photo:N]` anywhere in Scope/Symptoms, Procedure/Fix Steps, or Notes/Content and photo #N renders at that spot (numbering = upload order, oldest first; the gallery and editor thumbnails show each photo's number). Captions supported (inline caption input in the editor; ✎ in the detail gallery). Photos/files upload straight to the **public `kb-files` Storage bucket** (same pattern as project-files — no Google Drive access wall; old Drive-hosted kb_files rows still render). Photos can be added while drafting a NEW article (held in `pendingFiles`, attached on save). Migration `20260723000000_kb_photos.sql` (additive): `kb-files` bucket, `kbf_insert`/`kbf_delete` storage policies, `kb_files.caption`. Deleting a photo renumbers the ones after it — check `[photo:N]` refs after deleting.
 
-First SOP using this: "Semi-Hermetic Compressor — Valve Plate Inspection & Repair" (7 labeled diagrams; source SVGs + PNGs + article text in `../sop-assets/`).
+Published SOPs using this (2026-07-23, both live in prod DB):
+1. **"Valve Plate Inspection & Replacement — Semi-Hermetic Compressors"** — 10 inline photos (4 from Copeland AE4-1373, 6 custom diagrams) + field-notes PDF. Storage: `kb-files/kb/vp-sop/`. Source assets in `../sop-assets/`.
+2. **"Full Disassembly, Inspection & Reassembly — Semi-Hermetic Compressors"** — 8 inline diagrams (custom, rendered from SVG via @resvg). Storage: `kb-files/kb/fd-sop/`. Source SVGs in the session scratchpad were verified against Copeland AE4-1219 R18 / AE4-1294 and Carlyle 020-611 (PDFs fetched during research).
+
+Torque-spec note: the valve-plate SOP's head-torque figure and text were corrected against AE4-1219 R18 — the 103 ft-lb 1/2"-bolt spec belongs to Discus III/Digital 4D/6D*N/*X heads (NOT 2D/3D), 2D/3D & E/L/M/N are 44 ft-lb (3/8" bolts), H/K only (not L) are 25 ft-lb, Carlyle 06E is 85–100 ft-lb.
 
 ## New-Tech Onboarding Email
 
