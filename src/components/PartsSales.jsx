@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic } from "../shared";
 import { Card, Badge, StatCard, Toast } from "./ui";
-import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal } from "./Invoices";
+import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal, rebuildInvoiceData } from "./Invoices";
 
 const r2=n=>Math.round((parseFloat(n)||0)*100)/100;
 const money=n=>"$"+(parseFloat(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -35,13 +35,15 @@ function PartsSales({D,A,user}){
   const[poSearch,setPoSearch]=useState("");
   const[showSendModal,setShowSendModal]=useState(false);
   const[lastInvoiceData,setLastInvoiceData]=useState(null);
+  const[editingSale,setEditingSale]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3500);};
 
   const loadSales=async()=>{const{data,error}=await sb().from("parts_sales").select("*").order("created_at",{ascending:false});if(error){console.warn("parts_sales load:",error.message);setSales([]);return;}setSales(data||[]);};
   useEffect(()=>{loadSales();},[]);
 
   const customer=customers.find(c=>c.name===cust);
-  useEffect(()=>{if(customer)setMarkupPct(customer.parts_markup!=null?parseFloat(customer.parts_markup):35);},[cust]);
+  // Don't clobber a sale's saved markup with the customer default when opening an edit.
+  useEffect(()=>{if(editingSale)return;if(customer)setMarkupPct(customer.parts_markup!=null?parseFloat(customer.parts_markup):35);},[cust]);
 
   // ── Line items ──
   const addLine=()=>setLines(ls=>[...ls,{description:"",part_no:"",qty:"1",unit_cost:"",unit_price:"",priceEdited:false}]);
@@ -68,7 +70,36 @@ function PartsSales({D,A,user}){
     setShowPOPicker(false);setPoSearch("");haptic(20);
   };
 
-  const resetForm=()=>{setCust("");setLines([]);setLinkedPOs([]);setCustPO("");setShipTo("");setJobDesc("Parts Supply");setNotes("");};
+  const resetForm=()=>{setCust("");setLines([]);setLinkedPOs([]);setCustPO("");setShipTo("");setJobDesc("Parts Supply");setNotes("");setEditingSale(null);};
+
+  // Load an existing sale into the form for editing.
+  const startEdit=(s,e)=>{
+    if(e)e.stopPropagation();
+    const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
+    setEditingSale(s);
+    setCust(s.customer);
+    setMarkupPct(s.markup_pct!=null?parseFloat(s.markup_pct):35);
+    setLines((s.items||[]).map(it=>({description:it.description||"",part_no:it.part_no||"",qty:String(it.qty!=null?it.qty:1),unit_cost:String(it.unit_cost!=null?it.unit_cost:""),unit_price:String(it.unit_price!=null?it.unit_price:""),priceEdited:true,po_ref:it.po_ref||null,po_id:it.po_ref?(pos.find(p=>p.po_id===it.po_ref)?.id||null):null})));
+    setLinkedPOs(s.linked_po_ids||[]);
+    setCustPO(s.customer_po||"");
+    setShipTo(s.ship_to||"");
+    setNotes(s.notes||"");
+    setJobDesc(inv?.job_desc||"Parts Supply");
+    setView("create");
+  };
+
+  // Re-download the invoice PDF for a sale (rebuilt fresh from the invoice record).
+  const downloadSalePDF=async(s,e)=>{
+    if(e)e.stopPropagation();
+    const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
+    if(!inv){msg("Invoice "+(s.invoice_num||"—")+" no longer exists");return;}
+    try{
+      const d=rebuildInvoiceData(inv,{customers,pos,wos:D.wos||[]});
+      const doc=await buildInvoicePDF(d);
+      doc.save("INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf");
+      msg("PDF downloaded");
+    }catch(err){msg("Error: "+err.message);console.error(err);}
+  };
 
   // ── Invoice generation (reuses the standard invoice pipeline) ──
   const nextInvoiceNum=async()=>{
@@ -138,6 +169,31 @@ function PartsSales({D,A,user}){
     setGenerating(false);
   };
 
+  // Save edits to an existing sale and re-sync its invoice (items, totals, notes).
+  const saveEdit=async(withPdf)=>{
+    if(generating)return;
+    if(validLines.length===0){msg("Add at least one line item with a description and price");return;}
+    setGenerating(true);
+    try{
+      const s=editingSale;
+      const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
+      const d=buildData(s.invoice_num);
+      const itemsClean=validLines.map(l=>({description:(l.description||"").trim(),part_no:(l.part_no||"").trim()||null,qty:parseFloat(l.qty)||1,unit_cost:r2(l.unit_cost),unit_price:r2(l.unit_price),po_ref:l.po_ref||null}));
+      const{error}=await sb().from("parts_sales").update({customer_po:custPO.trim()||null,ship_to:shipTo.trim()||null,items:itemsClean,cost_total:costTotal,sell_total:sellTotal,markup_pct:parseFloat(markupPct)||0,linked_po_ids:linkedPOs,notes:notes.trim()||null}).eq("id",s.id);
+      if(error)throw error;
+      // pdf_drive_url is cleared so nobody opens a stale Drive copy of the old version.
+      if(inv)await A.updateInvoice({id:inv.id,custom_items:d.customItems,amount:d.customItemsTotal,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",pdf_drive_url:null});
+      if(withPdf){
+        const doc=await buildInvoicePDF(d);
+        doc.save("INV_"+s.invoice_num+"_"+(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_")+".pdf");
+      }
+      await loadSales();
+      msg(s.sale_ref+" updated"+(inv?"":" — invoice "+(s.invoice_num||"—")+" not found, not synced"));
+      resetForm();setView("list");
+    }catch(e){msg("Error: "+e.message);console.error(e);}
+    setGenerating(false);
+  };
+
   const deleteSale=async(s)=>{
     if(!window.confirm("Delete "+s.sale_ref+"? Invoice "+(s.invoice_num||"—")+" will NOT be deleted — manage it from the Invoices tab."))return;
     const{error}=await sb().from("parts_sales").delete().eq("id",s.id);
@@ -154,7 +210,7 @@ function PartsSales({D,A,user}){
       <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>📦 Parts Sales</h3>
       <div style={{display:"flex",gap:6}}>
         <button onClick={()=>setView("list")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="list"?B.cyan:B.border),background:view==="list"?B.cyanGlow:"transparent",color:view==="list"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Sales</button>
-        <button onClick={()=>setView("create")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ New Parts Sale</button>
+        <button onClick={()=>{if(editingSale)resetForm();setView("create");}} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ New Parts Sale</button>
       </div>
     </div>
 
@@ -189,6 +245,8 @@ function PartsSales({D,A,user}){
                 <div style={{fontSize:10,color:m>=0?B.green:B.red}}>{m>=0?"+":""}{money(m)} margin</div>
               </div>
               <Badge color={stColor}>{st?st.toUpperCase():"NO INVOICE"}</Badge>
+              <button onClick={e=>downloadSalePDF(s,e)} title="Re-download the invoice PDF" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>⬇ PDF</button>
+              <button onClick={e=>startEdit(s,e)} title="Edit this parts sale (re-syncs the invoice)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>✎ Edit</button>
               <button onClick={e=>{e.stopPropagation();deleteSale(s);}} title="Delete this parts sale record" style={{background:"none",border:"none",color:B.red+"88",cursor:"pointer",fontSize:15,padding:4}}>🗑</button>
             </div>
             {open&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+B.border}}>
@@ -209,10 +267,10 @@ function PartsSales({D,A,user}){
     </>}
 
     {view==="create"&&<Card style={{padding:18,maxWidth:700}}>
-      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:4}}>New Parts Sale</div>
-      <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Bill a customer for parts only — no work order. Creates a normal draft invoice you can send right away.</div>
+      <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:4}}>{editingSale?"Edit "+editingSale.sale_ref:"New Parts Sale"}</div>
+      <div style={{fontSize:11,color:B.textDim,marginBottom:14}}>{editingSale?"Changes save to invoice "+(editingSale.invoice_num||"—")+" too — re-download or re-send it after saving.":"Bill a customer for parts only — no work order. Creates a normal draft invoice you can send right away."}</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div><label style={LS}>Customer</label><select value={cust} onChange={e=>setCust(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+        <div><label style={LS}>Customer{editingSale&&<span style={{color:B.textDim,fontWeight:400}}> (locked while editing)</span>}</label><select value={cust} onChange={e=>setCust(e.target.value)} disabled={!!editingSale} style={{...IS,cursor:editingSale?"not-allowed":"pointer",opacity:editingSale?.7:1}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>Customer PO # <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={custPO} onChange={e=>setCustPO(e.target.value)} placeholder="e.g. 4605021670" style={{...IS,fontFamily:M}}/></div>
           <div><label style={LS}>Parts Markup %</label><input value={markupPct} onChange={e=>applyMarkup(e.target.value)} type="number" min="0" style={{...IS,fontFamily:M}}/></div>
@@ -272,12 +330,16 @@ function PartsSales({D,A,user}){
           <span style={{fontSize:11,color:B.textMuted}}>Save a copy to Google Drive</span>
         </label>
 
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {editingSale?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={()=>{resetForm();setView("list");}} disabled={generating} style={{...BS,flex:1,minWidth:110}}>Cancel</button>
+          <button onClick={()=>saveEdit(false)} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"💾 Save"}</button>
+          <button onClick={()=>saveEdit(true)} disabled={generating} style={{...BP,flex:2,minWidth:170,opacity:generating?.6:1}}>{generating?"Working…":"💾 Save & Download PDF"}</button>
+        </div>:<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={()=>generate("xlsx")} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"⬇ Excel"}</button>
           <button onClick={()=>generate("pdf")} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"⬇ PDF"}</button>
           <button onClick={()=>generate("send")} disabled={generating} style={{...BP,flex:2,minWidth:170,background:"linear-gradient(135deg,#00D4F5,#7C3AED)",opacity:generating?.6:1}}>{generating?"Working…":"📧 Create & Send"}</button>
-        </div>
-        <div style={{fontSize:10,color:B.textDim}}>All three create the invoice as a draft in the Invoices tab — payment tracking and reminders work like any other invoice.</div>
+        </div>}
+        {!editingSale&&<div style={{fontSize:10,color:B.textDim}}>All three create the invoice as a draft in the Invoices tab — payment tracking and reminders work like any other invoice.</div>}
       </div>
     </Card>}
 
