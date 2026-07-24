@@ -421,7 +421,10 @@ function rebuildInvoiceData(inv,{customers,pos,wos}){
   const c=(customers||[]).find(x=>x.name===inv.customer);
   const terms=c?.payment_terms||"Net 30";
   const netDays=parseInt((terms.match(/\d+/)||[])[0])||30;
-  const issued=inv.date_issued?new Date(inv.date_issued):new Date();
+  // Parse YYYY-MM-DD as a LOCAL date — new Date("2026-07-24") is UTC midnight,
+  // which renders as the previous day in US timezones (shifts date + due date).
+  const dm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(inv.date_issued||"");
+  const issued=dm?new Date(+dm[1],+dm[2]-1,+dm[3]):(inv.date_issued?new Date(inv.date_issued):new Date());
   const due=new Date(issued);due.setDate(due.getDate()+netDays);
   const invPOs=(pos||[]).filter(p=>inv.wo_ids&&inv.wo_ids.some(wid=>{const wo=(wos||[]).find(w=>w.wo_id===wid||w.id===wid);return wo&&p.wo_id===wo.id;})&&p.status==="approved");
   const mkup=getPartsMarkup(c);
