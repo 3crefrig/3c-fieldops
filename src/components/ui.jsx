@@ -4,8 +4,9 @@ import { B, F, M, IS, LS, BP, BS, haptic, getTheme } from "../shared";
 // Theme-aware logo: the dark theme uses the dark-background brand lockup
 // (white 3C + cyan banner, transparent bg); light theme keeps the original.
 const LOGO_LIGHT="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
-const LOGO_DARK="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/logo-dark.png";
-export function Logo({size,onClick}){const dark=getTheme()==="dark";const h=size==="large"?(dark?128:56):(dark?48:32);return(<img src={dark?LOGO_DARK:LOGO_LIGHT} alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
+const LOGO_DARK="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/logo-dark.png";               // full lockup w/ NC outline — login screen
+const LOGO_DARK_COMPACT="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/logo-dark-compact.png"; // tight 3C+banner crop — header
+export function Logo({size,onClick}){const dark=getTheme()==="dark";const h=size==="large"?(dark?128:56):(dark?38:32);const src=dark?(size==="large"?LOGO_DARK:LOGO_DARK_COMPACT):LOGO_LIGHT;return(<img src={src} alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
 // Minimal inline SVG icon set (Lucide-style strokes) — used by the mobile bottom
 // bar instead of emoji. currentColor themes automatically.
