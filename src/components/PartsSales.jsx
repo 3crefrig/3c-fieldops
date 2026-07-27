@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic } from "../shared";
-import { Card, Badge, StatCard, Toast } from "./ui";
+import { Card, Badge, StatCard, Toast, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal, rebuildInvoiceData } from "./Invoices";
 
 const r2=n=>Math.round((parseFloat(n)||0)*100)/100;
@@ -36,6 +36,7 @@ function PartsSales({D,A,user}){
   const[showSendModal,setShowSendModal]=useState(false);
   const[lastInvoiceData,setLastInvoiceData]=useState(null);
   const[editingSale,setEditingSale]=useState(null);
+  const[pdfPreview,setPdfPreview]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3500);};
 
   const loadSales=async()=>{const{data,error}=await sb().from("parts_sales").select("*").order("created_at",{ascending:false});if(error){console.warn("parts_sales load:",error.message);setSales([]);return;}setSales(data||[]);};
@@ -91,6 +92,14 @@ function PartsSales({D,A,user}){
     setView("create");
   };
 
+  // Preview the sale's invoice inline (no download).
+  const previewSalePDF=async(s,e)=>{
+    if(e)e.stopPropagation();
+    const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
+    if(!inv){msg("Invoice "+(s.invoice_num||"—")+" no longer exists");return;}
+    try{const d=rebuildInvoiceData(inv,{customers,pos,wos:D.wos||[]});const doc=await buildInvoicePDF(d);previewPdfDoc(doc,"INV-"+inv.invoice_num,setPdfPreview);}
+    catch(err){msg("Error: "+err.message);console.error(err);}
+  };
   // Re-download the invoice PDF for a sale (rebuilt fresh from the invoice record).
   const downloadSalePDF=async(s,e)=>{
     if(e)e.stopPropagation();
@@ -208,7 +217,7 @@ function PartsSales({D,A,user}){
   const totBilled=r2((sales||[]).reduce((s,x)=>s+(parseFloat(x.sell_total)||0),0));
   const totMargin=r2((sales||[]).reduce((s,x)=>s+((parseFloat(x.sell_total)||0)-(parseFloat(x.cost_total)||0)),0));
 
-  return(<div><Toast msg={toast}/>
+  return(<div><Toast msg={toast}/>{pdfPreview&&<PdfPreviewModal {...pdfPreview} onClose={()=>setPdfPreview(null)}/>}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:14}}>
       <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Parts Sales</h3>
       <div style={{display:"flex",gap:6}}>

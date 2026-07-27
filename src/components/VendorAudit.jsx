@@ -171,7 +171,7 @@ function LineGrid({ lines, setLines, statusChips }) {
 function ScanButton({ onFile, busy, label }) {
   const ref = useRef(null);
   return (<>
-    <input ref={ref} type="file" accept="image/*,application/pdf" capture="environment" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+    <input ref={ref} type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     <button onClick={() => ref.current?.click()} disabled={busy} type="button" style={{ ...BP, width: "100%", padding: "12px 14px", fontSize: 13, opacity: busy ? .6 : 1 }}>{busy ? "AI is reading the document…" : label}</button>
   </>);
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup } from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
@@ -458,24 +458,10 @@ async function invoicePreviewSource(inv,ctx){
 
 // Full-screen-ish modal that renders a PDF inline (iframe) instead of forcing a
 // download. Click the backdrop or Close to dismiss; "Open in new tab" as fallback.
-function PdfPreviewModal({url,downloadUrl,title,onClose}){
-  return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1100,display:"flex",flexDirection:"column",background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",padding:"max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom))",boxSizing:"border-box",animation:"fadeIn .15s ease-out"}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:B.surface,borderRadius:12,border:"1px solid "+B.border,flex:1,display:"flex",flexDirection:"column",overflow:"hidden",maxWidth:1000,width:"100%",margin:"0 auto",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 16px",borderBottom:"1px solid "+B.border}}>
-        <span style={{fontSize:14,fontWeight:700,color:B.text,fontFamily:M,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Invoice PDF"}</span>
-        <div style={{display:"flex",gap:8,flexShrink:0}}>
-          <a href={downloadUrl||url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"6px 12px",fontSize:12}}>Open in new tab ↗</a>
-          <button onClick={onClose} style={{...BP,padding:"6px 12px",fontSize:12}}>Close</button>
-        </div>
-      </div>
-      <iframe title="PDF preview" src={url} style={{flex:1,width:"100%",border:"none",background:"#fff"}}/>
-    </div>
-  </div>);
-}
-
 function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const PAGE_SIZE=50;
   // "Invoice this WO" handoff: a completed WO can preseed the generator via sessionStorage.
+  const[pdfPreview,setPdfPreview]=useState(null);
   const[view,setView]=useState(()=>{try{return sessionStorage.getItem("invoice-prefill")?"create":"tracker";}catch(e){return"tracker";}}),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
@@ -503,13 +489,14 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>rebuildInvoiceData(inv,{customers,pos,wos});
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
+  const previewPDF=async(inv)=>{msg("Opening preview...");try{const d=rebuildData(inv);const doc=await buildInvoicePDF(d);previewPdfDoc(doc,"INV-"+inv.invoice_num,setPdfPreview);msg("");}catch(e){msg("Error: "+e.message);}};
   const regenPDF=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const doc=await buildInvoicePDF(d);doc.save("INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf");msg("PDF downloaded!");}catch(e){msg("Error: "+e.message);}};
 
   const ISC={draft:B.cyan,sent:B.cyan,paid:B.green,overdue:B.red};
   const ISL={draft:"Draft",sent:"Sent",paid:"Paid",overdue:"Overdue"};
   const getStatus=(inv)=>inv.status==="sent"&&daysOut(inv.date_issued)>30?"overdue":inv.status;
 
-  return(<div><Toast msg={toast}/>
+  return(<div><Toast msg={toast}/>{pdfPreview&&<PdfPreviewModal {...pdfPreview} onClose={()=>setPdfPreview(null)}/>}
     <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
       <StatCard label="Outstanding" value={"$"+totalOutstanding.toLocaleString(undefined,{minimumFractionDigits:2})} icon="💰" color={B.cyan}/>
       <StatCard label="Overdue (30d+)" value={overdue.length} icon="⚠️" color={B.red}/>
@@ -545,8 +532,9 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 {(inv.notes||(inv.wo_ids&&inv.wo_ids.length>0)||(inv.tier_data&&inv.tier_data.length>0)||(inv.custom_items&&inv.custom_items.length>0))&&<button onClick={()=>setExpandedId(expandedId===inv.id?null:inv.id)} style={{marginTop:6,padding:"3px 8px",fontSize:10,fontWeight:600,background:"transparent",border:"1px solid "+B.border,borderRadius:4,color:B.textDim,cursor:"pointer",fontFamily:F}}>{expandedId===inv.id?"▲ Hide details":"▼ Show details"}</button>}
               </div>
               <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
-                <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">📊</button>
-                <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">📄</button>
+                <button onClick={()=>previewPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.cyan,borderColor:B.cyan+"55"}} title="Preview invoice (no download)">Preview</button>
+                <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">Excel</button>
+                <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">PDF</button>
                 {inv.status==="draft"&&<button onClick={()=>setEditingInv(inv)} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Edit</button>}
                 {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}

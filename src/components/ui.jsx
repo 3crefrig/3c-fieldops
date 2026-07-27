@@ -25,6 +25,63 @@ export function Icon({name,size=20,color="currentColor",strokeWidth=2}){
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{P[name]||P.dot}</svg>;
 }
 
+
+// Paste-to-scan: lets desktop users hit Win+Shift+S / Cmd+Shift+4 and press
+// Ctrl/Cmd+V straight into an open scan dialog instead of saving a file first.
+export function usePasteImage(enabled,onFile){
+  const cb=useRef(onFile);
+  useEffect(()=>{cb.current=onFile;},[onFile]);
+  useEffect(()=>{
+    if(!enabled)return;
+    const h=(e)=>{
+      const items=(e.clipboardData&&e.clipboardData.items)||[];
+      for(let i=0;i<items.length;i++){
+        const it=items[i];
+        if(it.type&&it.type.indexOf("image/")===0){
+          const f=it.getAsFile();
+          if(f){e.preventDefault();cb.current&&cb.current(f);return;}
+        }
+      }
+    };
+    document.addEventListener("paste",h);
+    return()=>document.removeEventListener("paste",h);
+  },[enabled]);
+}
+
+// ── PDF preview ───────────────────────────────────────────────
+// Inline PDF viewer so finished documents can be checked without downloading.
+// Lives here (not Invoices.jsx) so every module can use it — Invoices already
+// imports from PurchaseOrders, so the reverse would be a circular import.
+//
+// iOS Safari won't reliably render a blob: PDF inside an iframe, so on phones we
+// hand off to a new tab instead of showing an empty frame.
+export function previewPdfDoc(doc,title,setPreview){
+  const url=doc.output("bloburl");
+  const filename=(title||"document").replace(/[^a-zA-Z0-9._-]/g,"_")+(/\.pdf$/i.test(title||"")?"":".pdf");
+  if(typeof window!=="undefined"&&window.innerWidth<768){
+    const w=window.open(url,"_blank");
+    if(!w){const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();}
+    return;
+  }
+  setPreview({url,downloadUrl:url,title,filename});
+}
+export function PdfPreviewModal({url,downloadUrl,title,filename,onClose}){
+  useEffect(()=>{const k=e=>{if(e.key==="Escape")onClose&&onClose();};document.addEventListener("keydown",k);return()=>document.removeEventListener("keydown",k);},[onClose]);
+  return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1100,display:"flex",flexDirection:"column",background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",padding:"max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom))",boxSizing:"border-box",animation:"fadeIn .15s ease-out"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:B.surface,borderRadius:14,border:"1px solid "+B.border,flex:1,display:"flex",flexDirection:"column",overflow:"hidden",maxWidth:1000,width:"100%",margin:"0 auto",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 16px",borderBottom:"1px solid "+B.border}}>
+        <span style={{fontSize:14,fontWeight:700,color:B.text,fontFamily:M,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Preview"}</span>
+        <div style={{display:"flex",gap:8,flexShrink:0}}>
+          <a href={downloadUrl||url} download={filename||undefined} style={{...BS,textDecoration:"none",padding:"6px 12px",fontSize:12}}>Download</a>
+          <a href={downloadUrl||url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"6px 12px",fontSize:12}}>New tab ↗</a>
+          <button onClick={onClose} style={{...BP,padding:"6px 12px",fontSize:12}}>Close</button>
+        </div>
+      </div>
+      <iframe title="PDF preview" src={url} style={{flex:1,width:"100%",border:"none",background:"#fff"}}/>
+    </div>
+  </div>);
+}
+
 export function Badge({color,children}){return <span style={{display:"inline-block",padding:"4px 10px",borderRadius:999,background:color+"18",color,fontSize:11,fontWeight:700,textTransform:"uppercase",fontFamily:F,letterSpacing:0.3,border:"1px solid "+color+"30"}}>{children}</span>;}
 export function Card({children,onClick,style}){return <div onClick={onClick} className={onClick?"card-hover":""} style={{background:B.surface,borderRadius:10,padding:18,border:"1px solid "+B.border,cursor:onClick?"pointer":"default",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",transition:"border-color .2s, box-shadow .2s, transform .15s",...style}} onMouseEnter={e=>{if(onClick){e.currentTarget.style.borderColor=B.cyan+"60";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)";}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.08)";}}>{children}</div>;}
 export function StatCard({label,value,icon,color}){return <Card style={{flex:"1 1 130px",minWidth:130,borderLeft:"3px solid "+color,padding:"16px 18px"}}><div style={{fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:.4,textTransform:"uppercase",marginBottom:6}}>{label}</div><div style={{fontSize:26,fontWeight:700,color,fontFamily:M,lineHeight:1,letterSpacing:-0.5}}>{value}</div></Card>;}
