@@ -20,7 +20,7 @@ function WorkflowBuilder({D,userName}){
 
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Workflow Automations</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Workflow Automations</h3>
       <div style={{display:"flex",gap:6}}>
         <button onClick={()=>setView(view==="list"?"runs":"list")} style={{...BS,fontSize:11,padding:"6px 12px"}}>{view==="list"?"📋 Run Log":"← Workflows"}</button>
         <button onClick={()=>setEditing({name:"",description:"",nodes:[],edges:[],active:false})} style={{...BP,fontSize:12}}>+ New Workflow</button>
@@ -57,7 +57,7 @@ function WorkflowBuilder({D,userName}){
               {wf.description&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>{wf.description}</div>}
               <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
                 {triggerNode&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:B.cyan+"18",color:B.cyan,fontWeight:600}}>When: {WF_TRIGGERS.find(t=>t.key===triggerNode.config?.event)?.label||triggerNode.config?.event}</span>}
-                {actionNodes.map((n,i)=><span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:B.purple+"18",color:B.purple,fontWeight:600}}>→ {WF_ACTIONS.find(a=>a.key===n.config?.action_type)?.label||n.config?.action_type}</span>)}
+                {actionNodes.map((n,i)=><span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:4,background:B.cyan+"18",color:B.cyan,fontWeight:600}}>→ {WF_ACTIONS.find(a=>a.key===n.config?.action_type)?.label||n.config?.action_type}</span>)}
               </div>
               <div style={{fontSize:10,color:B.textDim,marginTop:4}}>{(wf.nodes||[]).length} nodes · {recentRuns} runs</div>
             </div>
@@ -100,7 +100,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
   const addEdge=(src,tgt)=>{if(src===tgt||edges.some(e=>e.source===src&&e.target===tgt))return;setEdges([...edges,{id:"e"+Date.now(),source:src,target:tgt}]);};
   const removeEdge=(id)=>setEdges(edges.filter(e=>e.id!==id));
 
-  const nodeColors={trigger:B.cyan,condition:B.orange,action:B.purple,wait:B.textDim};
+  const nodeColors={trigger:B.cyan,condition:B.orange,action:B.cyan,wait:B.textDim};
   const nodeIcons={trigger:"⚡",condition:"❓",action:"▶",wait:"⏳"};
 
   const handleMouseDown=(e,nodeId)=>{e.stopPropagation();if(connecting){addEdge(connecting,nodeId);setConnecting(null);return;}
@@ -129,7 +129,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
       <button onClick={()=>addNode("trigger",{event:"wo_created"})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.cyan+"40",color:B.cyan}}>+ Trigger</button>
       <button onClick={()=>addNode("condition",{field:"",operator:"equals",value:""})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.orange+"40",color:B.orange}}>+ Condition</button>
-      <button onClick={()=>addNode("action",{action_type:"create_notification"})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.purple+"40",color:B.purple}}>+ Action</button>
+      <button onClick={()=>addNode("action",{action_type:"create_notification"})} style={{...BS,padding:"6px 12px",fontSize:11,borderColor:B.cyan+"40",color:B.cyan}}>+ Action</button>
       <button onClick={()=>addNode("wait",{delay_hours:24})} style={{...BS,padding:"6px 12px",fontSize:11,color:B.textMuted}}>+ Wait</button>
       {connecting&&<span style={{fontSize:11,color:B.orange,fontWeight:600,padding:"6px 12px"}}>Click a node to connect...</span>}
     </div>

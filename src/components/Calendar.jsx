@@ -22,13 +22,13 @@ function CompanyCalendar({userRole,wos,userName}){
   const dateStr=d=>y+"-"+pad(m+1)+"-"+pad(d);
   // Merge events + WO due dates
   const getDateItems=(d)=>{if(!d)return[];const ds=dateStr(d);const evts=events.filter(e=>e.event_date===ds);const dues=(wos||[]).filter(w=>w.due_date===ds&&w.status!=="completed"&&(w.assignee===userName||(w.crew&&w.crew.includes(userName))));return[...evts.map(e=>({...e,kind:"event"})),...dues.map(w=>({id:w.id,title:w.wo_id+": "+w.title,event_type:"wo_due",kind:"wo"}))];};
-  const typeColors={holiday:B.red,event:B.cyan,deadline:B.orange,meeting:B.purple,wo_due:B.green};
+  const typeColors={holiday:B.red,event:B.cyan,deadline:B.orange,meeting:B.cyan,wo_due:B.green};
 
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <button onClick={()=>setMonth(new Date(y,m-1))} style={{...BS,padding:"6px 12px",fontSize:14}}>←</button>
-        <span style={{fontSize:16,fontWeight:800,color:B.text,fontFamily:F,minWidth:160,textAlign:"center"}}>{month.toLocaleString("default",{month:"long",year:"numeric"})}</span>
+        <span style={{fontSize:16,fontWeight:700,color:B.text,fontFamily:F,minWidth:160,textAlign:"center"}}>{month.toLocaleString("default",{month:"long",year:"numeric"})}</span>
         <button onClick={()=>setMonth(new Date(y,m+1))} style={{...BS,padding:"6px 12px",fontSize:14}}>→</button>
       </div>
       {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12}}>+ Add Event</button>}
@@ -37,9 +37,9 @@ function CompanyCalendar({userRole,wos,userName}){
     <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
       {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:B.textDim,padding:"6px 0",letterSpacing:.5}}>{d}</div>)}
       {days.map((d,i)=>{const items=getDateItems(d);const isToday=d&&dateStr(d)===todayStr;return<div key={i} style={{minHeight:70,padding:4,background:d?B.surface:B.bg,border:"1px solid "+(isToday?B.cyan:B.border),borderRadius:6,position:"relative"}}>
-        {d&&<div style={{fontSize:11,fontWeight:isToday?800:500,color:isToday?B.cyan:B.text,marginBottom:2}}>{d}</div>}
-        {items.slice(0,3).map(it=><div key={it.id} style={{fontSize:8,padding:"2px 4px",marginBottom:1,borderRadius:3,background:(typeColors[it.event_type]||B.cyan)+"22",color:typeColors[it.event_type]||B.cyan,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.title}</div>)}
-        {items.length>3&&<div style={{fontSize:7,color:B.textDim}}>+{items.length-3} more</div>}
+        {d&&<div style={{fontSize:11,fontWeight:isToday?700:500,color:isToday?B.cyan:B.text,marginBottom:2}}>{d}</div>}
+        {items.slice(0,3).map(it=><div key={it.id} style={{fontSize:10,padding:"2px 4px",marginBottom:1,borderRadius:3,background:(typeColors[it.event_type]||B.cyan)+"22",color:typeColors[it.event_type]||B.cyan,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.title}</div>)}
+        {items.length>3&&<div style={{fontSize:10,color:B.textDim}}>+{items.length-3} more</div>}
       </div>})}
     </div>
 

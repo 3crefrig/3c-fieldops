@@ -3,7 +3,7 @@ import { B, F, M, IS, LS, fmtHours } from "../shared";
 import { Card, Badge, StatCard, Modal } from "./ui";
 
 function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
-  if(!data.length||data.every(v=>v===0))return <div style={{width,height,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:9,color:B.textDim}}>No data</span></div>;
+  if(!data.length||data.every(v=>v===0))return <div style={{width,height,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:10,color:B.textDim}}>No data</span></div>;
   const max=Math.max(...data,1);const min=Math.min(...data,0);const range=max-min||1;
   const pad=4;const w=width-pad*2;const h=height-pad*2;
   const pts=data.map((v,i)=>({x:pad+(i/(data.length-1||1))*w,y:pad+h-(((v-min)/range)*h)}));
@@ -94,25 +94,16 @@ function KPIDashboard({D,A,userRole,userName}){
 
   const ranges=[["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
 
-  // ── Bento tile style helper ──
+  // ── KPI tile style helper (flat card look) ──
   const bentoTile=(color,idx,extra={})=>({
-    background:`${B.surface}CC`,
-    backdropFilter:"blur(12px)",
-    WebkitBackdropFilter:"blur(12px)",
-    border:`1px solid ${B.border}40`,
-    borderRadius:14,
-    borderLeft:`3px solid ${color}`,
-    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.1)",
+    background:B.surface,
+    border:"1px solid "+B.border,
+    borderRadius:10,
+    borderLeft:"3px solid "+color,
+    boxShadow:hovered===`tile-${idx}`?"0 2px 6px rgba(0,0,0,0.12)":"0 1px 3px rgba(0,0,0,0.08)",
     padding:"16px 18px",
-    animation:"slideUp 0.3s ease-out both",
-    animationDelay:`${idx*0.05}s`,
-    transition:"transform 0.2s ease, box-shadow 0.2s ease",
-    ...(hovered===`tile-${idx}`?{transform:"translateY(-2px)",boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 20px rgba(0,0,0,0.15)"}:{}),
     ...extra,
   });
-
-  // ── Keyframes injection ──
-  const keyframes=`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
 
   // Build KPI tile data
   let tileIdx=0;
@@ -134,8 +125,6 @@ function KPIDashboard({D,A,userRole,userName}){
   const allTiles=[...kpiTiles,...finTiles];
 
   return(<div>
-    <style>{keyframes}</style>
-
     {/* Date Range Pills */}
     <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
       {ranges.map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{
@@ -145,7 +134,6 @@ function KPIDashboard({D,A,userRole,userName}){
         color:range===k?B.cyan:B.textDim,
         fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F,
         transition:"all 0.2s ease",
-        boxShadow:range===k?"0 0 12px "+B.cyan+"25":"none",
       }}>{l}</button>)}
     </div>
 
@@ -168,10 +156,9 @@ function KPIDashboard({D,A,userRole,userName}){
           >
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
               <div>
-                <div style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>{t.label}</div>
-                <div style={{fontFamily:M,fontSize:22,fontWeight:900,color:B.text,letterSpacing:-0.5,animation:"fadeIn 0.4s ease-out both",animationDelay:`${idx*0.05+0.15}s`}}>{t.value}</div>
+                <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4,marginBottom:6}}>{t.label}</div>
+                <div style={{fontFamily:M,fontSize:22,fontWeight:700,color:B.text,letterSpacing:-0.5}}>{t.value}</div>
               </div>
-              <span style={{fontSize:20,opacity:0.7,lineHeight:1}}>{t.icon}</span>
             </div>
           </div>
         );
@@ -188,7 +175,7 @@ function KPIDashboard({D,A,userRole,userName}){
       {[
         {label:"Hours (8 wk)",val:fmtHours(sparkWeeks[sparkWeeks.length-1].hrs),data:sparkWeeks.map(w=>w.hrs),color:B.cyan,idx:allTiles.length},
         {label:"Completions (8 wk)",val:sparkWeeks[sparkWeeks.length-1].comp,data:sparkWeeks.map(w=>w.comp),color:B.green,idx:allTiles.length+1},
-        ...(isAdmin?[{label:"Revenue (8 wk)",val:"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString(),data:sparkWeeks.map(w=>w.rev),color:B.purple,idx:allTiles.length+2}]:[]),
+        ...(isAdmin?[{label:"Revenue (8 wk)",val:"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString(),data:sparkWeeks.map(w=>w.rev),color:B.cyan,idx:allTiles.length+2}]:[]),
       ].map(sp=>(
         <div key={sp.label}
           style={bentoTile(sp.color,sp.idx,{gridColumn:isMobile?"span 2":"auto"})}
@@ -196,7 +183,7 @@ function KPIDashboard({D,A,userRole,userName}){
           onMouseLeave={()=>setHovered(null)}
         >
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{fontSize:9,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8}}>{sp.label}</span>
+            <span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4}}>{sp.label}</span>
             <span style={{fontFamily:M,fontSize:13,fontWeight:700,color:sp.color}}>{sp.val}</span>
           </div>
           <Sparkline data={sp.data} color={sp.color} width={isMobile?260:220} height={44}/>
@@ -204,18 +191,14 @@ function KPIDashboard({D,A,userRole,userName}){
       ))}
     </div>
 
-    {/* ── Customer Breakdown (Glassmorphism) ── */}
+    {/* ── Customer Breakdown ── */}
     {isMgr&&custStats.length>0&&<div style={{
-      background:`${B.surface}CC`,
-      backdropFilter:"blur(12px)",
-      WebkitBackdropFilter:"blur(12px)",
-      border:`1px solid ${B.border}40`,
-      borderRadius:14,
-      boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.1)",
+      background:B.surface,
+      border:"1px solid "+B.border,
+      borderRadius:10,
+      boxShadow:"0 1px 3px rgba(0,0,0,0.08)",
       padding:"18px 20px",
       marginBottom:16,
-      animation:"slideUp 0.3s ease-out both",
-      animationDelay:`${(allTiles.length+3)*0.05}s`,
     }}>
       <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:14}}>Top Accounts</div>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -229,7 +212,7 @@ function KPIDashboard({D,A,userRole,userName}){
                 <span style={{fontSize:10,fontFamily:M,color:B.textDim,flexShrink:0}}>{s.done}/{s.total} WOs · {s.hours.toFixed(0)}h</span>
               </div>
               <div style={{height:5,borderRadius:3,background:B.border,overflow:"hidden"}}>
-                <div style={{width:pct+"%",height:"100%",borderRadius:3,background:`linear-gradient(90deg, ${barColor}90, ${barColor})`,transition:"width .4s ease-out",boxShadow:`0 0 6px ${barColor}30`}}/>
+                <div style={{width:pct+"%",height:"100%",borderRadius:3,background:barColor,transition:"width .4s ease-out"}}/>
               </div>
             </div>
             <span style={{fontSize:11,fontFamily:M,fontWeight:700,color:barColor,width:36,textAlign:"right"}}>{pct}%</span>
@@ -243,7 +226,7 @@ function KPIDashboard({D,A,userRole,userName}){
         {drillContent.map(inv=><Card key={inv.id} style={{padding:"12px 14px",borderLeft:"3px solid "+(drillDown==="overdue"?B.red:B.cyan)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
-              <span style={{fontFamily:M,fontWeight:800,fontSize:13,color:B.text}}>INV-{inv.invoice_num}</span>
+              <span style={{fontFamily:M,fontWeight:700,fontSize:13,color:B.text}}>INV-{inv.invoice_num}</span>
               <span style={{fontSize:12,color:B.textMuted,marginLeft:8}}>{inv.customer}</span>
             </div>
             <div style={{textAlign:"right"}}>
@@ -279,15 +262,15 @@ function DashAnalytics({wos,time,pos}){
   const maxHrs=Math.max(...weeks.map(w=>w.hrs),1);
   const maxCompleted=Math.max(...weeks.map(w=>w.completed),1);
   return(<Card style={{padding:20,marginBottom:16}}>
-    <div style={{fontSize:14,fontWeight:800,color:B.text,marginBottom:16,letterSpacing:-0.2}}>4-Week Trend</div>
+    <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:16,letterSpacing:-0.2}}>4-Week Trend</div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-      <div><div style={{fontSize:9,color:B.textDim,fontWeight:700,marginBottom:10,letterSpacing:0.8,textTransform:"uppercase"}}>Hours Worked</div><div style={{display:"flex",alignItems:"flex-end",gap:8,height:70}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><span style={{fontSize:10,fontFamily:M,color:B.cyan,fontWeight:700}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:`linear-gradient(180deg,${B.cyan},${B.cyanDark})`,borderRadius:4,height:Math.max(6,w.hrs/maxHrs*55)+"px",transition:"height .4s ease-out",boxShadow:"0 2px 8px "+B.cyan+"30"}}/><span style={{fontSize:8,color:B.textDim,fontWeight:500}}>{w.label}</span></div>)}</div></div>
-      <div><div style={{fontSize:9,color:B.textDim,fontWeight:700,marginBottom:10,letterSpacing:0.8,textTransform:"uppercase"}}>WOs Completed</div><div style={{display:"flex",alignItems:"flex-end",gap:8,height:70}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><span style={{fontSize:10,fontFamily:M,color:B.green,fontWeight:700}}>{w.completed}</span><div style={{width:"100%",background:`linear-gradient(180deg,${B.green},#1A9A73)`,borderRadius:4,height:Math.max(6,w.completed/maxCompleted*55)+"px",transition:"height .4s ease-out",boxShadow:"0 2px 8px "+B.green+"30"}}/><span style={{fontSize:8,color:B.textDim,fontWeight:500}}>{w.label}</span></div>)}</div></div>
+      <div><div style={{fontSize:10,color:B.textDim,fontWeight:700,marginBottom:10,letterSpacing:0.4,textTransform:"uppercase"}}>Hours Worked</div><div style={{display:"flex",alignItems:"flex-end",gap:8,height:70}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><span style={{fontSize:10,fontFamily:M,color:B.cyan,fontWeight:700}}>{w.hrs.toFixed(0)}</span><div style={{width:"100%",background:B.cyan,borderRadius:4,height:Math.max(6,w.hrs/maxHrs*55)+"px",transition:"height .4s ease-out"}}/><span style={{fontSize:10,color:B.textDim,fontWeight:500}}>{w.label}</span></div>)}</div></div>
+      <div><div style={{fontSize:10,color:B.textDim,fontWeight:700,marginBottom:10,letterSpacing:0.4,textTransform:"uppercase"}}>WOs Completed</div><div style={{display:"flex",alignItems:"flex-end",gap:8,height:70}}>{weeks.map((w,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><span style={{fontSize:10,fontFamily:M,color:B.green,fontWeight:700}}>{w.completed}</span><div style={{width:"100%",background:B.green,borderRadius:4,height:Math.max(6,w.completed/maxCompleted*55)+"px",transition:"height .4s ease-out"}}/><span style={{fontSize:10,color:B.textDim,fontWeight:500}}>{w.label}</span></div>)}</div></div>
     </div>
     <div style={{display:"flex",justifyContent:"space-around",marginTop:18,padding:"14px 0",borderTop:"1px solid "+B.border,borderRadius:"0 0 10px 10px"}}>
-      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,fontFamily:M,color:B.cyan,letterSpacing:-0.5}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:9,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Total Hours</div></div>
-      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,fontFamily:M,color:B.green,letterSpacing:-0.5}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:9,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Completed</div></div>
-      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,fontFamily:M,color:B.purple,letterSpacing:-0.5}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:9,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>PO Spend</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,fontFamily:M,color:B.cyan,letterSpacing:-0.5}}>{weeks.reduce((s,w)=>s+w.hrs,0).toFixed(0)}h</div><div style={{fontSize:10,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginTop:2}}>Total Hours</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,fontFamily:M,color:B.green,letterSpacing:-0.5}}>{weeks.reduce((s,w)=>s+w.completed,0)}</div><div style={{fontSize:10,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginTop:2}}>Completed</div></div>
+      <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,fontFamily:M,color:B.cyan,letterSpacing:-0.5}}>{"$"+weeks.reduce((s,w)=>s+w.poAmt,0).toLocaleString()}</div><div style={{fontSize:10,color:B.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginTop:2}}>PO Spend</div></div>
     </div>
   </Card>);
 }

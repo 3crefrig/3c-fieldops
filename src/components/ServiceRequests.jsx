@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic, fnFetch } from "../shared";
-import { Card, Badge, Modal, Spinner } from "./ui";
+import { Toast, Card, Badge, Modal, Spinner } from "./ui";
 
 // ── Scan Inbox Button with 2hr cooldown ──────────────────────
 function ScanInboxButton({onComplete}){
@@ -74,7 +74,7 @@ function ScanInboxButton({onComplete}){
   return(<div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
     <button onClick={scan} disabled={!canScan}
       style={{...BP,padding:"10px 20px",fontSize:13,display:"flex",alignItems:"center",gap:8,opacity:canScan?1:.5}}>
-      {scanning?<><Spinner/> Scanning...</>:checking?"Checking...":"📬 Scan Inbox"}
+      {scanning?<><Spinner/> Scanning...</>:checking?"Checking...":"Scan Inbox"}
     </button>
     {cooldownUntil&&<span style={{fontSize:11,color:B.textDim}}>Next scan in {cooldownText}</span>}
     {result&&!result.error&&<span style={{fontSize:11,color:B.green,fontWeight:600}}>
@@ -86,6 +86,7 @@ function ScanInboxButton({onComplete}){
 }
 
 function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
+  const[srToast,setSrToast]=useState("");const notice=(m)=>{setSrToast(m);setTimeout(()=>setSrToast(""),3000);};
   const[sel,setSel]=useState(null);
   const[edits,setEdits]=useState({});
   const pending=(drafts||[]).filter(d=>d.status==="pending_review");
@@ -117,7 +118,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
         await onApprove(draft,defaultEdits);
       }
     }
-    setSelected([]);setBulkApproving(false);haptic(50);
+    setSelected([]);setBulkApproving(false);haptic(50);notice("Selected requests approved — WOs created");
   };
 
   const bulkReject=async()=>{
@@ -129,7 +130,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
     setSelected([]);setBulkRejecting(false);setShowBulkRejectConfirm(false);haptic(50);
   };
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:10}}>
+  return(<div style={{display:"flex",flexDirection:"column",gap:10}}><Toast msg={srToast}/>
     {/* Scan Inbox button */}
     <Card style={{padding:"12px 16px"}}>
       <ScanInboxButton onComplete={onRefresh}/>
@@ -139,7 +140,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
     {/* Bulk actions bar */}
     {pending.length>1&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:B.surface,borderRadius:8,border:"1px solid "+B.border}}>
       <div onClick={selectAll} style={{width:18,height:18,borderRadius:3,border:"2px solid "+(selected.length===pending.length?B.cyan:B.border),background:selected.length===pending.length?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-        {selected.length===pending.length&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+        {selected.length===pending.length&&<span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
       </div>
       <span style={{fontSize:12,color:B.textMuted,flex:1}}>{selected.length>0?selected.length+" selected":"Select requests for bulk actions"}</span>
       {selected.length>0&&<><button onClick={()=>setShowBulkRejectConfirm(true)} disabled={bulkRejecting} style={{...BP,background:B.red,padding:"6px 14px",fontSize:12,opacity:bulkRejecting?.5:1}}>
@@ -161,7 +162,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
         <div style={{display:"flex",gap:10,flex:1,minWidth:0}}>
           {/* Checkbox for bulk select */}
           {pending.length>1&&<div onClick={(e)=>toggleSelect(d.id,e)} style={{width:18,height:18,borderRadius:3,border:"2px solid "+(selected.includes(d.id)?B.cyan:B.border),background:selected.includes(d.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>
-            {selected.includes(d.id)&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+            {selected.includes(d.id)&&<span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
           </div>}
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -225,7 +226,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       {/* Actions */}
       <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",flexWrap:"wrap"}}>
         <button onClick={()=>{setRejectId(sel.id);}} style={{...BS,color:B.red,borderColor:B.red+"40"}}>Reject</button>
-        <button onClick={()=>{onApprove(sel,edits);closeDraft();haptic(50);}} style={{...BP,background:B.green}}>Approve & Create WO</button>
+        <button onClick={()=>{onApprove(sel,edits);closeDraft();haptic(50);notice("Approved — work order created");}} style={{...BP,background:B.green}}>Approve & Create WO</button>
       </div>
     </Modal>}
 
@@ -245,7 +246,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       <textarea style={{...IS,minHeight:60}} value={rejectReason} onChange={e=>setRejectReason(e.target.value)} placeholder="Why is this being rejected?"/>
       <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"flex-end"}}>
         <button onClick={()=>{setRejectId(null);setRejectReason("");}} style={BS}>Cancel</button>
-        <button onClick={()=>{onReject(rejectId,rejectReason);setRejectId(null);setRejectReason("");closeDraft();haptic(50);}} style={{...BP,background:B.red}}>Reject</button>
+        <button onClick={()=>{onReject(rejectId,rejectReason);setRejectId(null);setRejectReason("");closeDraft();haptic(50);notice("Request rejected");}} style={{...BP,background:B.red}}>Reject</button>
       </div>
     </Modal>}
   </div>);

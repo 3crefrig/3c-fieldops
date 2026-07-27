@@ -34,7 +34,7 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
   return(<div>
     <Toast msg={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Agreement Tiers (Internal)</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Agreement Tiers (Internal)</h3>
       <button onClick={openNew} style={{...BP,fontSize:12}}>+ New Tier</button>
     </div>
     <div style={{fontSize:11,color:B.textDim,marginBottom:14,padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
@@ -45,7 +45,7 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
       {tiers.map(t=><Card key={t.id} style={{padding:"14px 16px",borderLeft:"3px solid "+B.cyan}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div>
-            <div style={{fontSize:15,fontWeight:800,color:B.text}}>{t.name}</div>
+            <div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div>
             <div style={{fontSize:11,color:B.textDim,marginTop:2}}>
               {FREQ_LABELS[t.visit_frequency]||t.visit_frequency} · {t.visits_per_year} visits/yr · {t.response_time_hours}h response · {t.priority_level} priority
               {t.discount_pct>0&&<span> · {t.discount_pct}% discount</span>}
@@ -83,7 +83,7 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
             {DEFAULT_SERVICES.map(s=><button key={s} onClick={()=>toggleService(s)} style={{padding:"5px 10px",borderRadius:4,border:"1px solid "+(f.included_services.includes(s)?B.cyan:B.border),background:f.included_services.includes(s)?B.cyanGlow:"transparent",color:f.included_services.includes(s)?B.cyan:B.textDim,fontSize:11,cursor:"pointer",fontFamily:F}}>{f.included_services.includes(s)?"✓ ":""}{s}</button>)}
           </div>
           <div style={{display:"flex",gap:6}}><input value={newService} onChange={e=>setNewService(e.target.value)} placeholder="Add custom service..." style={{...IS,flex:1,padding:8,fontSize:12}} onKeyDown={e=>e.key==="Enter"&&addCustomService()}/><button onClick={addCustomService} style={{...BS,padding:"8px 12px",fontSize:11}}>Add</button></div>
-          {f.included_services.filter(s=>!DEFAULT_SERVICES.includes(s)).map(s=><span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.purple+"22",color:B.purple,fontSize:11,fontWeight:600,marginTop:6,marginRight:4}}>{s}<button onClick={()=>toggleService(s)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}
+          {f.included_services.filter(s=>!DEFAULT_SERVICES.includes(s)).map(s=><span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600,marginTop:6,marginRight:4}}>{s}<button onClick={()=>toggleService(s)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{setShowForm(false);setEditing(null);}} style={{...BS,flex:1}}>Cancel</button>
@@ -455,9 +455,9 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
     <Card style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontWeight:800,fontSize:16,color:B.text}}>{a.agreement_num}</span><Badge color={STATUS_COLORS[a.status]}>{STATUS_LABELS[a.status]}</Badge></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontWeight:700,fontSize:16,color:B.text}}>{a.agreement_num}</span><Badge color={STATUS_COLORS[a.status]}>{STATUS_LABELS[a.status]}</Badge></div>
           <div style={{fontSize:14,fontWeight:600,color:B.textMuted,marginTop:4}}>{a.customer_name}</div>
-          {a.tier_name&&<div style={{fontSize:11,color:B.purple,marginTop:2}}>Tier: {a.tier_name} (internal)</div>}
+          {a.tier_name&&<div style={{fontSize:11,color:B.cyan,marginTop:2}}>Tier: {a.tier_name} (internal)</div>}
         </div>
         <div style={{display:"flex",gap:6}}>
           <button onClick={handleGeneratePDF} disabled={generatingPdf} style={{...BP,padding:"6px 12px",fontSize:11,opacity:generatingPdf?.6:1}}>{generatingPdf?"Generating...":"PDF"}</button>
@@ -472,7 +472,7 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
       <StatCard label="Visits Done" value={a.visits_completed+"/"+(a.visits_per_year||"?")} icon="✓" color={B.cyan}/>
       <StatCard label="Days Left" value={daysRemaining>0?daysRemaining:"Expired"} icon="📅" color={daysRemaining<=30?B.orange:B.green}/>
       <StatCard label="Service Hours" value={fmtHours(totalHours)} icon="⏱" color={B.orange}/>
-      <StatCard label="Parts Cost" value={"$"+totalCost.toFixed(0)} icon="🔧" color={B.purple}/>
+      <StatCard label="Parts Cost" value={"$"+totalCost.toFixed(0)} icon="🔧" color={B.cyan}/>
     </div>
 
     {/* Terms */}
@@ -557,7 +557,7 @@ function AgreementDashboard({D,A,userRole,userName}){
     </div>
 
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Service Agreements</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Service Agreements</h3>
       <div style={{display:"flex",gap:6}}>
         {canEdit&&<button onClick={()=>setManageTiers(true)} style={{...BS,fontSize:11,padding:"6px 12px"}}>Manage Tiers</button>}
         {canEdit&&<button onClick={()=>setCreating(true)} style={{...BP,fontSize:12}}>+ New Agreement</button>}
@@ -576,9 +576,9 @@ function AgreementDashboard({D,A,userRole,userName}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span style={{fontFamily:M,fontWeight:800,fontSize:14,color:B.text}}>{a.agreement_num}</span>
+                <span style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>{a.agreement_num}</span>
                 <Badge color={STATUS_COLORS[a.status]}>{STATUS_LABELS[a.status]}</Badge>
-                {a.tier_name&&<span style={{fontSize:10,color:B.purple,fontWeight:600,padding:"2px 6px",background:B.purple+"15",borderRadius:3}}>{a.tier_name}</span>}
+                {a.tier_name&&<span style={{fontSize:10,color:B.cyan,fontWeight:600,padding:"2px 6px",background:B.cyan+"15",borderRadius:3}}>{a.tier_name}</span>}
               </div>
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:3}}>{a.customer_name}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>
@@ -587,7 +587,7 @@ function AgreementDashboard({D,A,userRole,userName}){
               </div>
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
-              <div style={{fontFamily:M,fontWeight:800,fontSize:14,color:B.green}}>${parseFloat(a.monthly_rate||0).toFixed(0)}/mo</div>
+              <div style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.green}}>${parseFloat(a.monthly_rate||0).toFixed(0)}/mo</div>
               {a.status==="active"&&<div style={{fontSize:10,fontWeight:600,color:daysLeft<=30?B.orange:B.textDim,marginTop:2}}>{daysLeft>0?daysLeft+"d left":"Expired"}</div>}
             </div>
           </div>

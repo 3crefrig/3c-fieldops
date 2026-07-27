@@ -118,7 +118,7 @@ function OptionPanel({tiers,setTiers,parts,setParts,label,setLabel,optDesc,setOp
     {optDesc!==undefined&&<div style={{marginBottom:12}}><label style={LS}>Description</label><textarea value={optDesc} onChange={e=>setOptDesc(e.target.value)} rows={2} style={{...IS,resize:"vertical"}} placeholder="Describe this option..."/></div>}
     <div style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{...LS,marginBottom:0}}>Labor Tiers</span><button onClick={addTier} style={{...BS,padding:"3px 8px",fontSize:10}}>+ Tier</button></div>
-      {tiers.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:6,marginBottom:4,alignItems:"center"}}>
+      {tiers.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:window.innerWidth<768?"1fr 1fr auto":"2fr 1fr 1fr auto",gap:6,marginBottom:4,alignItems:"center"}}>
         <input value={t.name} onChange={e=>updateTier(i,"name",e.target.value)} placeholder="Tier name" style={{...IS,padding:7,fontSize:11}}/>
         <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:10,color:B.textDim}}>$</span><input value={t.rate||""} onChange={e=>updateTier(i,"rate",e.target.value)} type="number" placeholder="Rate" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
         <div style={{display:"flex",alignItems:"center",gap:2}}><input value={t.hours||""} onChange={e=>updateTier(i,"hours",e.target.value)} type="number" step="0.25" placeholder="Hrs" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
@@ -128,7 +128,7 @@ function OptionPanel({tiers,setTiers,parts,setParts,label,setLabel,optDesc,setOp
     </div>
     <div style={{marginBottom:8}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{...LS,marginBottom:0}}>Parts</span><button onClick={addPart} style={{...BS,padding:"3px 8px",fontSize:10}}>+ Part</button></div>
-      {parts.map((p,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 0.5fr 1fr 0.6fr auto",gap:4,marginBottom:4,alignItems:"center"}}>
+      {parts.map((p,i)=><div key={i} style={{display:"grid",gridTemplateColumns:window.innerWidth<768?"1fr 1fr auto":"2fr 0.5fr 1fr 0.6fr auto",gap:4,marginBottom:4,alignItems:"center"}}>
         <input value={p.description} onChange={e=>updatePart(i,"description",e.target.value)} placeholder="Part" style={{...IS,padding:7,fontSize:11}}/>
         <input value={p.quantity||""} onChange={e=>updatePart(i,"quantity",e.target.value)} type="number" placeholder="Qty" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/>
         <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:10,color:B.textDim}}>$</span><input value={p.unit_cost||""} onChange={e=>updatePart(i,"unit_cost",e.target.value)} type="number" placeholder="Cost" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
@@ -137,7 +137,7 @@ function OptionPanel({tiers,setTiers,parts,setParts,label,setLabel,optDesc,setOp
       </div>)}
       {parts.length>0&&<div style={{textAlign:"right",fontSize:11,fontFamily:M,color:B.orange,fontWeight:700}}>Parts: ${partsTotal.toFixed(2)}</div>}
     </div>
-    <div style={{textAlign:"right",fontSize:13,fontFamily:M,fontWeight:800,color:B.green}}>Total: ${(laborTotal+partsTotal).toFixed(2)}</div>
+    <div style={{textAlign:"right",fontSize:13,fontFamily:M,fontWeight:700,color:B.green}}>Total: ${(laborTotal+partsTotal).toFixed(2)}</div>
   </div>);
 }
 
@@ -194,7 +194,7 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
       <OptionPanel tiers={tiers} setTiers={setTiers} parts={parts} setParts={setParts}/>
       <Card style={{padding:16,marginBottom:16,marginTop:16,borderLeft:"3px solid "+B.green,textAlign:"center"}}>
         <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:4}}>Estimated Total</div>
-        <div style={{fontSize:28,fontWeight:900,fontFamily:M,color:B.green}}>${grandTotal.toFixed(2)}</div>
+        <div style={{fontSize:28,fontWeight:700,fontFamily:M,color:B.green}}>${grandTotal.toFixed(2)}</div>
         <div style={{fontSize:11,color:B.textMuted,marginTop:4}}>Labor: ${laborTotal.toFixed(2)} + Parts: ${partsTotal.toFixed(2)}</div>
       </Card>
     </>:<>
@@ -216,9 +216,9 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
       </Card>}
       {/* Summary of all options */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:16}}>
-        {options.map((o,i)=>{const t=calcOptTotal(o);return<Card key={i} style={{padding:12,textAlign:"center",borderLeft:"3px solid "+(i===0?B.green:i===1?B.cyan:B.purple)}}>
+        {options.map((o,i)=>{const t=calcOptTotal(o);return<Card key={i} style={{padding:12,textAlign:"center",borderLeft:"3px solid "+(i===0?B.green:i===1?B.cyan:B.cyan)}}>
           <div style={{fontSize:11,fontWeight:700,color:B.textMuted,marginBottom:4}}>{o.label||"Option "+(i+1)}</div>
-          <div style={{fontSize:20,fontWeight:900,fontFamily:M,color:i===0?B.green:i===1?B.cyan:B.purple}}>${t.total.toFixed(2)}</div>
+          <div style={{fontSize:20,fontWeight:700,fontFamily:M,color:i===0?B.green:i===1?B.cyan:B.cyan}}>${t.total.toFixed(2)}</div>
           <div style={{fontSize:10,color:B.textDim}}>L: ${t.labor.toFixed(0)} + P: ${t.parts.toFixed(0)}</div>
         </Card>;})}
       </div>
@@ -335,7 +335,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
     {/* Step 2: AI Generate */}
     {step===2&&<div style={{textAlign:"center",padding:20}}>
       <div style={{fontSize:48,marginBottom:16}}>🤖</div>
-      <h3 style={{fontSize:16,fontWeight:800,color:B.text,marginBottom:8}}>Ready to Generate</h3>
+      <h3 style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:8}}>Ready to Generate</h3>
       <p style={{fontSize:13,color:B.textMuted,marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>
         AI will draft a professional proposal for <strong>{cust}</strong> based on your scope description.
         {estimate&&" It will reference your $"+estimate.grand_total?.toFixed(2)+" estimate."}
@@ -597,7 +597,7 @@ function ProposalDashboard({D,userName}){
   const load=async()=>{const[{data:p},{data:e}]=await Promise.all([sb().from("proposals").select("*").order("created_at",{ascending:false}),sb().from("estimates").select("*").order("created_at",{ascending:false})]);setProposals(p||[]);setEstimates(e||[]);setLoading(false);};
   useEffect(()=>{load();},[]);
 
-  const PSC_PROP={draft:B.purple,sent:B.cyan,approved:B.green,rejected:B.red,expired:B.textDim};
+  const PSC_PROP={draft:B.cyan,sent:B.cyan,approved:B.green,rejected:B.red,expired:B.textDim};
   const totalQuoted=proposals.filter(p=>p.status!=="rejected").reduce((s,p)=>{const est=estimates.find(e=>e.id===p.estimate_id);return s+(est?.grand_total||0);},0);
   const approvedCount=proposals.filter(p=>p.status==="approved").length;
   const approvalRate=proposals.length>0?Math.round((approvedCount/proposals.length)*100):0;
@@ -622,7 +622,7 @@ function ProposalDashboard({D,userName}){
       <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="⏳" color={B.orange}/>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Proposals</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Proposals</h3>
       <button onClick={()=>setView("create")} style={{...BP,fontSize:12}}>+ New Proposal</button>
     </div>
 
@@ -634,7 +634,7 @@ function ProposalDashboard({D,userName}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <span style={{fontFamily:M,fontWeight:800,fontSize:14,color:B.text}}>{prop.proposal_num}</span>
+              <span style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>{prop.proposal_num}</span>
               <Badge color={PSC_PROP[prop.status]||B.textDim}>{prop.status}</Badge>
             </div>
             <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{prop.customer_name} — {prop.title}</div>
@@ -646,7 +646,7 @@ function ProposalDashboard({D,userName}){
             </div>
           </div>
           <div style={{display:"flex",gap:4,flexShrink:0}}>
-            <button onClick={()=>generateProposalPdf(prop,est)} style={{...BS,padding:"5px 10px",fontSize:11}}>📄 PDF</button>
+            <button onClick={()=>generateProposalPdf(prop,est)} style={{...BS,padding:"5px 10px",fontSize:11}}>PDF</button>
             {(prop.status==="draft"||prop.status==="sent")&&<button onClick={()=>setEditing(prop)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>}
             {prop.status==="draft"&&<button onClick={()=>sendProposal(prop)} style={{...BP,padding:"5px 12px",fontSize:11}}>Send</button>}
             <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/#/proposal/"+prop.approval_token);msg("Link copied!");}} style={{...BS,padding:"5px 10px",fontSize:11}}>🔗</button>
@@ -680,7 +680,7 @@ function ProposalPortal({token}){
 
   if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
-  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"✅":"📝"}</div><h2 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"✅":"📝"}</div><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
 
   const isExpired=prop.expires_at&&new Date(prop.expires_at)<new Date();
   const alreadyActioned=prop.status==="approved"||prop.status==="rejected";
@@ -689,7 +689,7 @@ function ProposalPortal({token}){
     <div style={{background:B.surface,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Proposal</div></div>
     <div style={{maxWidth:700,margin:"0 auto",padding:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-        <div><h2 style={{fontSize:20,fontWeight:800,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
+        <div><h2 style={{fontSize:20,fontWeight:700,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
         <Badge color={PSC[prop.status]||B.textDim}>{prop.status}</Badge>
       </div>
 
@@ -702,17 +702,17 @@ function ProposalPortal({token}){
       {est&&est.estimate_type==="multi_option"&&est.options&&est.options.length>0?<div style={{marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Options</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {est.options.map((opt,i)=>{const optColors=[B.green,B.cyan,B.purple,B.orange];const c=optColors[i%optColors.length];
+          {est.options.map((opt,i)=>{const optColors=[B.green,B.cyan,B.cyan,B.orange];const c=optColors[i%optColors.length];
             return<Card key={i} onClick={()=>!alreadyActioned&&!isExpired&&setSelectedOpt(i)} style={{padding:16,borderLeft:"3px solid "+c,cursor:alreadyActioned||isExpired?"default":"pointer",border:selectedOpt===i?"2px solid "+c:"1px solid "+B.border}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:800,color:B.text}}>{opt.label||"Option "+(i+1)}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:B.text}}>{opt.label||"Option "+(i+1)}</div>
                   {opt.description&&<div style={{fontSize:12,color:B.textMuted,marginTop:4}}>{opt.description}</div>}
                   {(opt.tier_data||[]).filter(t=>t.hours>0).length>0&&<div style={{marginTop:8}}>{est.hide_rates?<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>Labor</span><span style={{fontFamily:M}}>${(opt.labor_total||0).toFixed(2)}</span></div>:opt.tier_data.filter(t=>t.hours>0).map((t,ti)=><div key={ti} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{t.name}</span><span style={{fontFamily:M}}>{t.hours}h × ${t.rate}/hr</span></div>)}</div>}
                   {(opt.parts_data||[]).filter(p=>p.quantity>0).length>0&&<div style={{marginTop:6}}>{opt.parts_data.filter(p=>p.quantity>0).map((p,pi)=><div key={pi} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}}><span style={{color:B.textDim}}>{p.description} ×{p.quantity}</span><span style={{fontFamily:M}}>${(p.quantity*p.unit_cost*(1+(p.markup_pct||0)/100)).toFixed(2)}</span></div>)}</div>}
                 </div>
                 <div style={{textAlign:"right",marginLeft:16}}>
-                  <div style={{fontSize:22,fontWeight:900,fontFamily:M,color:c}}>${(opt.grand_total||0).toFixed(2)}</div>
+                  <div style={{fontSize:22,fontWeight:700,fontFamily:M,color:c}}>${(opt.grand_total||0).toFixed(2)}</div>
                   {selectedOpt===i&&<div style={{fontSize:10,color:c,fontWeight:700,marginTop:4}}>SELECTED</div>}
                 </div>
               </div>
@@ -732,7 +732,7 @@ function ProposalPortal({token}){
           {est.parts_data.filter(p=>p.quantity>0).map((p,i)=>{const markedUp=p.unit_cost*(1+(p.markup_pct||0)/100);return<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
             <span style={{color:B.text}}>{p.description} (×{p.quantity})</span><span style={{fontFamily:M,color:B.text}}>${(p.quantity*markedUp).toFixed(2)}</span>
           </div>;})}</>}
-        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0 0",marginTop:8,fontSize:16,fontWeight:800}}>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0 0",marginTop:8,fontSize:16,fontWeight:700}}>
           <span style={{color:B.text}}>Total</span><span style={{fontFamily:M,color:B.green}}>${est.grand_total?.toFixed(2)}</span>
         </div>
         {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:6}}>Valid until {fmtDate(est.valid_until)}</div>}

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { B, F, BS, haptic, setTheme, getTheme, getRoles, ROLES, GlobalStyles } from "../shared";
-import { Logo, Badge, GlobalSearch } from "./ui";
+import { Logo, Badge, GlobalSearch, Icon } from "./ui";
+
+// Mobile bottom-bar icons (SVG, themed via currentColor) — desktop tabs are text-only.
+const TAB_ICON={today:"home",overview:"activity",inbox:"inbox",orders:"clipboard",planner:"calendar",calendar:"calendar",time:"clock",kb:"book",equipment:"wrench"};
 import { NotifBell } from "./CameraUpload";
 import { registerPush, pushSupported, pushPermission } from "../push";
 
@@ -48,10 +51,10 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
         {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline{offlineQueueCount>0?" ("+offlineQueueCount+" queued)":""}</span>}
-        {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600,animation:"pulseGlow 2s infinite"}}>syncing{offlineQueueCount>0?" ("+offlineQueueCount+")":""}...</span>}
+        {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600}}>syncing{offlineQueueCount>0?" ("+offlineQueueCount+")":""}...</span>}
         <NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/>
-        <Badge color={_ROLES[user.role]?_ROLES[user.role].color:B.textDim}>{user.role}</Badge>
-        <span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>
+        {!isMobile&&<Badge color={_ROLES[user.role]?_ROLES[user.role].color:B.textDim}>{user.role}</Badge>}
+        {!isMobile&&<span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>}
         <button onClick={onLogout} style={{...BS,padding:"5px 12px",fontSize:11,borderRadius:8,transition:"background .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=B.surfaceActive;}} onMouseLeave={e=>{e.currentTarget.style.background=B.bg;}}>Sign Out</button>
       </div>
     </div>
@@ -76,19 +79,19 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
               const badge=g.label==="Operations"?tabs.find(t=>t.key==="inbox"&&t.label.includes("("))?"":"":null;
               return<button key={g.label} onClick={()=>{setOpenNavGroup(isOpen&&!isActive?null:g.label);if(!isOpen&&groupTabs[0])setTab(groupTabs[0].key);haptic(15);}}
                 style={{padding:"10px 18px",border:"none",background:isOpen?B.cyanGlow:"transparent",fontSize:12,fontWeight:isActive?700:500,color:isActive?B.cyan:B.textMuted,borderBottom:isActive?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.3,display:"flex",alignItems:"center",gap:6}}>
-                <span style={{fontSize:13}}>{g.icon}</span>{g.label}<span style={{fontSize:9,color:B.textDim,transition:"transform .15s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>{isOpen?"▾":"▸"}</span>
+                {g.label}<span style={{fontSize:9,color:B.textDim,transition:"transform .15s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>{isOpen?"▾":"▸"}</span>
               </button>;})}
           </div>
           {/* Sub-tabs for open group */}
           {effectiveOpen&&<div style={{display:"flex",gap:0,padding:"0 16px",background:B.bg,borderTop:"1px solid "+B.border}}>
             {tabs.filter(t=>(TAB_GROUPS.find(g=>g.label===effectiveOpen)?.keys||[]).includes(t.key)).map(t=>
-              <button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"8px 16px",border:"none",background:tab===t.key?B.cyan+"18":"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .12s",borderRadius:"6px 6px 0 0"}}>{t.icon} {t.label}</button>)}
+              <button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"8px 16px",border:"none",background:tab===t.key?B.cyan+"18":"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .12s",borderRadius:"6px 6px 0 0"}}>{t.label}</button>)}
           </div>}
         </div>);
       }
       // Simple flat tabs for tech dashboard or small tab counts
       return(<div style={{background:B.surface,padding:isMobile?"0 8px":"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
-        {tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:isMobile?"8px 10px":"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:isMobile?9:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.icon} {t.label}</button>)}
+        {tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:isMobile?"8px 10px":"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:isMobile?10:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.label}</button>)}
       </div>);
     })()}
     {pushSupported()&&pushState==="default"&&!pushDismissed&&<div style={{background:B.cyanGlow,borderBottom:"1px solid "+B.cyan+"40",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontSize:12,flexWrap:"wrap"}}>
@@ -98,7 +101,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       <button onClick={dismissPush} aria-label="Dismiss" style={{background:"none",border:"none",color:B.textDim,fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
     </div>}
     <div ref={contentRef} className="tab-content" key={tab+theme} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?"calc(74px + env(safe-area-inset-bottom))":20,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box",minHeight:0}}>{children}</div>
-    {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"4px 0",paddingBottom:"max(4px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48,transition:"color .15s"}}><span>{t.icon}</span><span style={{fontSize:10,fontWeight:tab===t.key?700:500,fontFamily:F}}>{t.label}</span></button>)}<button onClick={()=>setShowMoreTabs(!showMoreTabs)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:showMoreTabs?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48}}><span>•••</span><span style={{fontSize:10,fontWeight:500,fontFamily:F}}>More</span></button></div>}
-    {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:8,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.icon} {t.label}</button>)}</div>}
+    {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"4px 0",paddingBottom:"max(4px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,cursor:"pointer",padding:"6px 12px",minHeight:48,transition:"color .15s"}}><Icon name={TAB_ICON[t.key]||"dot"} size={20}/><span style={{fontSize:10,fontWeight:tab===t.key?700:500,fontFamily:F}}>{t.label}</span></button>)}<button onClick={()=>setShowMoreTabs(!showMoreTabs)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:showMoreTabs?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48}}><span>•••</span><span style={{fontSize:10,fontWeight:500,fontFamily:F}}>More</span></button></div>}
+    {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:10,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.label}</button>)}</div>}
   </div>);
 }

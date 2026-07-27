@@ -27,12 +27,12 @@ function FeedbackForm({token}){
   const bg=B.bg,sf=B.surface;
   if(loading)return<div style={{minHeight:"100vh",background:bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
-  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>🙏</div><h2 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Thank you!</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>Your feedback helps us improve our service. We truly appreciate your time.</p><div style={{marginTop:24}}><Logo/></div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>🙏</div><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>Thank you!</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>Your feedback helps us improve our service. We truly appreciate your time.</p><div style={{marginTop:24}}><Logo/></div></div>;
 
   return(<div style={{minHeight:"100vh",background:bg,fontFamily:F,color:B.text}}>
     <div style={{background:sf,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Feedback</div></div>
     <div style={{maxWidth:500,margin:"0 auto",padding:24}}>
-      <h2 style={{fontSize:18,fontWeight:800,marginBottom:4}}>How did we do?</h2>
+      <h2 style={{fontSize:18,fontWeight:700,marginBottom:4}}>How did we do?</h2>
       <p style={{fontSize:13,color:B.textMuted,marginBottom:24}}>We'd love to hear about your experience with 3C Refrigeration.</p>
 
       {/* Step 1: Star Rating */}
@@ -118,7 +118,7 @@ function FeedbackDashboard({D}){
       <StatCard label="Avg Rating" value={avgRating+"★"} icon="⭐" color={parseFloat(avgRating)>=4?B.green:parseFloat(avgRating)>=3?B.orange:B.red}/>
       <StatCard label="Responses" value={feedback.length} icon="📊" color={B.cyan}/>
       {npsScore!==null&&<StatCard label="NPS Score" value={npsScore} icon="📈" color={npsScore>=50?B.green:npsScore>=0?B.orange:B.red}/>}
-      <StatCard label="Testimonials" value={testimonials.length} icon="💬" color={B.purple}/>
+      <StatCard label="Testimonials" value={testimonials.length} icon="💬" color={B.cyan}/>
     </div>
 
     {/* Rating Distribution */}
@@ -158,7 +158,7 @@ function FeedbackDashboard({D}){
           <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{new Date(fb.submitted_at).toLocaleDateString()}{fb.invoice_num&&" · INV-"+fb.invoice_num}</div>
         </div>
       </div>
-      {fb.testimonial_text&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,borderLeft:"2px solid "+B.purple}}>
+      {fb.testimonial_text&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,borderLeft:"2px solid "+B.cyan}}>
         <div style={{fontSize:12,color:B.text,fontStyle:"italic",lineHeight:1.5}}>"{fb.testimonial_text}"</div>
         <div style={{display:"flex",gap:6,marginTop:8}}>
           <button onClick={()=>toggleApprove(fb)} style={{...BS,padding:"4px 10px",fontSize:10,color:fb.testimonial_approved?B.green:B.textMuted,borderColor:fb.testimonial_approved?B.green+"40":B.border}}>{fb.testimonial_approved?"✓ Approved":"Approve"}</button>

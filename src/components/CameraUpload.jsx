@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch } from "../shared";
 
-const PHOTO_STAGES=[{key:"before",label:"Before",icon:"📸",color:"#FFA040"},{key:"during",label:"During",icon:"🔧",color:"#00D4F5"},{key:"after",label:"After",icon:"✅",color:"#26D9A2"},{key:"general",label:"General",icon:"📷",color:"#8B929A"}];
+// Read B at call time so stage colors follow the active (dark/light) theme.
+const getPhotoStages=()=>[{key:"before",label:"Before",icon:"📸",color:B.orange},{key:"during",label:"During",icon:"🔧",color:B.cyan},{key:"after",label:"After",icon:"✅",color:B.green},{key:"general",label:"General",icon:"📷",color:B.textDim}];
 
 export function CameraUpload({woId,woName,onUploaded,userName,inputId,equipmentId,showStageSelector}){
   const fileRef=useRef(null);
   const[uploading,setUploading]=useState(false);
   const[stage,setStage]=useState("general");
+  const photoStages=getPhotoStages();
   const handleFile=async(e)=>{
     const file=e.target.files?.[0];if(!file||uploading)return;
     setUploading(true);
@@ -38,12 +40,12 @@ export function CameraUpload({woId,woName,onUploaded,userName,inputId,equipmentI
   };
   return(<div>
     {showStageSelector&&<div style={{display:"flex",gap:4,marginBottom:8}}>
-      {PHOTO_STAGES.map(s=><button key={s.key} onClick={()=>setStage(s.key)} style={{flex:1,padding:"6px 4px",borderRadius:4,border:"1px solid "+(stage===s.key?s.color:B.border),background:stage===s.key?s.color+"18":"transparent",color:stage===s.key?s.color:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"'Barlow',sans-serif",textAlign:"center"}}>{s.icon} {s.label}</button>)}
+      {photoStages.map(s=><button key={s.key} onClick={()=>setStage(s.key)} style={{flex:1,padding:"6px 4px",borderRadius:4,border:"1px solid "+(stage===s.key?s.color:B.border),background:stage===s.key?s.color+"18":"transparent",color:stage===s.key?s.color:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"'Barlow',sans-serif",textAlign:"center"}}>{s.icon} {s.label}</button>)}
     </div>}
     <input ref={fileRef} id={inputId} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
     <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{...BS,width:"100%",padding:14,opacity:uploading?.6:1}}>
       <div style={{fontSize:24,marginBottom:4}}>📷</div>
-      <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":(showStageSelector?"Take "+PHOTO_STAGES.find(s=>s.key===stage)?.label+" Photo":"Tap to Take Photo or Choose from Gallery")}</div>
+      <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":(showStageSelector?"Take "+photoStages.find(s=>s.key===stage)?.label+" Photo":"Tap to Take Photo or Choose from Gallery")}</div>
     </button>
   </div>);
 }
@@ -55,7 +57,7 @@ export function PhotoTimeline({photos}){
   const grouped={};stages.forEach(s=>{grouped[s]=photos.filter(p=>(p.photo_stage||"general")===s);});
   const hasStaged=grouped.before.length>0||grouped.during.length>0||grouped.after.length>0;
   if(!hasStaged)return null; // Don't show timeline if no staged photos
-  const stageInfo={before:{label:"Before",color:"#FFA040",icon:"📸"},during:{label:"During",color:"#00D4F5",icon:"🔧"},after:{label:"After",color:"#26D9A2",icon:"✅"}};
+  const stageInfo={before:{label:"Before",color:B.orange,icon:"📸"},during:{label:"During",color:B.cyan,icon:"🔧"},after:{label:"After",color:B.green,icon:"✅"}};
   return(<div style={{marginTop:8}}>
     <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:8}}>Photo Timeline</div>
     {["before","during","after"].map(s=>{const items=grouped[s];if(items.length===0)return null;const info=stageInfo[s];
@@ -77,7 +79,7 @@ export function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickReje
   const isManager=userRole==="admin"||userRole==="manager";
   const tapNotif=(n)=>{const woMatch=n.message?.match(/WO-\d+/);if(woMatch&&onNavigate){onNavigate(woMatch[0]);setOpen(false);}};
   return(<div ref={bellRef} style={{position:"relative"}}>
-    <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",position:"relative"}}>🔔{unread>0&&<span style={{position:"absolute",top:-4,right:-4,background:B.red,color:"#fff",fontSize:9,fontWeight:800,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread}</span>}</button>
+    <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",position:"relative"}}>🔔{unread>0&&<span style={{position:"absolute",top:-4,right:-4,background:B.red,color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread}</span>}</button>
     {open&&<div style={{position:"absolute",right:0,top:30,width:300,background:B.surface,border:"1px solid "+B.border,borderRadius:8,zIndex:999,maxHeight:350,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid "+B.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:B.text}}>Notifications</span>{unread>0&&<button onClick={async()=>{await onMarkRead();setOpen(false);}} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer"}}>Mark all read</button>}</div>
       {notifications.length===0&&<div style={{padding:20,textAlign:"center",color:B.textDim,fontSize:11}}>No notifications</div>}

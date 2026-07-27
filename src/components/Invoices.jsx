@@ -462,7 +462,7 @@ function PdfPreviewModal({url,downloadUrl,title,onClose}){
   return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1100,display:"flex",flexDirection:"column",background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",padding:"max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom))",boxSizing:"border-box",animation:"fadeIn .15s ease-out"}}>
     <div onClick={e=>e.stopPropagation()} style={{background:B.surface,borderRadius:12,border:"1px solid "+B.border,flex:1,display:"flex",flexDirection:"column",overflow:"hidden",maxWidth:1000,width:"100%",margin:"0 auto",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 16px",borderBottom:"1px solid "+B.border}}>
-        <span style={{fontSize:14,fontWeight:800,color:B.text,fontFamily:M,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Invoice PDF"}</span>
+        <span style={{fontSize:14,fontWeight:700,color:B.text,fontFamily:M,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Invoice PDF"}</span>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
           <a href={downloadUrl||url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"6px 12px",fontSize:12}}>Open in new tab ↗</a>
           <button onClick={onClose} style={{...BP,padding:"6px 12px",fontSize:12}}>Close</button>
@@ -475,7 +475,8 @@ function PdfPreviewModal({url,downloadUrl,title,onClose}){
 
 function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const PAGE_SIZE=50;
-  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
+  // "Invoice this WO" handoff: a completed WO can preseed the generator via sessionStorage.
+  const[view,setView]=useState(()=>{try{return sessionStorage.getItem("invoice-prefill")?"create":"tracker";}catch(e){return"tracker";}}),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
   const today=new Date();
@@ -504,7 +505,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
   const regenPDF=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const doc=await buildInvoicePDF(d);doc.save("INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf");msg("PDF downloaded!");}catch(e){msg("Error: "+e.message);}};
 
-  const ISC={draft:B.purple,sent:B.cyan,paid:B.green,overdue:B.red};
+  const ISC={draft:B.cyan,sent:B.cyan,paid:B.green,overdue:B.red};
   const ISL={draft:"Draft",sent:"Sent",paid:"Paid",overdue:"Overdue"};
   const getStatus=(inv)=>inv.status==="sent"&&daysOut(inv.date_issued)>30?"overdue":inv.status;
 
@@ -516,7 +517,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       <StatCard label="Paid This Month" value={"$"+totalPaidMonth.toLocaleString(undefined,{minimumFractionDigits:2})} icon="✓" color={B.green}/>
     </div>
     <div style={{display:"flex",gap:6,marginBottom:16}}>
-      <button onClick={()=>setView("tracker")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="tracker"?B.cyan:B.border),background:view==="tracker"?B.cyanGlow:"transparent",color:view==="tracker"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>📋 Invoice Tracker</button>
+      <button onClick={()=>setView("tracker")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="tracker"?B.cyan:B.border),background:view==="tracker"?B.cyanGlow:"transparent",color:view==="tracker"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Invoice Tracker</button>
       <button onClick={()=>setView("create")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ Create Invoice</button>
     </div>
     {view==="tracker"&&<div>
@@ -527,7 +528,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontFamily:M,fontWeight:800,fontSize:15,color:B.text}}>INV-{inv.invoice_num}</span>
+                  <span style={{fontFamily:M,fontWeight:700,fontSize:15,color:B.text}}>INV-{inv.invoice_num}</span>
                   <Badge color={ISC[st]||B.textDim}>{ISL[st]||inv.status}</Badge>
                   {st==="sent"&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:ac}}>{days}d</span>}
                 </div>
@@ -619,7 +620,7 @@ function InvoiceEditForm({inv,onSave,onCancel}){
     </div>
     <div style={{padding:12,background:B.bg,borderRadius:6,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,borderLeft:"3px solid "+B.green}}>
       <strong style={{color:B.text}}>New Invoice Total</strong>
-      <span style={{fontFamily:M,fontSize:18,fontWeight:800,color:B.green}}>${newAmount.toFixed(2)}</span>
+      <span style={{fontFamily:M,fontSize:18,fontWeight:700,color:B.green}}>${newAmount.toFixed(2)}</span>
     </div>
     <div style={{display:"flex",gap:8}}>
       <button onClick={onCancel} style={{...BS,flex:1}}>Cancel</button>
@@ -696,7 +697,16 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   // Default tiers based on customer
   const totalLogged=Object.values(techHours).reduce((s,h)=>s+h,0);
   const buildTiers=(c)=>{const base=getCustomerTiers(customer).map(t=>({...t,hours:0}));
-    if(base.length>0)base[0].hours=totalLogged;
+    if(base.length===0)return base;
+    // Default split: place each tech's logged hours on the tier matching their
+    // title (e.g. "Senior Technician" → that tier); unmatched hours land on tier 0.
+    Object.entries(techHours).forEach(([tech,hrs])=>{
+      const u=(users||[]).find(x=>x.name===tech);
+      const title=(u?.title||"").toLowerCase().trim();
+      let idx=0;
+      if(title){const mi=base.findIndex(t=>{const tn=(t.name||"").toLowerCase().trim();return tn&&(title.includes(tn)||tn.includes(title));});if(mi>=0)idx=mi;}
+      base[idx].hours=Math.round((base[idx].hours+hrs)*100)/100;
+    });
     return base;};
   const[tiers,setTiers]=useState(()=>buildTiers(cust));
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
@@ -709,6 +719,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(settings.default_po)setPoNum(settings.default_po);
     else if(customer.vendor_number)setPoNum(customer.vendor_number);
   },[customer]);
+  // Consume the "Invoice this WO" handoff (customer + WO preselected from WODetail).
+  useEffect(()=>{try{const raw=sessionStorage.getItem("invoice-prefill");if(!raw)return;sessionStorage.removeItem("invoice-prefill");const p=JSON.parse(raw);if(p.customer){setCust(p.customer);setMode("wo");if(p.woUuid)setSelWOs([p.woUuid]);}}catch(e){}},[]);
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
 
@@ -735,12 +747,15 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:poNum,jobDesc:jobDesc||"Repairs",paymentTerms:terms,dueDate:dueStr,tiers:tiersData,description:notes,partsTotal,partsDetail:includeParts?partsDetailData:null,customItems:customItemsData,customItemsTotal,includeNotes,includeBreakdown,pmCount,cmCount,emCount,breakdownData,dateFrom,dateTo,customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[]};
   };
   const safeName=(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_");
+  const savedNumRef=useRef(null); // invoice_num already inserted this session — downloading a second format must not insert twice
   const saveInvoiceRecord=async(d)=>{
     if(!onCreateInvoice)return;
+    if(savedNumRef.current===invoiceNum)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
     const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString().slice(0,10)};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
+    savedNumRef.current=invoiceNum; // only mark saved after a successful insert so a failed attempt can retry
     await Promise.all(filteredWOs.map(w=>sb().from("work_orders").update({invoiced:true}).eq("id",w.id)));
     // Clear surplus_pool flag on any surplus POs consumed by this invoice — they've been billed now.
     if(selSurplus.length>0){await Promise.all(selSurplus.map(id=>sb().from("purchase_orders").update({surplus_pool:false}).eq("id",id)));if(reloadTable)reloadTable("purchase_orders");}
@@ -796,7 +811,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
 
   return(<div><Toast msg={toast}/>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Invoice Generator</h3>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Invoice Generator</h3>
 
     {step===1&&<Card style={{padding:18,maxWidth:600}}>
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
@@ -830,7 +845,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         </div>
         {cust&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWOs([]);setSelProject("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
         {cust&&mode==="wo"&&(()=>{
-          const tagMap={draft:["Draft",B.purple],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};
+          const tagMap={draft:["Draft",B.orange],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};
           const avail=custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});
           const toggle=(w)=>{
             const checked=selWOs.includes(w.id);
@@ -876,19 +891,19 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:12,color:B.textDim}}>Create an invoice with flat-rate line items only — no work order or time entries required. Ideal for project milestones, mobilization, equipment charges.</div>
           <div><label style={LS}>Work Description <span style={{color:B.textDim,fontWeight:400}}>(appears on invoice)</span></label><textarea value={lineDesc} onChange={e=>setLineDesc(e.target.value)} placeholder="Brief description of work for the customer..." rows={2} style={{...IS,resize:"vertical",minHeight:40}}/></div>
         </div>}
-        {cust&&surplusPOs.length>0&&<div style={{padding:12,background:B.purple+"08",borderRadius:6,border:"1px dashed "+B.purple+"55"}}>
+        {cust&&surplusPOs.length>0&&<div style={{padding:12,background:B.cyan+"08",borderRadius:6,border:"1px dashed "+B.cyan+"55"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <div><div style={{fontSize:12,fontWeight:700,color:B.purple}}>📦 Surplus Parts Available ({surplusPOs.length})</div><div style={{fontSize:10,color:B.textDim,marginTop:2}}>Material from previous jobs that wasn't used — bill them on this invoice instead of eating the cost.</div></div>
-            {selSurplus.length>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.purple}}>${selSurplus.reduce((s,id)=>{const p=surplusPOs.find(x=>x.id===id);return s+parseFloat(p?.amount||0);},0).toFixed(2)} added</span>}
+            <div><div style={{fontSize:12,fontWeight:700,color:B.cyan}}>Surplus Parts Available ({surplusPOs.length})</div><div style={{fontSize:10,color:B.textDim,marginTop:2}}>Material from previous jobs that wasn't used — bill them on this invoice instead of eating the cost.</div></div>
+            {selSurplus.length>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>${selSurplus.reduce((s,id)=>{const p=surplusPOs.find(x=>x.id===id);return s+parseFloat(p?.amount||0);},0).toFixed(2)} added</span>}
           </div>
           <div style={{maxHeight:180,overflowY:"auto",border:"1px solid "+B.border,borderRadius:4,background:B.bg}}>
-            {surplusPOs.map(po=>{const checked=selSurplus.includes(po.id);return<div key={po.id} onClick={()=>toggleSurplus(po)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderBottom:"1px solid "+B.border+"40",cursor:"pointer",background:checked?B.purple+"15":"transparent"}}>
-              <input type="checkbox" checked={checked} readOnly style={{accentColor:B.purple,pointerEvents:"none"}}/>
+            {surplusPOs.map(po=>{const checked=selSurplus.includes(po.id);return<div key={po.id} onClick={()=>toggleSurplus(po)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderBottom:"1px solid "+B.border+"40",cursor:"pointer",background:checked?B.cyan+"15":"transparent"}}>
+              <input type="checkbox" checked={checked} readOnly style={{accentColor:B.cyan,pointerEvents:"none"}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:11,fontWeight:600,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><span style={{fontFamily:M,color:B.cyan}}>{po.po_id}</span> · {po.description}</div>
                 {po.surplus_notes&&<div style={{fontSize:10,color:B.textDim,marginTop:1,fontStyle:"italic"}}>{po.surplus_notes}</div>}
               </div>
-              <span style={{fontFamily:M,fontSize:11,fontWeight:700,color:checked?B.purple:B.text,flexShrink:0}}>${parseFloat(po.amount||0).toFixed(2)}</span>
+              <span style={{fontFamily:M,fontSize:11,fontWeight:700,color:checked?B.cyan:B.text,flexShrink:0}}>${parseFloat(po.amount||0).toFixed(2)}</span>
             </div>;})}
           </div>
         </div>}
@@ -899,8 +914,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     {step===2&&<Card style={{padding:18,maxWidth:600}}>
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:6}}>{(mode==="lineonly"||skipLabor)?"Step 2: Add Line Items":"Step 2: Set Labor Rates"}</div>
       {!(mode==="lineonly"||skipLabor)&&<div style={{fontSize:11,color:B.textDim,marginBottom:14}}>Enter hours for each rate tier. Total logged: <strong style={{color:B.cyan}}>{fmtHours(Object.values(techHours).reduce((s,h)=>s+h,0))}</strong> by {Object.keys(techHours).join(", ")||"—"}</div>}
-      {skipLabor&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 12px",background:B.purple+"15",borderRadius:6,border:"1px solid "+B.purple+"30"}}>
-        <span style={{fontSize:11,color:B.purple}}>Labor tiers hidden — billing from line items only.</span>
+      {skipLabor&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 12px",background:B.cyan+"15",borderRadius:6,border:"1px solid "+B.cyan+"30"}}>
+        <span style={{fontSize:11,color:B.cyan}}>Labor tiers hidden — billing from line items only.</span>
         <button onClick={()=>setSkipLabor(false)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>+ Include labor hours</button>
       </div>}
       {!(mode==="lineonly"||skipLabor)&&<div style={{marginBottom:14}}>
@@ -931,7 +946,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:11,color:B.textDim}}>$</span><input value={it.amount||""} onChange={e=>updateCustomItem(i,"amount",e.target.value)} type="number" step="0.01" style={{...IS,width:80,padding:"6px 8px",fontSize:12,fontFamily:M}} placeholder="0.00"/></div>
           <button onClick={()=>removeCustomItem(i)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14}}>×</button>
         </div>)}
-        {customTotal>0&&<div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.purple,fontWeight:700}}>Line Items: ${customTotal.toFixed(2)}</div>}
+        {customTotal>0&&<div style={{textAlign:"right",fontSize:12,fontFamily:M,color:B.cyan,fontWeight:700}}>Line Items: ${customTotal.toFixed(2)}</div>}
       </div>
 
       <div style={{display:"flex",gap:8,marginTop:14}}>
@@ -998,8 +1013,8 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:8}}>PREVIEW</div>
           {!(skipLabor||mode==="lineonly")&&tiers.filter(t=>(t.hours||0)>0).map(t=><div key={t.name} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>{t.name}: {fmtHours(t.hours||0)} × ${t.rate}</span><span style={{fontFamily:M}}>${((t.hours||0)*t.rate).toFixed(2)}</span></div>)}
           {includeParts&&partsTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.text,padding:"3px 0"}}><span>Parts / Materials</span><span style={{fontFamily:M}}>{"$"+partsTotal.toFixed(2)}</span></div>}
-          {customItems.filter(it=>it.description&&it.amount>0).map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.purple,padding:"3px 0"}}><span>{it.description}</span><span style={{fontFamily:M}}>${it.amount.toFixed(2)}</span></div>)}
-          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+((skipLabor||mode==="lineonly"?0:tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0))+(includeParts?partsTotal:0)+customTotal).toFixed(2)}</span></div>
+          {customItems.filter(it=>it.description&&it.amount>0).map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:B.cyan,padding:"3px 0"}}><span>{it.description}</span><span style={{fontFamily:M}}>${it.amount.toFixed(2)}</span></div>)}
+          <div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:700,color:B.green}}><span>Total</span><span style={{fontFamily:M}}>{"$"+((skipLabor||mode==="lineonly"?0:tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0))+(includeParts?partsTotal:0)+customTotal).toFixed(2)}</span></div>
           {includeBreakdown&&<div style={{borderTop:"1px solid "+B.border,marginTop:6,paddingTop:6}}>
             <div style={{fontSize:10,fontWeight:700,color:B.textDim,marginBottom:4}}>BREAKDOWN</div>
             {breakdown.pm.hours>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:B.text,padding:"2px 0"}}><span>Preventative maintenance — {breakdown.pm.hours.toFixed(2)}h</span></div>}
@@ -1013,10 +1028,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         </label>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setStep(2)} style={{...BS,flex:1}}>Back</button>
-          <button onClick={generateXLSX} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"📊 Excel"}</button>
-          <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,background:B.purple,opacity:generating?.6:1}}>{generating?"Generating...":"📄 PDF"}</button>
+          <button onClick={generateXLSX} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"Excel"}</button>
+          <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,background:B.cyan,opacity:generating?.6:1}}>{generating?"Generating...":"PDF"}</button>
         </div>
-        <button onClick={generateAndSend} disabled={generating} style={{...BP,width:"100%",background:"linear-gradient(135deg,#00D4F5,#7C3AED)",marginTop:4,opacity:generating?.6:1}}>{generating?"Generating...":"📧 Generate & Send Invoice"}</button>
+        <button onClick={generateAndSend} disabled={generating} style={{...BP,width:"100%",marginTop:4,opacity:generating?.6:1}}>{generating?"Generating...":"Generate & Send Invoice"}</button>
       </div>
     </Card>}
     {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>setShowSendModal(false)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser}/>}
@@ -1222,7 +1237,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
 
       <div style={{display:"flex",gap:8}}>
         <button onClick={onClose} style={{...BS,flex:1}}>Cancel</button>
-        <button onClick={send} disabled={sending||!emailTo.trim()} style={{...BP,flex:1,background:"linear-gradient(135deg,#00D4F5,#7C3AED)",opacity:sending?.6:1}}>{sending?"Sending...":(scheduleEnabled?"📅 Schedule Send":"📧 Send Now")}</button>
+        <button onClick={send} disabled={sending||!emailTo.trim()} style={{...BP,flex:1,opacity:sending?.6:1}}>{sending?"Sending...":(scheduleEnabled?"Schedule Send":"Send Now")}</button>
       </div>
     </div>
   </Modal>);

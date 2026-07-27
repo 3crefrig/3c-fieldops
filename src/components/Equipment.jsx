@@ -188,7 +188,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-            <span style={{fontSize:18,fontWeight:800,color:B.text}}>{eq.equipment_number||eq.model||"Unknown Model"}</span>
+            <span style={{fontSize:18,fontWeight:700,color:B.text}}>{eq.equipment_number||eq.model||"Unknown Model"}</span>
             <Badge color={STATUS_COLORS[eq.status]}>{STATUS_LABELS[eq.status]||eq.status}</Badge>
           </div>
           {eq.equipment_number&&eq.model&&<div style={{fontSize:13,color:B.textMuted,marginTop:2,fontWeight:600}}>{eq.model}{eq.manufacturer?" — "+eq.manufacturer:""}</div>}
@@ -209,7 +209,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
     {/* Info Grid */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginBottom:12}}>
       <StatCard label="Customer" value={eq.customer_name} icon="🏢" color={B.cyan}/>
-      <StatCard label="Refrigerant" value={eq.refrigerant_type||"—"} icon="❄️" color={B.purple}/>
+      <StatCard label="Refrigerant" value={eq.refrigerant_type||"—"} icon="❄️" color={B.cyan}/>
       <StatCard label="Warranty" value={warrantyDays===null?"N/A":warrantyDays<=0?"Expired":warrantyDays+"d left"} icon="🛡" color={warrantyColor}/>
       <StatCard label="Service Visits" value={linkedWOs.length} icon="🔧" color={B.cyan}/>
       <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="⏱" color={B.orange}/>
@@ -327,7 +327,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
       <StatCard label="Total Units" value={equipment.length} icon="🔧" color={B.cyan}/>
       <StatCard label="Active" value={active} icon="✓" color={B.green}/>
-      <StatCard label="Customers" value={custCount} icon="🏢" color={B.purple}/>
+      <StatCard label="Customers" value={custCount} icon="🏢" color={B.cyan}/>
       <StatCard label="Warranty Expiring" value={expiringWarranties} icon="⚠️" color={B.orange}/>
       {expiredWarranties>0&&<StatCard label="Warranty Expired" value={expiredWarranties} icon="🛡" color={B.red}/>}
     </div>
@@ -362,7 +362,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                {eq.equipment_number&&<span style={{fontWeight:800,fontSize:14,color:B.orange,fontFamily:M}}>{eq.equipment_number}</span>}
+                {eq.equipment_number&&<span style={{fontWeight:700,fontSize:14,color:B.orange,fontFamily:M}}>{eq.equipment_number}</span>}
                 <span style={{fontWeight:700,fontSize:14,color:B.text}}>{eq.model||"Unknown"}</span>
                 <Badge color={STATUS_COLORS[eq.status]}>{STATUS_LABELS[eq.status]}</Badge>
                 <span style={{fontSize:10,color:B.textDim,fontFamily:M}}>{EQ_LABELS[eq.equipment_type]||eq.equipment_type}</span>
@@ -375,7 +375,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-              {eq.refrigerant_type&&<span style={{fontSize:10,color:B.purple,fontWeight:600}}>{eq.refrigerant_type}</span>}
+              {eq.refrigerant_type&&<span style={{fontSize:10,color:B.cyan,fontWeight:600}}>{eq.refrigerant_type}</span>}
               {warrantyDays!==null&&<span style={{fontSize:10,fontWeight:600,color:warrantyDays<=0?B.red:warrantyDays<=30?B.orange:B.green}}>
                 {warrantyDays<=0?"Warranty Expired":warrantyDays+"d warranty"}
               </span>}

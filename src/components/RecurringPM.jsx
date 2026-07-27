@@ -11,7 +11,7 @@ function RecurringPM({templates,onAdd,onUpdate,onDelete,users}){
   const openNew=()=>{setEditing(null);setTitle("");setPri("medium");setAssign("Unassigned");setLoc("");setBldg("");setNotes("");setFreq("monthly");setNextDue("");setCust("");setShowForm(true);};
   const go=async()=>{if(!title.trim()||saving)return;setSaving(true);try{const fields={title:title.trim(),priority:pri,assignee:assign,location:loc.trim(),building:bldg.trim(),notes:notes.trim(),customer:cust.trim(),frequency:freq,next_due:nextDue||null,active:true};if(editing){if(onUpdate){await onUpdate({id:editing.id,...fields});}else{await sb().from("recurring_templates").update(fields).eq("id",editing.id);}msg("Template updated");}else{await onAdd(fields);msg("Template created");}setShowForm(false);setEditing(null);setTitle("");setSaving(false);}catch(e){console.error(e);setSaving(false);}};
   return(<div><Toast msg={toast}/>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800,color:B.text}}>Recurring PM Templates</h3>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Recurring PM Templates</h3>
     <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ New Recurring PM</button>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {templates.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No recurring templates yet</div>}

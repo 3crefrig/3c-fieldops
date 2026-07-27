@@ -8,7 +8,7 @@ function statusMeta(){
     draft:{c:B.textDim,l:"Draft"},
     pending_approval:{c:B.orange,l:"Pending Approval"},
     sent:{c:B.cyan,l:"Sent"},
-    quoted:{c:B.purple,l:"Quoted"},
+    quoted:{c:B.cyan,l:"Quoted"},
     closed:{c:B.green,l:"Closed"},
   };
 }
@@ -228,7 +228,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span style={{fontFamily:M,fontWeight:800,fontSize:14,color:B.text}}>{rfq.rfq_ref}</span>
+                <span style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>{rfq.rfq_ref}</span>
                 <Badge color={sm.c}>{sm.l}</Badge>
                 <span style={{fontSize:11,color:B.textDim}}>{itemCount(rfq.id)} item{itemCount(rfq.id)!==1?"s":""}</span>
               </div>

@@ -210,7 +210,7 @@ function PartsSales({D,A,user}){
 
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>📦 Parts Sales</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Parts Sales</h3>
       <div style={{display:"flex",gap:6}}>
         <button onClick={()=>setView("list")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="list"?B.cyan:B.border),background:view==="list"?B.cyanGlow:"transparent",color:view==="list"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Sales</button>
         <button onClick={()=>{if(editingSale)resetForm();setView("create");}} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ New Parts Sale</button>
@@ -221,7 +221,7 @@ function PartsSales({D,A,user}){
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Parts Sales" value={sales===null?"…":sales.length} color={B.cyan}/>
         <StatCard label="Total Billed" value={money(totBilled)} color={B.green}/>
-        <StatCard label="Margin" value={money(totMargin)} color={B.purple}/>
+        <StatCard label="Margin" value={money(totMargin)} color={B.cyan}/>
       </div>
       {sales===null&&<Card style={{padding:26,textAlign:"center"}}><span style={{fontSize:12,color:B.textDim}}>Loading…</span></Card>}
       {sales!==null&&sales.length===0&&<Card style={{padding:26,textAlign:"center"}}>
@@ -233,24 +233,24 @@ function PartsSales({D,A,user}){
         {sales.map(s=>{
           const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
           const st=inv?.status||null;
-          const stColor=st==="paid"?B.green:st==="sent"?B.cyan:st==="draft"?B.purple:B.textDim;
+          const stColor=st==="paid"?B.green:st==="sent"?B.cyan:st==="draft"?B.orange:B.textDim;
           const m=r2((parseFloat(s.sell_total)||0)-(parseFloat(s.cost_total)||0));
           const open=expandedId===s.id;
           return(<Card key={s.id} style={{padding:"12px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(open?null:s.id)}>
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <span style={{fontFamily:M,fontWeight:800,fontSize:13,color:B.cyan}}>{s.sale_ref}</span>
+              <span style={{fontFamily:M,fontWeight:700,fontSize:13,color:B.cyan}}>{s.sale_ref}</span>
               <div style={{flex:1,minWidth:140}}>
                 <div style={{fontSize:13,fontWeight:700,color:B.text}}>{s.customer}</div>
                 <div style={{fontSize:10,color:B.textDim}}>{fmtDate((s.created_at||"").slice(0,10))} · {(s.items||[]).length} item{(s.items||[]).length!==1?"s":""}{s.invoice_num?" · INV "+s.invoice_num:""}</div>
               </div>
               <div style={{textAlign:"right"}}>
-                <div style={{fontFamily:M,fontSize:13,fontWeight:800,color:B.text}}>{money(s.sell_total)}</div>
+                <div style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.text}}>{money(s.sell_total)}</div>
                 <div style={{fontSize:10,color:m>=0?B.green:B.red}}>{m>=0?"+":""}{money(m)} margin</div>
               </div>
               <Badge color={stColor}>{st?st.toUpperCase():"NO INVOICE"}</Badge>
-              <button onClick={e=>downloadSalePDF(s,e)} title="Re-download the invoice PDF" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>⬇ PDF</button>
+              <button onClick={e=>downloadSalePDF(s,e)} title="Re-download the invoice PDF" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>PDF</button>
               <button onClick={e=>startEdit(s,e)} title="Edit this parts sale (re-syncs the invoice)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>✎ Edit</button>
-              <button onClick={e=>{e.stopPropagation();deleteSale(s);}} title="Delete this parts sale record" style={{background:"none",border:"none",color:B.red+"88",cursor:"pointer",fontSize:15,padding:4}}>🗑</button>
+              <button onClick={e=>{e.stopPropagation();deleteSale(s);}} title="Delete this parts sale record" style={{background:"none",border:"none",color:B.red+"88",cursor:"pointer",fontSize:15,padding:4}}>✕</button>
             </div>
             {open&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+B.border}}>
               {(s.items||[]).map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11,color:B.textMuted,padding:"3px 0"}}>
@@ -287,10 +287,10 @@ function PartsSales({D,A,user}){
             <span style={{fontSize:12,fontWeight:700,color:B.text}}>Parts</span>
             <div style={{display:"flex",gap:10}}>
               <button onClick={addLine} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,fontWeight:600}}>+ Add Part</button>
-              <button onClick={()=>setShowPOPicker(!showPOPicker)} style={{background:"none",border:"none",color:B.purple,fontSize:11,cursor:"pointer",fontFamily:F,fontWeight:600}}>📄 Add from Vendor PO</button>
+              <button onClick={()=>setShowPOPicker(!showPOPicker)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,fontWeight:600}}>Add from Vendor PO</button>
             </div>
           </div>
-          {showPOPicker&&<div style={{padding:10,background:B.purple+"08",border:"1px dashed "+B.purple+"55",borderRadius:6,marginBottom:8}}>
+          {showPOPicker&&<div style={{padding:10,background:B.cyan+"08",border:"1px dashed "+B.cyan+"55",borderRadius:6,marginBottom:8}}>
             <input value={poSearch} onChange={e=>setPoSearch(e.target.value)} placeholder="Search approved POs — number, description, vendor…" style={{...IS,fontSize:12,marginBottom:6}}/>
             <div style={{maxHeight:170,overflowY:"auto",border:"1px solid "+B.border,borderRadius:4,background:B.bg}}>
               {availPOs.length===0&&<div style={{padding:10,fontSize:11,color:B.textDim,textAlign:"center"}}>No unbilled approved POs match</div>}
@@ -310,7 +310,7 @@ function PartsSales({D,A,user}){
               <button onClick={()=>removeLine(i)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-              {l.po_ref&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:B.purple+"20",color:B.purple,border:"1px solid "+B.purple+"30"}}>PO {l.po_ref}</span>}
+              {l.po_ref&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:B.cyan+"20",color:B.cyan,border:"1px solid "+B.cyan+"30"}}>PO {l.po_ref}</span>}
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Qty</span><input value={l.qty} onChange={e=>updateLine(i,"qty",e.target.value)} type="number" min="0" step="1" style={{...IS,width:52,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Cost $</span><input value={l.unit_cost} onChange={e=>updateLine(i,"unit_cost",e.target.value)} type="number" min="0" step="0.01" style={{...IS,width:76,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Price $</span><input value={l.unit_price} onChange={e=>updateLine(i,"unit_price",e.target.value)} type="number" min="0" step="0.01" style={{...IS,width:76,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
@@ -325,7 +325,7 @@ function PartsSales({D,A,user}){
         {lines.length>0&&<div style={{padding:"10px 14px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <span style={{fontSize:11,color:B.textDim}}>Cost <strong style={{fontFamily:M,color:B.text}}>{money(costTotal)}</strong></span>
           <span style={{fontSize:11,color:B.textDim}}>Margin <strong style={{fontFamily:M,color:margin>=0?B.green:B.red}}>{money(margin)}</strong></span>
-          <span style={{fontSize:12,fontWeight:800,color:B.text}}>Invoice Total <strong style={{fontFamily:M,color:B.cyan}}>{money(sellTotal)}</strong></span>
+          <span style={{fontSize:12,fontWeight:700,color:B.text}}>Invoice Total <strong style={{fontFamily:M,color:B.cyan}}>{money(sellTotal)}</strong></span>
         </div>}
 
         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setSaveToDrive(!saveToDrive)}>
@@ -335,12 +335,12 @@ function PartsSales({D,A,user}){
 
         {editingSale?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={()=>{resetForm();setView("list");}} disabled={generating} style={{...BS,flex:1,minWidth:110}}>Cancel</button>
-          <button onClick={()=>saveEdit(false)} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"💾 Save"}</button>
-          <button onClick={()=>saveEdit(true)} disabled={generating} style={{...BP,flex:2,minWidth:170,opacity:generating?.6:1}}>{generating?"Working…":"💾 Save & Download PDF"}</button>
+          <button onClick={()=>saveEdit(false)} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"Save"}</button>
+          <button onClick={()=>saveEdit(true)} disabled={generating} style={{...BP,flex:2,minWidth:170,opacity:generating?.6:1}}>{generating?"Working…":"Save & Download PDF"}</button>
         </div>:<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>generate("xlsx")} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"⬇ Excel"}</button>
-          <button onClick={()=>generate("pdf")} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"⬇ PDF"}</button>
-          <button onClick={()=>generate("send")} disabled={generating} style={{...BP,flex:2,minWidth:170,background:"linear-gradient(135deg,#00D4F5,#7C3AED)",opacity:generating?.6:1}}>{generating?"Working…":"📧 Create & Send"}</button>
+          <button onClick={()=>generate("xlsx")} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"Excel"}</button>
+          <button onClick={()=>generate("pdf")} disabled={generating} style={{...BS,flex:1,minWidth:130,opacity:generating?.6:1}}>{generating?"Working…":"PDF"}</button>
+          <button onClick={()=>generate("send")} disabled={generating} style={{...BP,flex:2,minWidth:170,opacity:generating?.6:1}}>{generating?"Working…":"Create & Send"}</button>
         </div>}
         {!editingSale&&<div style={{fontSize:10,color:B.textDim}}>All three create the invoice as a draft in the Invoices tab — payment tracking and reminders work like any other invoice.</div>}
       </div>

@@ -20,7 +20,7 @@ const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export const EXCEPTION_STATUSES = ["price_mismatch", "qty_over", "no_ticket"];
 export const MS_LABELS = { matched: "Matched", price_mismatch: "Price High", qty_over: "Qty Over", qty_under: "Qty Under", no_ticket: "No Ticket", price_unverified: "No Price Ref", accepted: "Accepted" };
-export const msColor = (s) => ({ matched: B.green, price_mismatch: B.orange, qty_over: B.red, qty_under: B.purple, no_ticket: B.red, price_unverified: B.textDim, accepted: B.green }[s] || B.textDim);
+export const msColor = (s) => ({ matched: B.green, price_mismatch: B.orange, qty_over: B.red, qty_under: B.cyan, no_ticket: B.red, price_unverified: B.textDim, accepted: B.green }[s] || B.textDim);
 
 // Match every bill line against the pickup-ticket lines in scope.
 // Returns per-line statuses + an "unbilled" info list + a summary.
@@ -452,7 +452,7 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
     <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
       <StatCard label="Bills to Review" value={bills.filter(b => b.status === "review" || b.status === "disputed").length} icon="📄" color={B.orange} />
       <StatCard label="Open Exceptions" value={openExc.length} icon="⚠️" color={B.red} />
-      <StatCard label="$ Flagged" value={"$" + flagged.toFixed(0)} icon="💰" color={B.purple} />
+      <StatCard label="$ Flagged" value={"$" + flagged.toFixed(0)} icon="💰" color={B.cyan} />
       <StatCard label="Tickets Captured" value={tickets.length} icon="🧾" color={B.cyan} />
     </div>
     <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>

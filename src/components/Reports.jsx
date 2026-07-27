@@ -30,7 +30,7 @@ function Reports({wos,pos,timeEntries,users,customers,invoices}){
 
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}><h3 style={{margin:0,fontSize:15,fontWeight:800,color:B.text}}>Reports & KPIs</h3><button onClick={exportCSV} style={{...BS,padding:"4px 10px",fontSize:10}}>Export CSV</button><button onClick={exportPDF} style={{...BS,padding:"4px 10px",fontSize:10}}>Export PDF</button></div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Reports & KPIs</h3><button onClick={exportCSV} style={{...BS,padding:"4px 10px",fontSize:10}}>Export CSV</button><button onClick={exportPDF} style={{...BS,padding:"4px 10px",fontSize:10}}>Export PDF</button></div>
       <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All"],["custom","Custom"]].map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(range===k?B.cyan:B.border),background:range===k?B.cyanGlow:"transparent",color:range===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>
     </div>
     {range==="custom"&&<div style={{display:"flex",gap:8,marginBottom:14}}><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{...IS,flex:1,fontSize:11}}/><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{...IS,flex:1,fontSize:11}}/></div>}
@@ -40,7 +40,7 @@ function Reports({wos,pos,timeEntries,users,customers,invoices}){
       <StatCard label="Completed" value={completed.length} icon="✓" color={B.green}/>
       <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="⏱" color={B.cyan}/>
       <StatCard label="Avg Job Duration" value={fmtHours(avgJobDuration)} icon="📐" color={B.orange}/>
-      <StatCard label="Avg Response" value={avgResponseTime.toFixed(1)+"d"} icon="⚡" color={B.purple}/>
+      <StatCard label="Avg Response" value={avgResponseTime.toFixed(1)+"d"} icon="⚡" color={B.cyan}/>
       <StatCard label="PO Spend" value={"$"+totalPOSpend.toLocaleString()} icon="💰" color={B.red}/>
       <StatCard label="PM / CM" value={pmCount+" / "+cmCount} icon="📊" color={B.orange}/>
     </div>
@@ -63,7 +63,7 @@ function Reports({wos,pos,timeEntries,users,customers,invoices}){
             const maxH=Math.max(...techs.map(t2=>fTime.filter(e=>e.technician===t2.name).reduce((s,e)=>s+parseFloat(e.hours||0),0)),1);
             return(<React.Fragment key={t.id}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:24,height:24,borderRadius:6,background:ROLES.technician.grad,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9,fontWeight:800}}>{t.name.split(" ").map(n=>n[0]).join("")}</div>
+                <div style={{width:24,height:24,borderRadius:6,background:B.cyan+"22",display:"flex",alignItems:"center",justifyContent:"center",color:B.cyan,fontSize:10,fontWeight:700}}>{t.name.split(" ").map(n=>n[0]).join("")}</div>
                 <span style={{fontWeight:600,color:B.text}}>{t.name}</span>
               </div>
               <div style={{textAlign:"right"}}>
@@ -91,7 +91,7 @@ function Reports({wos,pos,timeEntries,users,customers,invoices}){
         const cPOs=fPOs.filter(p=>cWOs.some(w=>w.id===p.wo_id));const poCost=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const cmk=getPartsMarkup(cust);const poSpend=Math.round(poCost*(1+cmk/100)*100)/100;
         return(<div key={c} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+B.border}}>
           <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{c}</div><div style={{fontSize:10,color:B.textDim}}>{cWOs.length} jobs · {fmtHours(hrs)}</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:isEst?B.textMuted:B.green}}>${rev.toLocaleString()}{isEst&&<span style={{fontSize:8,color:B.textDim,fontWeight:400}}> est</span>}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
+          <div style={{textAlign:"right"}}><div style={{fontFamily:M,fontSize:13,fontWeight:700,color:isEst?B.textMuted:B.green}}>${rev.toLocaleString()}{isEst&&<span style={{fontSize:10,color:B.textDim,fontWeight:400}}> est</span>}</div>{poSpend>0&&<div style={{fontSize:9,color:B.textDim}}>+${poSpend.toFixed(0)} parts</div>}</div>
         </div>);
       })}</div>
     </Card>

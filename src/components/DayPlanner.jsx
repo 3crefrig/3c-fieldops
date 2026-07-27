@@ -92,7 +92,7 @@ function DayPlanner({wos,templates,users,userName,userRole}){
     {overdueWOs.length>0&&<Card style={{marginBottom:12,borderLeft:"3px solid "+B.red}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
         <span style={{fontSize:14}}>🚨</span>
-        <span style={{fontSize:13,fontWeight:800,color:B.red}}>Overdue ({overdueWOs.length})</span>
+        <span style={{fontSize:13,fontWeight:700,color:B.red}}>Overdue ({overdueWOs.length})</span>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
         {overdueWOs.slice(0,10).map(w=><div key={w.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.red+"08",borderRadius:4,border:"1px solid "+B.red+"22"}}>
@@ -103,13 +103,13 @@ function DayPlanner({wos,templates,users,userName,userRole}){
     </Card>}
 
     {/* Route optimization hints */}
-    {routeGroups.length>0&&<Card style={{marginBottom:12,borderLeft:"3px solid "+B.purple}}>
+    {routeGroups.length>0&&<Card style={{marginBottom:12,borderLeft:"3px solid "+B.cyan}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
         <span style={{fontSize:14}}>🗺</span>
-        <span style={{fontSize:13,fontWeight:700,color:B.purple}}>Batch Opportunities</span>
+        <span style={{fontSize:13,fontWeight:700,color:B.cyan}}>Batch Opportunities</span>
         <span style={{fontSize:10,color:B.textDim}}>Jobs at the same location this week</span>
       </div>
-      {routeGroups.slice(0,5).map((g,i)=><div key={i} style={{padding:"6px 10px",background:B.purple+"08",borderRadius:4,border:"1px solid "+B.purple+"22",marginBottom:4}}>
+      {routeGroups.slice(0,5).map((g,i)=><div key={i} style={{padding:"6px 10px",background:B.cyan+"08",borderRadius:4,border:"1px solid "+B.cyan+"22",marginBottom:4}}>
         <div style={{fontSize:12,fontWeight:600,color:B.text}}>{g.customer} — {g.location||"No location"}</div>
         <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{g.wos.length} jobs · Spread across {g.dates.size} day{g.dates.size!==1?"s":""} — consider batching into one visit</div>
       </div>)}
@@ -127,7 +127,7 @@ function DayPlanner({wos,templates,users,userName,userRole}){
         return(<Card key={dateStr} style={{padding:"12px 16px",borderLeft:"3px solid "+(isToday?B.cyan:dayWOs.length>0?B.green+"66":B.border)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dayWOs.length>0?8:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:14,fontWeight:800,color:isToday?B.cyan:B.text}}>{dayName}</span>
+              <span style={{fontSize:14,fontWeight:700,color:isToday?B.cyan:B.text}}>{dayName}</span>
               <span style={{fontSize:12,color:B.textDim}}>{shortDate}</span>
               {isToday&&<Badge color={B.cyan}>Today</Badge>}
             </div>

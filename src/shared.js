@@ -15,7 +15,7 @@ export function setTheme(t){_theme=t;localStorage.setItem("fieldops-theme",t);Ob
 export function getTheme(){return _theme;}
 export function haptic(ms){try{navigator.vibrate&&navigator.vibrate(ms||30);}catch(e){}}
 export const F="'Barlow',sans-serif",M="'JetBrains Mono',monospace";
-export const getRoles=()=>({admin:{label:"Admin",color:B.red,grad:`linear-gradient(135deg,${B.red},#C0392B)`},manager:{label:"Manager",color:B.green,grad:`linear-gradient(135deg,${B.green},#1A9A73)`},technician:{label:"Technician",color:B.cyan,grad:`linear-gradient(135deg,${B.cyan},${B.cyanDark})`}});
+export const getRoles=()=>({admin:{label:"Admin",color:B.red},manager:{label:"Manager",color:B.green},technician:{label:"Technician",color:B.cyan}});
 export let ROLES=getRoles();
 export function refreshRoles(){ROLES=getRoles();}
 
@@ -38,12 +38,13 @@ export const fmtHours=(n)=>{const v=parseFloat(n||0);if(!isFinite(v))return"0h";
 export const PC={high:B.red,medium:B.orange,low:B.green};
 export const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
 export const SL={pending:"Pending",in_progress:"In Progress",completed:"Completed"};
-export const PSC={pending:B.orange,approved:B.green,rejected:B.red,revised:B.purple};
+export const PSC={pending:B.orange,approved:B.green,rejected:B.red,revised:B.orange};
 export const PSL={pending:"Pending",approved:"Approved",rejected:"Rejected",revised:"Revised"};
-const _IS=()=>({width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"});
-const _LS=()=>({fontSize:10,color:B.textDim,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",marginBottom:5,display:"block"});
-const _BP=()=>({padding:"12px 20px",borderRadius:8,border:"none",background:B.cyan,color:B.bg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",boxShadow:"0 2px 8px "+B.cyan+"30",minHeight:44});
-const _BS=()=>({padding:"12px 20px",borderRadius:8,border:"1px solid "+B.border,background:"transparent",color:B.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s",minHeight:44});
+// Radius scale: 6 chips/inset panels · 10 inputs/buttons/cards · 14 modals · 999 pills
+const _IS=()=>({width:"100%",padding:"11px 14px",borderRadius:10,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"});
+const _LS=()=>({fontSize:11,color:B.textDim,fontWeight:600,letterSpacing:0.4,textTransform:"uppercase",marginBottom:5,display:"block"});
+const _BP=()=>({padding:"12px 20px",borderRadius:10,border:"none",background:B.cyan,color:B.bg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",minHeight:44});
+const _BS=()=>({padding:"12px 20px",borderRadius:10,border:"1px solid "+B.border,background:"transparent",color:B.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s",minHeight:44});
 export const IS=new Proxy({},{get:(_,p)=>_IS()[p],ownKeys:()=>Object.keys(_IS()),getOwnPropertyDescriptor:(_,p)=>({value:_IS()[p],enumerable:true,configurable:true})});
 export const LS=new Proxy({},{get:(_,p)=>_LS()[p],ownKeys:()=>Object.keys(_LS()),getOwnPropertyDescriptor:(_,p)=>({value:_LS()[p],enumerable:true,configurable:true})});
 export const BP=new Proxy({},{get:(_,p)=>_BP()[p],ownKeys:()=>Object.keys(_BP()),getOwnPropertyDescriptor:(_,p)=>({value:_BP()[p],enumerable:true,configurable:true})});
@@ -108,9 +109,7 @@ html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-@keyframes pulseGlow{0%,100%{box-shadow:0 4px 16px rgba(0,212,245,0.35)}50%{box-shadow:0 4px 24px rgba(0,212,245,0.55),0 0 40px rgba(0,212,245,0.15)}}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-@keyframes badgePop{from{transform:scale(0.8);opacity:0}to{transform:scale(1);opacity:1}}
 .card-hover{transition:border-color .2s,box-shadow .2s,transform .15s}
 .card-hover:hover{box-shadow:0 2px 12px rgba(0,0,0,0.15)}
 .card-hover:active{transform:scale(0.985)}
@@ -121,7 +120,7 @@ html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
 .tab-content::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.5)}
 .modal-card{max-height:85vh;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 @supports(max-height:100dvh){.modal-card{max-height:85dvh}}
-@media(max-width:480px){.modal-card{padding:18px!important;width:100%!important;border-radius:12px!important}}
+@media(max-width:480px){.modal-card{padding:18px!important;width:100%!important;border-radius:14px!important}}
 /* iOS auto-zooms (and doesn't zoom back) when a focused field's font is <16px,
    leaving the page zoomed/shifted so it looks "stuck". Force 16px on phones. */
 @media(max-width:767px){input,select,textarea{font-size:16px!important}}
