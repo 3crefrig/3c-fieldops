@@ -5,7 +5,7 @@ import { B, F, M, IS, LS, BP, BS, haptic, getTheme } from "../shared";
 // (white 3C + cyan banner, transparent bg); light theme keeps the original.
 const LOGO_LIGHT="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
 const LOGO_DARK="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/logo-dark.png";
-export function Logo({size,onClick}){const h=size==="large"?64:36;return(<img src={getTheme()==="dark"?LOGO_DARK:LOGO_LIGHT} alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
+export function Logo({size,onClick}){const dark=getTheme()==="dark";const h=size==="large"?(dark?128:56):(dark?48:32);return(<img src={dark?LOGO_DARK:LOGO_LIGHT} alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
 // Minimal inline SVG icon set (Lucide-style strokes) — used by the mobile bottom
 // bar instead of emoji. currentColor themes automatically.
