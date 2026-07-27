@@ -1,5 +1,6 @@
 import React from "react";
 import { createClient } from "@supabase/supabase-js";
+import DOMPurify from "dompurify";
 
 export const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -32,7 +33,12 @@ export const autoCorrect=(text)=>{if(!text||typeof text!=="string")return text;l
 let _profanityToast=null;
 export const setProfanityHandler=(fn)=>{_profanityToast=fn;};
 export const cleanText=(text,fieldName)=>{const corrected=autoCorrect(text);if(hasProfanity(corrected)){if(_profanityToast)_profanityToast("Inappropriate language in "+fieldName);else alert("Inappropriate language detected in "+fieldName+".");return null;}return corrected;};
-export const sanitizeHTML=(html)=>{if(!html)return"";const d=document.createElement("div");d.innerHTML=html;d.querySelectorAll("script,iframe,object,embed,form,link,style,svg").forEach(n=>n.remove());d.querySelectorAll("*").forEach(el=>{[...el.attributes].forEach(a=>{if(a.name.startsWith("on")||a.value.includes("javascript:"))el.removeAttribute(a.name);});});return d.innerHTML;};
+// Sanitize author-entered email-template HTML before rendering it via
+// dangerouslySetInnerHTML. DOMPurify parses in an inert document (no network,
+// no script execution during parse) and strips event handlers + javascript:/
+// data: URLs — replacing the previous hand-rolled filter which used a live
+// innerHTML parse and case-sensitive checks that could be bypassed.
+export const sanitizeHTML=(html)=>{if(!html)return"";return DOMPurify.sanitize(String(html),{FORBID_TAGS:["script","iframe","object","embed","form","link","style","svg"],FORBID_ATTR:["style"]});};
 export const calcWOHours=(woId,timeEntries)=>timeEntries.filter(t=>t.wo_id===woId).reduce((s,t)=>s+parseFloat(t.hours||0),0);
 export const fmtHours=(n)=>{const v=parseFloat(n||0);if(!isFinite(v))return"0h";return parseFloat(v.toFixed(2))+"h";};
 export const PC={high:B.red,medium:B.orange,low:B.green};

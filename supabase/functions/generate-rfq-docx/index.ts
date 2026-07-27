@@ -137,6 +137,23 @@ serve(async (req) => {
       });
     }
 
+    // Authorize: only the RFQ's creator or a manager/admin may render it — the
+    // docx can carry manager-only unit_price. Service/cron callers pass the
+    // service key and skip this. (2026-07-27 hardening.)
+    const _tok = (req.headers.get("Authorization") || "").replace(/^[Bb]earer[ ]+/, "").trim();
+    if (_tok !== SERVICE_KEY) {
+      let _email = "";
+      try { const _seg = (_tok.split(".")[1] || "").replace(/-/g, "+").replace(/_/g, "/"); _email = String(JSON.parse(atob(_seg + "=".repeat((4 - _seg.length % 4) % 4))).email || "").toLowerCase(); } catch (_x) {}
+      const { data: me } = await db.from("users").select("id,role").ilike("email", _email).eq("active", true).maybeSingle();
+      const isMgr = me && ["manager", "admin"].includes(String(me.role || ""));
+      const isOwner = me && rfq.created_by === me.id;
+      if (!isMgr && !isOwner) {
+        return new Response(JSON.stringify({ error: "not authorized for this RFQ" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { data: items } = await db
       .from("rfq_items")
       .select("*")

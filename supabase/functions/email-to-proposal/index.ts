@@ -112,6 +112,7 @@ async function __guard(req: Request, allowUser=true): Promise<Response|null>{
     const q=await fetch(base+"/rest/v1/users?select=role&active=not.is.false&email=ilike."+encodeURIComponent(email),{headers:{apikey:svc,Authorization:"Bearer "+svc}});
     const rows=await q.json();
     if(!Array.isArray(rows)||rows.length===0)return deny(403,"not a registered user");
+    if(!["manager","admin"].includes(String(rows[0].role||"")))return deny(403,"manager or admin required");
     return null;
   }catch(_e){return deny(401,"auth check failed");}
 }

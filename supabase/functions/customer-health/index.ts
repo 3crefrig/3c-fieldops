@@ -31,11 +31,23 @@ serve(async (req) => {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await sb.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const svcKey = SUPABASE_SERVICE_ROLE_KEY;
+    // Internal service callers pass the service key; otherwise require an active
+    // manager/admin — this endpoint returns manager-scoped financials (2026-07-27).
+    if (token !== svcKey) {
+      const { data: { user }, error: authError } = await sb.auth.getUser(token);
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: me } = await sb.from("users").select("role")
+        .ilike("email", String(user.email || "")).eq("active", true).maybeSingle();
+      if (!me || !["manager", "admin"].includes(String(me.role || ""))) {
+        return new Response(JSON.stringify({ error: "manager or admin required" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { customer_id } = await req.json();
