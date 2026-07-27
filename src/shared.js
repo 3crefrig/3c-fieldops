@@ -8,6 +8,11 @@ export const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
 const _sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export function sb(){ return _sb; }
 
+// Columns readable on the users table by `authenticated` — billing_rate/cost_rate
+// are REVOKED (managers/admins read them via the user_rates() RPC), so a
+// `select("*")` would be denied by Postgres. Always select these explicitly.
+export const USER_COLS="id,name,email,role,active,created_at,title,phone,available_hours_week";
+
 export const DARK={bg:"#101214",surface:"#1A1D21",surfaceActive:"#2A2F35",border:"#2E3338",text:"#E8EAED",textMuted:"#8B929A",textDim:"#5E656E",cyan:"#00D4F5",cyanDark:"#00A5C0",cyanGlow:"rgba(0,212,245,0.12)",red:"#FF4757",orange:"#FFA040",green:"#26D9A2",purple:"#A78BFA",greenGlow:"rgba(38,217,162,0.15)",orangeGlow:"rgba(255,160,64,0.15)"};
 export const LIGHT={bg:"#F5F6F8",surface:"#FFFFFF",surfaceActive:"#E8EAED",border:"#D1D5DB",text:"#1A1D21",textMuted:"#4B5563",textDim:"#9CA3AF",cyan:"#0891B2",cyanDark:"#0E7490",cyanGlow:"rgba(8,145,178,0.1)",red:"#DC2626",orange:"#D97706",green:"#059669",purple:"#7C3AED",greenGlow:"rgba(5,150,105,0.1)",orangeGlow:"rgba(217,119,6,0.1)"};
 let _theme=localStorage.getItem("fieldops-theme")||"dark";
