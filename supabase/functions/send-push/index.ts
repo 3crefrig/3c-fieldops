@@ -152,7 +152,7 @@ serve(async (req) => {
         try {
           const resp = await fetch(SUPABASE_URL + "/functions/v1/send-email", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: "Bearer " + ANON },
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||ANON) },
             body: JSON.stringify({
               to: u.email,
               subject: "[3C Alert] " + (title || "3C FieldOps"),

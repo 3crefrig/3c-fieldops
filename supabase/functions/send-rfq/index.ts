@@ -112,7 +112,8 @@ serve(async (req) => {
 
     const emailResp = await fetch(SUPABASE_URL + "/functions/v1/send-email", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + ANON_KEY },
+      // Internal service-to-service call — send-email's guard rejects the anon key.
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + SERVICE_KEY },
       body: JSON.stringify({
         to: rfq.vendor_email,
         subject,
