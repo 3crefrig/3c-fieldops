@@ -14,8 +14,11 @@ const d=await r.json();
 if(d.error)throw new Error(d.error_description);
 return d.access_token;
 }
+// Escape single-quotes/backslashes/control chars in a Drive query string literal —
+// a folder name segment could otherwise break out of the q filter (query injection).
+function dq(s){return String(s||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/[\r\n\t]+/g," ");}
 async function fof(token,name,pid){
-const q=encodeURIComponent("name='"+name+"' and mimeType='application/vnd.google-apps.folder'"+(pid?" and '"+pid+"' in parents":"")+" and trashed=false");
+const q=encodeURIComponent("name='"+dq(name)+"' and mimeType='application/vnd.google-apps.folder'"+(pid?" and '"+dq(pid)+"' in parents":"")+" and trashed=false");
 const r=await fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)",{headers:{Authorization:"Bearer "+token}});
 const d=await r.json();
 if(d.files&&d.files.length>0)return d.files[0].id;

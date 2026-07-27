@@ -14,16 +14,20 @@ const d=await r.json();
 if(d.error)throw new Error(d.error_description);
 return d.access_token;
 }
+// Header values are interpolated into the raw RFC-822 message — strip CR/LF so a
+// crafted subject/recipient/filename can't inject extra headers (e.g. a hidden Bcc).
+const hs=(s:string)=>String(s||"").replace(/[\r\n]+/g," ").trim();
 function be(to,cc,subj,body,att){
 const bn="b_"+Date.now();
-let e="From: "+IE+"\r\nTo: "+to+"\r\n";
-if(cc)e+="Cc: "+cc+"\r\n";
-e+="Subject: "+subj+"\r\nMIME-Version: 1.0\r\n";
+let e="From: "+IE+"\r\nTo: "+hs(to)+"\r\n";
+if(cc)e+="Cc: "+hs(cc)+"\r\n";
+e+="Subject: "+hs(subj)+"\r\nMIME-Version: 1.0\r\n";
 if(att){
+const an=hs(att.name).replace(/"/g,"'");
 e+='Content-Type: multipart/mixed; boundary="'+bn+'"\r\n\r\n';
 e+="--"+bn+"\r\nContent-Type: text/html; charset=\"UTF-8\"\r\n\r\n"+body+"\r\n\r\n";
-e+="--"+bn+"\r\nContent-Type: "+att.type+'; name="'+att.name+'"\r\n';
-e+='Content-Disposition: attachment; filename="'+att.name+'"\r\n';
+e+="--"+bn+"\r\nContent-Type: "+hs(att.type)+'; name="'+an+'"\r\n';
+e+='Content-Disposition: attachment; filename="'+an+'"\r\n';
 e+="Content-Transfer-Encoding: base64\r\n\r\n"+att.content+"\r\n--"+bn+"--";
 }else{
 e+='Content-Type: text/html; charset="UTF-8"\r\n\r\n'+body;

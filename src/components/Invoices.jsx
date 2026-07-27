@@ -1034,12 +1034,15 @@ const EMAIL_VARIANTS=[
 
 function buildInvoiceEmailHTML(d,variant,driveLink){
   const LOGO="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
+  // Escape data interpolated into the email HTML — descriptions can originate from
+  // tech-entered PO text, so nothing user-typed may inject markup into customer email.
+  const esc=(s)=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
   const total=laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0);
   const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/")+" - "+d.dateTo.replace(/-/g,"/")):"";
   const intro=d.emailIntro||("Below I've attached the invoice for work completed through the following dates "+dateRange+".");
 
-  let tiersHTML=d.tiers.filter(t=>(t.hours||0)>0).map(t=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${(t.hours||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${t.name}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">$${(t.rate||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${((t.hours||0)*(t.rate||0)).toFixed(2)}</td></tr>`).join("");
+  let tiersHTML=d.tiers.filter(t=>(t.hours||0)>0).map(t=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${(t.hours||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${esc(t.name)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">$${(t.rate||0).toFixed(2)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${((t.hours||0)*(t.rate||0)).toFixed(2)}</td></tr>`).join("");
 
   let breakdownHTML="";
   if(d.breakdownData){
@@ -1059,7 +1062,7 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
 </div>
 <div style="padding:20px;">
   <p style="font-size:14px;line-height:1.6;">${variant.greeting}</p>
-  <p style="font-size:14px;line-height:1.6;">${intro}</p>
+  <p style="font-size:14px;line-height:1.6;">${esc(intro)}</p>
 
   <table style="border-collapse:collapse;width:100%;margin:16px 0;">
     <tr style="background:#00D4F5;color:#fff;">
@@ -1069,7 +1072,7 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
       <td style="padding:10px 12px;font-weight:bold;font-size:12px;border:1px solid #00B7E8;text-align:right;">Amount</td>
     </tr>
     <tr>
-      <td style="padding:10px 12px;border:1px solid #ddd;font-size:14px;font-weight:bold;">${d.invoiceNum}</td>
+      <td style="padding:10px 12px;border:1px solid #ddd;font-size:14px;font-weight:bold;">${esc(d.invoiceNum)}</td>
       <td style="padding:10px 12px;border:1px solid #ddd;font-size:13px;">${d.date}</td>
       <td style="padding:10px 12px;border:1px solid #ddd;font-size:13px;">${d.dueDate}</td>
       <td style="padding:10px 12px;border:1px solid #ddd;font-size:16px;font-weight:bold;text-align:right;color:#00B050;">$${total.toFixed(2)}</td>
@@ -1085,7 +1088,7 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
     </tr>
     ${tiersHTML}
     ${(d.partsTotal||0)>0?`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">Parts & Materials</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;"></td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(d.partsTotal||0).toFixed(2)}</td></tr>`:""}
-    ${(d.customItems||[]).map(it=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${it.qty!=null&&it.qty!==""?it.qty:""}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${it.description}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">${it.rate!=null&&it.rate!==""?"$"+(parseFloat(it.rate)||0).toFixed(2):""}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(parseFloat(it.amount)||0).toFixed(2)}</td></tr>`).join("")}
+    ${(d.customItems||[]).map(it=>`<tr><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${esc(it.qty!=null&&it.qty!==""?it.qty:"")}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;">${esc(it.description)}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;">${it.rate!=null&&it.rate!==""?"$"+(parseFloat(it.rate)||0).toFixed(2):""}</td><td style="padding:8px 12px;border:1px solid #ddd;font-size:13px;text-align:right;font-weight:bold;">$${(parseFloat(it.amount)||0).toFixed(2)}</td></tr>`).join("")}
     <tr style="background:#f0f7ff;">
       <td colspan="3" style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:14px;">Total</td>
       <td style="padding:10px 12px;border:1px solid #ddd;font-weight:bold;text-align:right;font-size:16px;color:#00B050;">$${total.toFixed(2)}</td>

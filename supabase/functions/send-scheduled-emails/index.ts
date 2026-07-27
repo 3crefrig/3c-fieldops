@@ -85,11 +85,15 @@ function buildMimeMessage(
   attachment?: { name: string; content: string; type: string }
 ): string {
   const boundary = "boundary_" + crypto.randomUUID().replace(/-/g, "");
+  // Strip CR/LF from any value placed in a header line — prevents header injection
+  // (e.g. a crafted subject/recipient/filename smuggling an extra Bcc:).
+  const hs = (s: string) => String(s || "").replace(/[\r\n]+/g, " ").trim();
+  const an = attachment ? hs(attachment.name).replace(/"/g, "'") : "";
 
   let headers = `From: 3C REFRIGERATION <${from}>\r\n`;
-  headers += `To: ${to}\r\n`;
-  if (cc) headers += `Cc: ${cc}\r\n`;
-  headers += `Subject: ${subject}\r\n`;
+  headers += `To: ${hs(to)}\r\n`;
+  if (cc) headers += `Cc: ${hs(cc)}\r\n`;
+  headers += `Subject: ${hs(subject)}\r\n`;
   headers += `MIME-Version: 1.0\r\n`;
 
   if (attachment) {
@@ -99,8 +103,8 @@ function buildMimeMessage(
     mime += `Content-Type: text/html; charset="UTF-8"\r\n\r\n`;
     mime += htmlBody + "\r\n\r\n";
     mime += `--${boundary}\r\n`;
-    mime += `Content-Type: ${attachment.type}; name="${attachment.name}"\r\n`;
-    mime += `Content-Disposition: attachment; filename="${attachment.name}"\r\n`;
+    mime += `Content-Type: ${hs(attachment.type)}; name="${an}"\r\n`;
+    mime += `Content-Disposition: attachment; filename="${an}"\r\n`;
     mime += `Content-Transfer-Encoding: base64\r\n\r\n`;
     mime += attachment.content + "\r\n";
     mime += `--${boundary}--`;

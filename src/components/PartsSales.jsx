@@ -47,7 +47,10 @@ function PartsSales({D,A,user}){
 
   // ── Line items ──
   const addLine=()=>setLines(ls=>[...ls,{description:"",part_no:"",qty:"1",unit_cost:"",unit_price:"",priceEdited:false}]);
-  const updateLine=(i,k,v)=>setLines(ls=>{const n=[...ls];const line={...n[i],[k]:v};
+  const updateLine=(i,k,v)=>setLines(ls=>{const n=[...ls];
+    // Clamp numeric fields at 0 — a negative qty/cost/price would put a negative line on the invoice.
+    if((k==="qty"||k==="unit_cost"||k==="unit_price")&&parseFloat(v)<0)v="0";
+    const line={...n[i],[k]:v};
     if(k==="unit_price")line.priceEdited=true;
     if(k==="unit_cost"&&!line.priceEdited)line.unit_price=String(r2((parseFloat(v)||0)*(1+(parseFloat(markupPct)||0)/100)));
     n[i]=line;return n;});
