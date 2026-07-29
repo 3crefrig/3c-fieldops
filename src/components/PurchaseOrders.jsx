@@ -198,10 +198,16 @@ function StandalonePOModal({onCreatePO,onClose}){
     </div></Modal>);
 }
 
-function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userId}){
+function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userId,users,reloadTable}){
   const PAGE_SIZE=50;
   const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState(""),[confirmDelete,setConfirmDelete]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[showCreate,setShowCreate]=useState(false),[ticketFor,setTicketFor]=useState(null);
   const[pdfPreview,setPdfPreview]=useState(null);
+  // Tie technicians to a PO — same chip + "+ Add" control the WO crew uses.
+  const setPOTechs=async(po,techs)=>{
+    const{error}=await sb().from("purchase_orders").update({assigned_techs:techs}).eq("id",po.id);
+    if(error){msg("Failed: "+error.message);return;}
+    if(reloadTable)reloadTable("purchase_orders");
+  };
   const[inlineAmt,setInlineAmt]=useState({});   // po.id → amount typed on the card ($0 POs approve inline, no Edit detour)
   const[selPOs,setSelPOs]=useState([]);          // bulk-approve selection (pending filter)
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
@@ -233,6 +239,15 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · {parseFloat(po.amount)?<span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount).toFixed(2)}</span>:<span style={{fontFamily:M,fontWeight:700,color:B.orange}}>$ —  needs amount</span>}{wo&&<span> · {wo.title}</span>}</div>
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:6}}>
+                <span style={{fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:.4,textTransform:"uppercase"}}>Techs</span>
+                {(po.assigned_techs||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button onClick={()=>setPOTechs(po,(po.assigned_techs||[]).filter(x=>x!==t))} title={"Remove "+t} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button></span>)}
+                {(po.assigned_techs||[]).length===0&&<span style={{fontSize:11,color:B.textDim}}>None assigned</span>}
+                <select value="" onChange={e=>{if(!e.target.value)return;setPOTechs(po,[...(po.assigned_techs||[]),e.target.value]);e.target.value="";}} style={{...IS,width:"auto",padding:"4px 8px",fontSize:11,cursor:"pointer",minHeight:0}}>
+                  <option value="">+ Add</option>
+                  {(users||[]).filter(u=>u.active!==false&&!(po.assigned_techs||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                </select>
+              </div>
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
               {(()=>{const tc=(tickets||[]).filter(t=>t.po_id===po.id).length;return<button onClick={()=>setTicketFor(po)} title="Capture a supply house pickup ticket against this PO" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,...(tc>0?{color:B.cyan,borderColor:B.cyan+"50"}:{})}}>{tc>0?"Tickets ("+tc+")":"Ticket"}</button>;})()}

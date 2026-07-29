@@ -151,7 +151,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id} users={D.users} reloadTable={A.reloadTable}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="audit"&&<AuditDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers} invoices={D.invoices}/>}
@@ -181,7 +181,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
     {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
-    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id}/>}
+    {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id} users={D.users} reloadTable={A.reloadTable}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="audit"&&<AuditDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="reports"&&<Reports wos={D.wos} pos={D.pos} timeEntries={D.time} users={D.users} customers={D.customers} invoices={D.invoices}/>}
