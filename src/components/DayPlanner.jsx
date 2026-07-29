@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from "react";
-import { B, F, M, IS, LS, BP, BS } from "../shared";
+import { B, F, M, IS, LS, BP, BS, fmtDate} from "../shared";
 import { Card, Badge, StatCard } from "./ui";
 
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const SHORT_DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function DayPlanner({wos,templates,users,userName,userRole}){
+function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
+  const[openGroup,setOpenGroup]=useState(null);
+  const go=(w)=>{if(onOpenWO&&w)onOpenWO(w.id);};
   const isManager=userRole==="admin"||userRole==="manager";
   const techs=users.filter(u=>u.role==="technician"&&u.active!==false);
   const[selectedTech,setSelectedTech]=useState(isManager?"all":userName);
@@ -95,7 +97,7 @@ function DayPlanner({wos,templates,users,userName,userRole}){
         <span style={{fontSize:13,fontWeight:700,color:B.red}}>Overdue ({overdueWOs.length})</span>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {overdueWOs.slice(0,10).map(w=><div key={w.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.red+"08",borderRadius:4,border:"1px solid "+B.red+"22"}}>
+        {overdueWOs.slice(0,10).map(w=><div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.red+"08",borderRadius:4,border:"1px solid "+B.red+"22",cursor:onOpenWO?"pointer":"default",minHeight:36}}>
           <div><span style={{fontFamily:M,fontWeight:700,color:B.red,fontSize:11}}>{w.wo_id}</span><span style={{fontSize:11,color:B.textMuted,marginLeft:6}}>{w.title?.slice(0,40)}</span></div>
           <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:10,color:B.textDim}}>{w.assignee}</span><span style={{fontSize:10,color:B.red,fontWeight:600}}>Due {w.due_date}</span></div>
         </div>)}
@@ -109,10 +111,24 @@ function DayPlanner({wos,templates,users,userName,userRole}){
         <span style={{fontSize:13,fontWeight:700,color:B.cyan}}>Batch Opportunities</span>
         <span style={{fontSize:10,color:B.textDim}}>Jobs at the same location this week</span>
       </div>
-      {routeGroups.slice(0,5).map((g,i)=><div key={i} style={{padding:"6px 10px",background:B.cyan+"08",borderRadius:4,border:"1px solid "+B.cyan+"22",marginBottom:4}}>
-        <div style={{fontSize:12,fontWeight:600,color:B.text}}>{g.customer} — {g.location||"No location"}</div>
-        <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{g.wos.length} jobs · Spread across {g.dates.size} day{g.dates.size!==1?"s":""} — consider batching into one visit</div>
-      </div>)}
+      {routeGroups.slice(0,5).map((g,i)=>{const open=openGroup===i;return(<div key={i} style={{background:B.cyan+"08",borderRadius:4,border:"1px solid "+B.cyan+"22",marginBottom:4,overflow:"hidden"}}>
+        <div onClick={()=>setOpenGroup(open?null:i)} title="Show the jobs in this batch" style={{padding:"8px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,minHeight:40}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:600,color:B.text}}>{g.customer} — {g.location||"No location"}</div>
+            <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{g.wos.length} jobs · Spread across {g.dates.size} day{g.dates.size!==1?"s":""} — consider batching into one visit</div>
+          </div>
+          <span style={{fontSize:10,color:B.cyan,fontWeight:700,flexShrink:0}}>{open?"Hide":"View jobs"} {open?"▾":"▸"}</span>
+        </div>
+        {open&&<div style={{display:"flex",flexDirection:"column",gap:4,padding:"0 10px 8px"}}>
+          {g.wos.map(w=><div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",background:B.bg,borderRadius:4,border:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default",minHeight:36}}>
+            <div style={{flex:1,minWidth:0}}>
+              <span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:11}}>{w.wo_id}</span>
+              <span style={{fontSize:11,color:B.text,marginLeft:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.title}</span>
+            </div>
+            <span style={{fontSize:10,color:B.textDim,flexShrink:0}}>{w.due_date&&w.due_date!=="TBD"?fmtDate(w.due_date,{month:"numeric",day:"numeric"}):"No date"}</span>
+          </div>)}
+        </div>}
+      </div>);})}
     </Card>}
 
     {/* Day-by-day view */}
@@ -136,7 +152,7 @@ function DayPlanner({wos,templates,users,userName,userRole}){
           {dayWOs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
             {dayWOs.map(w=>{
               const priColor=w.priority==="high"?B.red:w.priority==="medium"?B.orange:B.green;
-              return(<div key={w.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
+              return(<div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default"}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:11}}>{w.wo_id}</span>

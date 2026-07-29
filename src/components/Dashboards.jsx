@@ -130,7 +130,7 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
         </div>
       </Modal>}
     </>}
-    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
+    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
     {tab==="orders"&&<WOList orders={my} {...wlp}/>}
     {tab==="time"&&<TimeLog timeEntries={myTime} wos={D.wos} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
     {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} onUpdateWO={A.updateWO} onDeleteWO={A.deleteWO} allPOs={D.pos} onCreatePO={A.createPO} allTime={D.time} lineItems={D.lineItems||[]} photos={D.photos||[]} onAddTime={A.addTime} onUpdateTime={A.updateTime} onDeleteTime={A.deleteTime} onAddPhoto={A.addPhoto} equipment={D.equipment||[]} loadData={A.loadData} reloadTable={A.reloadTable}/>}
@@ -150,7 +150,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="overview"&&<><KPIDashboard D={D} A={A} userRole={user.role} userName={user.name}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:700,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<RepeatFailures wos={D.wos} pos={D.pos} equipment={D.equipment}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
+    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="audit"&&<AuditDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
@@ -180,7 +180,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="overview"&&<><KPIDashboard D={D} A={A} userRole={user.role} userName={user.name}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:700,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<RepeatFailures wos={D.wos} pos={D.pos} equipment={D.equipment}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role}/>}
+    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="audit"&&<AuditDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
