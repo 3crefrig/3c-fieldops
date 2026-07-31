@@ -5,6 +5,7 @@ import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
 import { POReqModal, POEditForm } from "./PurchaseOrders";
+import { InvoiceGenerator } from "./Invoices";
 import { EquipmentPicker, BarcodeScanner, EQ_TYPES, EQ_LABELS, REF_TYPES } from "./Equipment";
 
 // ─── Inline Equipment helpers (used by WODetail and CreateWO) ─────────────────
@@ -216,9 +217,10 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   </Card>);
 }
 
-function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers}){
+function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
   const reloadWOs=()=>reloadTable?reloadTable("work_orders"):loadData();
   const D_equipment=equipment||[];
+  const[showBill,setShowBill]=useState(false);
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false),[editingPO,setEditingPO]=useState(null);
   const[jobIntel,setJobIntel]=useState(null),[intelLoading,setIntelLoading]=useState(false),[intelOpen,setIntelOpen]=useState(false);
   const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
@@ -335,7 +337,23 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         {phone&&<a href={"tel:"+String(phone).replace(/[^0-9+]/g,"")} style={chip}>Call{cO.contact_name?" "+cO.contact_name.split(" ")[0]:""}</a>}
         {navQ&&<a href={"https://maps.google.com/?q="+encodeURIComponent(navQ)} target="_blank" rel="noreferrer" style={chip}>Navigate</a>}
       </div>:null;})()}
-      {isManager&&wo.status==="completed"&&!wo.invoiced&&!wo.project_id&&<button onClick={()=>{try{sessionStorage.setItem("invoice-prefill",JSON.stringify({customer:wo.customer||"",woUuid:wo.id}));}catch(e){}window.history.pushState(null,"","#tab=invoices");window.dispatchEvent(new PopStateEvent("popstate"));}} style={{...BP,width:"100%",marginTop:8,background:B.green}}>Invoice this WO →</button>}
+      {/* Bill from this WO — gated to the same roles that can reach the Finance tab
+          (manager/admin). The completion gate is deliberate: it preserves the
+          signature attestation from Review & Sign before anything gets billed. */}
+      {isManager&&(()=>{
+        const billedInv=(invoices||[]).find(i=>(i.wo_ids||[]).includes(wo.wo_id)||(i.wo_ids||[]).includes(wo.id));
+        const blocked=wo.status!=="completed"?"Complete and sign this work order before billing."
+          :!wo.customer?"Assign a customer to this work order before billing."
+          :(woHrs<=0&&woLineItems.length===0)?"No time logged on this work order."
+          :(!billedInv&&wo.invoiced)?"This work order is already marked invoiced."
+          :null;
+        if(billedInv)return(<button onClick={()=>{window.history.pushState(null,"","#tab=invoices");window.dispatchEvent(new PopStateEvent("popstate"));}} style={{...BS,width:"100%",marginTop:8,color:B.green,borderColor:B.green+"55"}} title={"Already billed on invoice "+billedInv.invoice_num}>Billed on INV-{billedInv.invoice_num} →</button>);
+        if(blocked)return(<div title={blocked} style={{marginTop:8}}>
+          <button disabled style={{...BP,width:"100%",background:B.surfaceActive,color:B.textDim,cursor:"not-allowed"}}>Bill from this WO</button>
+          <div style={{fontSize:11,color:B.textDim,marginTop:4,textAlign:"center"}}>{blocked}</div>
+        </div>);
+        return <button onClick={()=>setShowBill(true)} style={{...BP,width:"100%",marginTop:8,background:B.green}}>Bill from this WO</button>;
+      })()}
       {wo.date_completed&&<div style={{marginTop:8,padding:"8px 10px",background:B.greenGlow,borderRadius:6,fontSize:12}}><span style={{color:B.green,fontWeight:700}}>✓ Completed {fmtDate(wo.date_completed)}</span>{wo.work_performed&&<div style={{marginTop:4,fontSize:11,color:B.text,lineHeight:1.4}}>{wo.work_performed}</div>}</div>}
       {wo.status==="completed"&&woTime.length>0&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><span style={LS}>Completion Notes</span>{woTime.sort((a,b)=>(a.logged_date||"").localeCompare(b.logged_date||"")).map((t,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none"}}><span style={{fontFamily:M,fontSize:11,color:B.textDim,minWidth:75}}>{fmtDate(t.logged_date)}</span><span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan,minWidth:30}}>{t.hours}h</span><span style={{fontSize:12,color:B.text}}>{t.description||"—"}</span></div>)}{wo.work_performed&&<div style={{marginTop:6,padding:"6px 0",borderTop:"1px solid "+B.border,fontSize:12,color:B.textMuted,fontStyle:"italic"}}>{wo.work_performed}</div>}</div>}
     </Card>
@@ -713,6 +731,15 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       </div>
     </Modal>}
     {showTroubleshoot&&<TroubleshootAssistant wo={wo} onClose={()=>setShowTroubleshoot(false)}/>}
+    {/* The Finance invoice generator itself, opened in lockWO mode — not a copy of it,
+        so the two paths can't drift and produce different invoices for the same WO. */}
+    {showBill&&isManager&&<Modal title={"Bill "+wo.wo_id} onClose={()=>setShowBill(false)} wide>
+      <InvoiceGenerator lockWO={wo} onDone={(m)=>{setShowBill(false);if(m)msg(m);reloadWOs();}}
+        wos={[wo]}
+        pos={pos} time={timeEntries} users={users} customers={customers} invoices={invoices||[]}
+        onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates||[]} currentUser={currentUser}
+        lineItems={lineItems||[]} projects={projects||[]} reloadTable={reloadTable} loadData={loadData}/>
+    </Modal>}
     {showEdit&&isManager&&<Modal title="Edit Work Order" onClose={()=>setShowEdit(false)} wide>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Title</label><input value={editWO.title} onChange={e=>setEditWO({...editWO,title:e.target.value})} style={IS}/></div>
@@ -827,7 +854,7 @@ function SwipeCard({wo,onStatusChange,children}){
   </div>);
 }
 
-function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,reloadTable,navWOId,clearNavWO}){
+function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,reloadTable,navWOId,clearNavWO,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
   const PAGE_SIZE=50;
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   useEffect(()=>{if(navWOId){const wo=orders.find(o=>o.wo_id===navWOId||o.id===navWOId);if(wo){setSel(wo);if(clearNavWO)clearNavWO();}}},[navWOId]);
@@ -840,7 +867,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders} equipment={equipment} reloadTable={reloadTable}/>;
-  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers}/>;}
+  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers} invoices={invoices} projects={projects} emailTemplates={emailTemplates} onCreateInvoice={onCreateInvoice} currentUser={currentUser}/>;}
   const today=new Date().toISOString().slice(0,10);
   const poByWO={},phByWO={};pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
   return(<div>
