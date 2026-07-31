@@ -73,7 +73,7 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,equipment:D.equipment||[],lineItems:D.lineItems||[],userName:user.name,userRole:user.role,loadData:A.loadData,reloadTable:A.reloadTable,navWOId,clearNavWO:()=>setNavWOId(null)};
   const submitQuickLog=async()=>{if(!qlWO||!qlH||qlSaving)return;if(cleanText(qlD,"Description")===null)return;setQlSaving(true);const h=parseFloat(qlH)||0;await A.addTime({wo_id:qlWO,hours:h,description:qlD.trim()||"Work performed",logged_date:qlDate});setQlSaving(false);setQuickLog(false);setQlWO("");setQlH("");setQlD("");};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} offlineQueueCount={offlineQueueCount} notifications={visibleNotifs(D.notifs,user.role)} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} searchData={{wos:D.wos,pos:D.pos,customers:D.customers,equipment:D.equipment,projects:D.projects}} tabs={[{key:"today",label:"My Day",icon:"📍"},{key:"planner",label:"Week Plan",icon:"🗓"},{key:"orders",label:"All Orders",icon:"📋"},{key:"time",label:"Hours",icon:"⏱"},{key:"equipment",label:"Equipment",icon:"🔧"},{key:"rfqs",label:"RFQs",icon:"📨"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"},{key:"guide",label:"Guide",icon:"📘"}]}>
-    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
+    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name} time={D.time}/>}
     {tab==="today"&&<>{(()=>{const noTimeToday=myActive.filter(o=>o.status==="in_progress"&&!D.time.some(t=>t.wo_id===o.id&&t.logged_date===todayStr));const isAfternoon=new Date().getHours()>=15;return<>
       {noTimeToday.length>0&&<div style={{background:B.orange+"15",border:"1px solid "+B.orange+"33",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><span style={{fontSize:13,fontWeight:700,color:B.orange}}>You have {noTimeToday.length} active WO{noTimeToday.length!==1?"s":""} with no time logged today</span></div>
@@ -163,7 +163,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="customers"&&<CustomerMgmt customers={D.customers} onAdd={A.addCustomer} onUpdate={A.updateCustomer} onDelete={A.deleteCustomer} wos={D.wos} time={D.time} pos={D.pos}/>}
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} onSendOnboarding={A.sendOnboardingEmail} cur={user}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time} lineItems={D.lineItems||[]} invoices={D.invoices||[]} loadData={A.loadData} reloadTable={A.reloadTable}/>}
-    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
+    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name} time={D.time}/>}
     {tab==="agreements"&&<AgreementDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
     {tab==="equipment"&&<EquipmentDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
@@ -197,7 +197,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="users"&&<UserMgmt users={D.users} onAddUser={A.addUser} onUpdateUser={A.updateUser} onDeleteUser={A.deleteUser} onSendOnboarding={A.sendOnboardingEmail} cur={user}/>}
     {tab==="settings"&&<Settings emailTemplates={D.emailTemplates} onAddTemplate={A.addEmailTemplate} onUpdateTemplate={A.updateEmailTemplate} onDeleteTemplate={A.deleteEmailTemplate} D={D} userName={user.name}/>}
     {tab==="projects"&&<Projects projects={D.projects||[]} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} allPOs={D.pos} allTime={D.time} lineItems={D.lineItems||[]} invoices={D.invoices||[]} loadData={A.loadData} reloadTable={A.reloadTable}/>}
-    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name}/>}
+    {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name} time={D.time}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
     {tab==="guide"&&<HelpGuide userRole={user.role} userName={user.name}/>}
   </Shell>);
