@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate , fnFetch } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
-import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
 // ── Email Picker for "Start from Email" ──────────────────────
@@ -379,7 +378,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
 
 // ── Proposal PDF Generator ──────────────────────────────────
 async function generateProposalPdf(prop,est){
-  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const{jsPDF}=await import("jspdf");const doc=new jsPDF({unit:"mm",format:"letter"});
   const pw=215.9,lm=20,rm=20,cw=pw-lm-rm;
   const cyan=[0,229,255],dark=[30,34,42],mid=[120,130,150],light=[240,243,248];
   let y=20;

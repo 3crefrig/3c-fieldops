@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { CameraUpload } from "./CameraUpload";
-import { Html5Qrcode } from "html5-qrcode";
+// html5-qrcode (~46KB gz) loads on demand when the scanner actually opens —
+// keeping it out of the main bundle. See the dynamic import in BarcodeScanner.
 
 const EQ_TYPES=[
   {value:"walk_in_cooler",label:"Walk-In Cooler"},
@@ -29,14 +30,19 @@ const STATUS_LABELS={active:"Active",decommissioned:"Decommissioned",pending_ins
 function BarcodeScanner({onScan,onClose}){
   const scannerRef=useRef(null);const containerRef=useRef(null);const[error,setError]=useState("");const[manual,setManual]=useState("");
   useEffect(()=>{
+    let cancelled=false;
     const scannerId="eq-scanner-"+Date.now();
     if(containerRef.current)containerRef.current.id=scannerId;
-    const scanner=new Html5Qrcode(scannerId);scannerRef.current=scanner;
-    scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:180},aspectRatio:1.5},
-      (text)=>{haptic(50);scanner.stop().catch(()=>{});onScan(text);},
-      ()=>{}
-    ).catch(err=>{setError("Camera access denied or unavailable. You can type the asset tag manually.");console.warn("Scanner error:",err);});
-    return()=>{scanner.stop().catch(()=>{});};
+    (async()=>{
+      const{Html5Qrcode}=await import("html5-qrcode");
+      if(cancelled)return;
+      const scanner=new Html5Qrcode(scannerId);scannerRef.current=scanner;
+      scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:180},aspectRatio:1.5},
+        (text)=>{haptic(50);scanner.stop().catch(()=>{});onScan(text);},
+        ()=>{}
+      ).catch(err=>{setError("Camera access denied or unavailable. You can type the asset tag manually.");console.warn("Scanner error:",err);});
+    })();
+    return()=>{cancelled=true;scannerRef.current?.stop().catch(()=>{});};
   },[onScan,onClose]);
   return(<Modal title="Scan Asset Tag" onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>

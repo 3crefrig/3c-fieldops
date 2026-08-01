@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr} from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr, genAgreementNum} from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
 import { CustomerPortal } from "./components/CustomerPortal";
-import { FeedbackForm } from "./components/Feedback";
-import { ProposalPortal } from "./components/Proposals";
 import { cacheData, getCachedData, getQueuedMutations, clearMutation, getQueueCount, queueMutation } from "./offlineStore";
-import { genAgreementNum } from "./components/ServiceAgreements";
 import { buildOnboardingEmail } from "./onboardingEmail";
 import { registerPush } from "./push";
+// Public portal pages (token links) are code-split — a tech logging in never loads
+// the proposal/feedback modules just because App references their portal routes.
+const FeedbackForm=React.lazy(()=>import("./components/Feedback").then(m=>({default:m.FeedbackForm})));
+const ProposalPortal=React.lazy(()=>import("./components/Proposals").then(m=>({default:m.ProposalPortal})));
 
 /*
  * 3C Refrigeration FieldOps Pro — Modular Edition
@@ -354,8 +355,8 @@ export default function AppRouter(){
   const portalMatch=hash.match(/#\/portal\/(.+)/);
   if(portalMatch)return <ErrorBoundary><CustomerPortal customerSlug={portalMatch[1]}/></ErrorBoundary>;
   const feedbackMatch=hash.match(/#\/feedback\/(.+)/);
-  if(feedbackMatch)return <ErrorBoundary><FeedbackForm token={feedbackMatch[1]}/></ErrorBoundary>;
+  if(feedbackMatch)return <ErrorBoundary><React.Suspense fallback={<Spinner/>}><FeedbackForm token={feedbackMatch[1]}/></React.Suspense></ErrorBoundary>;
   const proposalMatch=hash.match(/#\/proposal\/(.+)/);
-  if(proposalMatch)return <ErrorBoundary><ProposalPortal token={proposalMatch[1]}/></ErrorBoundary>;
+  if(proposalMatch)return <ErrorBoundary><React.Suspense fallback={<Spinner/>}><ProposalPortal token={proposalMatch[1]}/></React.Suspense></ErrorBoundary>;
   return <ErrorBoundary><App/></ErrorBoundary>;
 }

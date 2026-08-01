@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours , todayLocal, localDateStr} from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
-import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
 const FREQ_LABELS={weekly:"Weekly",biweekly:"Every 2 Weeks",monthly:"Monthly",quarterly:"Quarterly",biannual:"Every 6 Months",annual:"Annual"};
@@ -10,7 +9,7 @@ const STATUS_COLORS={active:B.green,expired:B.red,cancelled:B.textDim,pending_re
 const STATUS_LABELS={active:"Active",expired:"Expired",cancelled:"Cancelled",pending_renewal:"Pending Renewal"};
 const DEFAULT_SERVICES=["PM Inspection","Filter Replacement","Coil Cleaning","Refrigerant Check","Electrical Check","Belt Inspection","Thermostat Calibration","Drain Line Clearing"];
 
-function genAgreementNum(existing){const n=new Date(),pfx="AGR-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(a=>a.agreement_num&&a.agreement_num.startsWith(pfx)).reduce((m,a)=>{const s=parseInt(a.agreement_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+// genAgreementNum moved to shared.js (imported above) so App.jsx doesn't pull this module into main.
 
 // ─── Tier Manager (Admin only) ────────────────────────
 function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
@@ -203,7 +202,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
 
 // ─── Agreement PDF Generation (SOW format, zero AI tokens) ─────
 async function generateAgreementPDF(a, coveredEquipment, customerObj) {
-  const doc = new jsPDF({ unit: "mm", format: "letter" });
+  const{jsPDF}=await import("jspdf");const doc = new jsPDF({ unit: "mm", format: "letter" });
   const pw = 215.9, ph = 279.4, lm = 20, rm = 20, cw = pw - lm - rm;
   const cyan = [0, 212, 245], dark = [16, 18, 20], mid = [100, 110, 125], light = [240, 243, 248];
   let y = 0;
