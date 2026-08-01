@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
@@ -469,12 +469,12 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const agingColor=(days)=>days>30?B.red:days>15?B.orange:B.green;
   const outstanding=invoices.filter(i=>i.status==="sent"||i.status==="draft");
   const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>30);
-  const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===today.toISOString().slice(0,7));
+  const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===todayLocal().slice(0,7));
   const totalOutstanding=outstanding.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const totalPaidMonth=paidThisMonth.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
-  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as sent");
+  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as sent");
     // Auto-send feedback request
     try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
     if(toEmail){const token=crypto.randomUUID();
@@ -484,7 +484,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       await fnFetch("send-email",{to:toEmail,subject:"How was our service? — 3C Refrigeration",body});
     }}catch(e){console.error("Feedback request error:",e);}
   };
-  const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
+  const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as paid");};
   const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>rebuildInvoiceData(inv,{customers,pos,wos});
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
@@ -773,7 +773,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(!onCreateInvoice)return;
     if(savedNumRef.current===invoiceNum)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString().slice(0,10)};
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     savedNumRef.current=invoiceNum; // only mark saved after a successful insert so a failed attempt can retry
@@ -1183,7 +1183,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
   // Random time between 5:30 AM and 7:00 AM tomorrow
   const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
   const randHr=5+Math.floor(Math.random()*2);const randMin=randHr===5?30+Math.floor(Math.random()*30):Math.floor(Math.random()*60);
-  const[scheduleDate,setScheduleDate]=useState(tomorrow.toISOString().slice(0,10));
+  const[scheduleDate,setScheduleDate]=useState(localDateStr(tomorrow));
   const[scheduleTime,setScheduleTime]=useState(String(randHr).padStart(2,"0")+":"+String(randMin).padStart(2,"0"));
   const[sending,setSending]=useState(false);
   const[contacts,setContacts]=useState([]);

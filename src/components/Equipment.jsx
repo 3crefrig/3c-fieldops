@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { CameraUpload } from "./CameraUpload";
 import { Html5Qrcode } from "html5-qrcode";
@@ -303,8 +303,8 @@ function EquipmentDashboard({D,A,userRole,userName}){
   });
 
   const active=equipment.filter(e=>e.status==="active").length;
-  const today=new Date().toISOString().slice(0,10);
-  const thirtyDays=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+  const today=todayLocal();
+  const thirtyDays=localDateStr(new Date(Date.now()+30*86400000));
   const expiringWarranties=equipment.filter(e=>e.status==="active"&&e.warranty_expiration&&e.warranty_expiration>=today&&e.warranty_expiration<=thirtyDays).length;
   const expiredWarranties=equipment.filter(e=>e.status==="active"&&e.warranty_expiration&&e.warranty_expiration<today).length;
   const custCount=new Set(equipment.map(e=>e.customer_name)).size;

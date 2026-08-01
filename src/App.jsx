@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup } from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr} from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
@@ -118,7 +118,7 @@ function App(){
     const checkRecurringPMs=async()=>{
       const{data:tpls}=await client.from("recurring_templates").select("*").eq("active",true);
       if(!tpls||tpls.length===0)return;
-      const today=new Date().toISOString().slice(0,10);
+      const today=todayLocal();
       for(const t of tpls){
         if(!t.next_due||t.next_due>today)continue;
         const{data:existing}=await client.from("work_orders").select("wo_id").ilike("title","PM: "+t.title+"%").eq("due_date",t.next_due);
@@ -234,7 +234,7 @@ function App(){
       if(te.description)te.description=autoCorrect(te.description);
       const h=Math.round((parseFloat(te.hours)||0)*4)/4;
       if(h<=0){alert("Hours must be greater than 0.");return;}
-      const logDate=te.logged_date||new Date().toISOString().slice(0,10);
+      const logDate=te.logged_date||todayLocal();
       if(isOffline()){await queueOffline("time_entries","insert",{...te,hours:h,technician:appUser.name,logged_date:logDate});return;}
       // Check daily hour limit from app_settings
       const{data:settingsRow}=await sb().from("app_settings").select("value").eq("key","app_settings").single();

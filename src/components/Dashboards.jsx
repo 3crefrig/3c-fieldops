@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours, fmtHours, visibleNotifs } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours, fmtHours, visibleNotifs , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, EmptyState, Toast, Icon } from "./ui";
 import { KPIDashboard, DashAnalytics } from "./KPIDashboard";
 import { Reports } from "./Reports";
@@ -29,7 +29,7 @@ import { AgreementDashboard } from "./ServiceAgreements";
 import { DayPlanner } from "./DayPlanner";
 
 function RepeatFailures({wos,pos,equipment}){
-  const cutoff=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  const cutoff=localDateStr(new Date(Date.now()-90*86400000));
   const cms=wos.filter(w=>w.wo_type==="CM"&&w.status==="completed"&&(w.date_completed||w.created_at?.slice(0,10))>=cutoff);
   const groups={};
   cms.forEach(w=>{const key=w.equipment_id||(w.customer+"|"+(w.location||"")+(w.building?"-"+w.building:""));if(!groups[key])groups[key]={wos:[],customer:w.customer,location:w.location,building:w.building,eqId:w.equipment_id};groups[key].wos.push(w);});
@@ -62,12 +62,12 @@ function useHashTab(defaultTab,validTabs){
 function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
   const techTabs=["today","planner","orders","time","equipment","rfqs","calendar","projects","kb","guide"];
   const[tab,setTab]=useHashTab("today",techTabs);const[navWOId,setNavWOId]=useState(null);
-  const[quickLog,setQuickLog]=useState(false),[qlWO,setQlWO]=useState(""),[qlH,setQlH]=useState(""),[qlD,setQlD]=useState(""),[qlDate,setQlDate]=useState(new Date().toISOString().slice(0,10)),[qlSaving,setQlSaving]=useState(false);
+  const[quickLog,setQuickLog]=useState(false),[qlWO,setQlWO]=useState(""),[qlH,setQlH]=useState(""),[qlD,setQlD]=useState(""),[qlDate,setQlDate]=useState(todayLocal()),[qlSaving,setQlSaving]=useState(false);
   const my=D.wos.filter(o=>o.assignee===user.name||(o.crew&&o.crew.includes(user.name)));
   const myActive=my.filter(o=>o.status!=="completed");
   const myCompleted=my.filter(o=>o.status==="completed");
   const myTime=D.time.filter(t=>t.technician===user.name);
-  const todayStr=new Date().toISOString().slice(0,10);
+  const todayStr=todayLocal();
   const todayHours=myTime.filter(t=>t.logged_date===todayStr).reduce((s,t)=>s+parseFloat(t.hours||0),0);
   const recentWOs=[...my].sort((a,b)=>{const aT=D.time.filter(t=>t.wo_id===a.id).sort((x,y)=>(y.logged_date||"").localeCompare(x.logged_date||""))[0];const bT=D.time.filter(t=>t.wo_id===b.id).sort((x,y)=>(y.logged_date||"").localeCompare(x.logged_date||""))[0];return((bT?.logged_date||b.created_at)||"").localeCompare((aT?.logged_date||a.created_at)||"");}).slice(0,5);
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,equipment:D.equipment||[],lineItems:D.lineItems||[],userName:user.name,userRole:user.role,loadData:A.loadData,reloadTable:A.reloadTable,navWOId,clearNavWO:()=>setNavWOId(null)};

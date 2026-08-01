@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { B, F, M, IS, LS, BP, BS, fmtDate} from "../shared";
+import { B, F, M, IS, LS, BP, BS, fmtDate, todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard } from "./ui";
 
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -20,8 +20,8 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
     return Array.from({length:5},(_,i)=>{const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);return d;});
   },[weekOffset]);
 
-  const weekStart=weekDates[0].toISOString().slice(0,10);
-  const weekEnd=weekDates[4].toISOString().slice(0,10);
+  const weekStart=localDateStr(weekDates[0]);
+  const weekEnd=localDateStr(weekDates[4]);
   const weekLabel=weekDates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" — "+weekDates[4].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 
   // Filter WOs for this week
@@ -37,7 +37,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
 
   // Also include overdue WOs
   const overdueWOs=useMemo(()=>{
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayLocal();
     return wos.filter(w=>{
       if(w.status==="completed")return false;
       if(selectedTech!=="all"&&w.assignee!==selectedTech&&!(w.crew||[]).includes(selectedTech))return false;
@@ -48,7 +48,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
   // Group week WOs by day
   const byDay=useMemo(()=>{
     const map={};
-    weekDates.forEach(d=>{map[d.toISOString().slice(0,10)]=[];});
+    weekDates.forEach(d=>{map[localDateStr(d)]=[];});
     weekWOs.forEach(w=>{if(map[w.due_date])map[w.due_date].push(w);});
     return map;
   },[weekWOs,weekDates]);
@@ -67,7 +67,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
 
   const pmCount=weekWOs.filter(w=>w.wo_type==="PM").length;
   const cmCount=weekWOs.filter(w=>w.wo_type==="CM"||!w.wo_type).length;
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayLocal();
 
   return(<div>
     {/* Stats */}
@@ -134,7 +134,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
     {/* Day-by-day view */}
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {weekDates.map(d=>{
-        const dateStr=d.toISOString().slice(0,10);
+        const dateStr=localDateStr(d);
         const dayWOs=byDay[dateStr]||[];
         const isToday=dateStr===today;
         const dayName=DAY_NAMES[d.getDay()];
