@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch, loadWOSignature } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -224,6 +224,15 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
   const[showFollowUp,setShowFollowUp]=useState(false),[fuNotes,setFuNotes]=useState("");
+  // `signature` is excluded from WO_COLS (it's a ~6KB base64 PNG and would bloat every
+  // list fetch), so the detail view loads it on demand. Every signed WO has a
+  // date_completed, so that's a safe gate to avoid a pointless query on open WOs.
+  const[sigData,setSigData]=useState(null);
+  useEffect(()=>{let cancelled=false;
+    if(!wo.id||!wo.date_completed){setSigData(null);return;}
+    loadWOSignature(wo.id).then(s=>{if(!cancelled)setSigData(s);});
+    return()=>{cancelled=true;};
+  },[wo.id,wo.date_completed]);
   const[poPrefill,setPoPrefill]=useState(null); // scanned-receipt data carried into the PO form
   // Receipt scan accepts a File from the picker OR a pasted screen capture.
   usePasteImage(showReceipt&&!receiptData,(f)=>runReceiptScan(f));
@@ -602,7 +611,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         </div>}
       </Card>}
 
-      {wo.signature&&<Card style={{marginBottom:8}}><span style={LS}>Completion Signature</span><div style={{marginTop:4}}><img src={wo.signature} alt="Sig" style={{maxWidth:280,height:"auto",display:"block",borderRadius:6}}/></div></Card>}
+      {sigData&&<Card style={{marginBottom:8}}><span style={LS}>Completion Signature</span><div style={{marginTop:4}}><img src={sigData} alt="Sig" style={{maxWidth:280,height:"auto",display:"block",borderRadius:6}}/></div></Card>}
 
       {/* Crew section */}
       <Card style={{marginBottom:8}}>
