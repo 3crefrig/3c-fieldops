@@ -938,7 +938,11 @@ function TMSQueue({orders,wlp}){
   // date | WO# | building/location | hours | work performed | tech.
   const copyRow=async(wo)=>{const hrs=calcWOHours(wo.id,wlp.timeEntries||[]);
     const parts=[fmtDate((wo.date_completed||wo.created_at||"").slice(0,10)),wo.wo_id,[wo.building,wo.location].filter(Boolean).join(" "),hrs>0?fmtHours(hrs):null,wo.work_performed||wo.title||null,wo.assignee||null].filter(Boolean);
-    try{await navigator.clipboard.writeText(parts.join(" | "));setCopied(wo.id);setTimeout(()=>setCopied(c=>c===wo.id?null:c),1500);}catch(e){console.error("copy failed:",e);}};
+    const line=parts.join(" | ");
+    try{await navigator.clipboard.writeText(line);}
+    catch(e){// Clipboard API needs focus/permission — fall back to the classic path.
+      const ta=document.createElement("textarea");ta.value=line;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e2){console.error("copy failed:",e2);}document.body.removeChild(ta);}
+    setCopied(wo.id);setTimeout(()=>setCopied(c=>c===wo.id?null:c),1500);};
   const list=[...orders].sort((a,b)=>{const da=a.date_completed||a.created_at||"";const db=b.date_completed||b.created_at||"";return db.localeCompare(da);});
   const visible=hideEntered?list.filter(w=>!w.tms_entered):list;
   const setLocal=(id,val)=>setLocalVals(v=>({...v,[id]:val}));
