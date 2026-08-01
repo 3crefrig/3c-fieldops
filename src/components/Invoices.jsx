@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
-import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
 async function buildInvoiceExcel(d){
@@ -187,7 +186,7 @@ async function buildInvoiceExcel(d){
 }
 
 async function buildInvoicePDF(d){
-  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const{jsPDF}=await import("jspdf");const doc=new jsPDF({unit:"mm",format:"letter"});
   const pw=215.9,ph=279.4,lm=18,rm=18,cw=pw-lm-rm;
   const cyan=[0,212,245],cyanDk=[0,160,200],dark=[30,34,40],mid=[100,112,130],light=[245,247,252],white=[255,255,255];
   let y=0;
@@ -241,6 +240,17 @@ async function buildInvoicePDF(d){
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
   let by=y+12;
   addrLines.forEach(l=>{txt(l,lm+5,by);by+=4.5;});
+  // SHIP TO box (dropship parts sales) — sits beside BILL TO when a destination is set.
+  if(d.shipTo){
+    const sx=lm+cw*0.64,sw=cw*0.36;
+    R(sx,y,sw,billH,light);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(sx,y,sx,y+billH);
+    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);
+    txt("SHIP TO",sx+5,y+5.5);
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+    let sy=y+12;
+    doc.splitTextToSize(d.shipTo,sw-10).slice(0,Math.max(2,Math.floor((billH-12)/4.5))).forEach(l=>{txt(l,sx+5,sy);sy+=4.5;});
+  }
   y+=billH+6;
 
   // ── Order info row ──
@@ -291,8 +301,11 @@ async function buildInvoicePDF(d){
     y+=2;L(y,[220,225,235],0.2);y+=4;
   }
 
-  // Description / coverage text
-  const descText=d.breakdownData?.description||d.description;
+  // Description / coverage text. When the SHIP TO box already rendered the
+  // destination, strip the redundant "Shipped to:" line that rides in the notes
+  // (kept there for the Excel export and the invoice record).
+  let descText=d.breakdownData?.description||d.description;
+  if(d.shipTo&&descText)descText=descText.split("\n").filter(l=>!l.startsWith("Shipped to: ")).join("\n").trim();
   if(descText){
     pageBreak(16);
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
@@ -431,7 +444,7 @@ function rebuildInvoiceData(inv,{customers,pos,wos}){
   const partsDetail=invPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+mkup/100)*100)/100}));
   const customItems=Array.isArray(inv.custom_items)?inv.custom_items:[];
   const customItemsTotal=customItems.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
-  return{invoiceNum:inv.invoice_num,date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null,customItems,customItemsTotal};
+  return{invoiceNum:inv.invoice_num,shipTo:((/^Shipped to: (.+)$/m.exec(inv.notes||"")||[])[1]||""),date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null,customItems,customItemsTotal};
 }
 
 async function openInvoicePDF(inv,ctx){
@@ -460,9 +473,8 @@ async function invoicePreviewSource(inv,ctx){
 // download. Click the backdrop or Close to dismiss; "Open in new tab" as fallback.
 function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
   const PAGE_SIZE=50;
-  // "Invoice this WO" handoff: a completed WO can preseed the generator via sessionStorage.
   const[pdfPreview,setPdfPreview]=useState(null);
-  const[view,setView]=useState(()=>{try{return sessionStorage.getItem("invoice-prefill")?"create":"tracker";}catch(e){return"tracker";}}),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
+  const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
   const today=new Date();
@@ -470,12 +482,12 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const agingColor=(days)=>days>30?B.red:days>15?B.orange:B.green;
   const outstanding=invoices.filter(i=>i.status==="sent"||i.status==="draft");
   const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>30);
-  const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===today.toISOString().slice(0,7));
+  const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===todayLocal().slice(0,7));
   const totalOutstanding=outstanding.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const totalPaidMonth=paidThisMonth.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
-  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as sent");
+  const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as sent");
     // Auto-send feedback request
     try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
     if(toEmail){const token=crypto.randomUUID();
@@ -485,7 +497,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       await fnFetch("send-email",{to:toEmail,subject:"How was our service? — 3C Refrigeration",body});
     }}catch(e){console.error("Feedback request error:",e);}
   };
-  const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:today.toISOString().slice(0,10)});msg("Invoice "+inv.invoice_num+" marked as paid");};
+  const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as paid");};
   const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>rebuildInvoiceData(inv,{customers,pos,wos});
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
@@ -636,13 +648,22 @@ function getBiWeeklyRange(anchorDateStr){
   return{from:start.toISOString().slice(0,10),to:end.toISOString().slice(0,10)};
 }
 
-function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
-  const[cust,setCust]=useState(""),[mode,setMode]=useState("wo"),[selWOs,setSelWOs]=useState([]),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(1),[selProject,setSelProject]=useState("");
+// `lockWO` runs the generator in "bill this one work order" mode (the popup opened
+// from the WO detail screen): customer and work order are already known, so Step 1
+// is skipped and the wizard opens on labor rates. Everything downstream — invoice
+// numbering, tier defaults, PDF/Excel layout, Drive upload, send flow — is the exact
+// same code the Finance path runs, so an invoice raised from a WO is indistinguishable
+// from one raised in Finance → Invoices. `onDone` lets the popup close itself.
+function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData,lockWO,onDone}){
+  // Project WOs bill from their line items rather than logged hours — mirror what
+  // checking one in Step 1 would have set up.
+  const lockLI=lockWO&&lockWO.project_id?(lineItems||[]).filter(li=>li.wo_id===lockWO.id):[];
+  const[cust,setCust]=useState(lockWO?.customer||""),[mode,setMode]=useState("wo"),[selWOs,setSelWOs]=useState(lockWO?[lockWO.id]:[]),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(lockWO?2:1),[selProject,setSelProject]=useState("");
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
-  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
+  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(lockWO?(lockWO.title||lockWO.location||""):""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
-  const[customItems,setCustomItems]=useState([]);
-  const[skipLabor,setSkipLabor]=useState(false);
+  const[customItems,setCustomItems]=useState(lockLI.length>0?lockLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})):[]);
+  const[skipLabor,setSkipLabor]=useState(lockLI.length>0);
   const[lineDesc,setLineDesc]=useState("");
   const[linkedPOs,setLinkedPOs]=useState([]);
   const[selSurplus,setSelSurplus]=useState([]);
@@ -699,16 +720,41 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const[tiers,setTiers]=useState(()=>buildTiers(cust));
   useEffect(()=>{if(cust)setTiers(buildTiers(cust));},[cust,totalLogged]);
 
-  // Auto-fill job desc and PO from customer settings (if available)
+  // Auto-fill job desc from the customer's invoice settings. In lockWO mode the WO's
+  // own title is more specific than a customer-wide default, so it wins.
   useEffect(()=>{
-    if(!customer)return;
+    if(!customer||lockWO)return;
     const settings=customer.invoice_settings||{};
     if(settings.default_job_desc)setJobDesc(settings.default_job_desc);
-    if(settings.default_po)setPoNum(settings.default_po);
-    else if(customer.vendor_number)setPoNum(customer.vendor_number);
   },[customer]);
-  // Consume the "Invoice this WO" handoff (customer + WO preselected from WODetail).
-  useEffect(()=>{try{const raw=sessionStorage.getItem("invoice-prefill");if(!raw)return;sessionStorage.removeItem("invoice-prefill");const p=JSON.parse(raw);if(p.customer){setCust(p.customer);setMode("wo");if(p.woUuid)setSelWOs([p.woUuid]);}}catch(e){}},[]);
+  // PO NUMBER defaults to the CUSTOMER's work order number — never 3C's vendor number.
+  // The vendor number identifies 3C inside the customer's AP system and already prints
+  // in the invoice header; using it as the PO default shipped invoices with no usable
+  // work-order reference, and Duke AP matches payments on WO#. It is now only a
+  // last-resort fallback when no work order is attached at all (Line Items Only).
+  const poTouched=useRef(false);
+  const selWOKey=filteredWOs.map(w=>w.id).join(",");
+  // Above this many distinct numbers the field stops being a usable AP reference, so
+  // it's left blank for the user to fill rather than truncated into something wrong.
+  // Every WO number still prints in the Work Performed block either way.
+  const PO_LIST_MAX=4;
+  useEffect(()=>{
+    if(poTouched.current)return;
+    const uniq=(a)=>[...new Set(a.filter(Boolean))];
+    const pick=(list)=>{if(list.length===0)return null;return list.length<=PO_LIST_MAX?list.join(", "):"";};
+    const settings=customer?.invoice_settings||{};
+    if(settings.default_po){setPoNum(settings.default_po);return;}
+    // A project's customer PO covers all of its WOs, so it outranks the per-WO number.
+    const projPO=pick(uniq(filteredWOs.map(w=>((projects||[]).find(p=>p.id===w.project_id)||{}).customer_po)));
+    if(projPO!==null){setPoNum(projPO);return;}
+    const custWOPO=pick(uniq(filteredWOs.map(w=>(w.customer_wo||"").trim())));
+    if(custWOPO!==null){setPoNum(custWOPO);return;}
+    const startProj=(projects||[]).find(p=>p.id===selProject);
+    if(startProj?.customer_po){setPoNum(startProj.customer_po);return;}
+    // WOs are attached but none carries a customer WO# — leave it blank so the gap is
+    // visible, rather than silently shipping the vendor number.
+    setPoNum(filteredWOs.length>0?"":(customer?.vendor_number||""));
+  },[cust,selWOKey,selProject]);
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
 
@@ -740,7 +786,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(!onCreateInvoice)return;
     if(savedNumRef.current===invoiceNum)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString().slice(0,10)};
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     savedNumRef.current=invoiceNum; // only mark saved after a successful insert so a failed attempt can retry
@@ -777,6 +823,21 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
   };
+  // Stage the invoice without touching the customer. Uses the same insert path as
+  // every other exit from the wizard, so the draft is a normal DRAFT invoice in the
+  // tracker — editable, sendable, deletable — not a second class of record.
+  const saveDraft=async()=>{
+    if(generating)return;setGenerating(true);
+    try{
+      const d=buildInvoiceData();
+      await saveInvoiceRecord(d);
+      setLastInvoiceData(d);
+      if(customer&&markupPct!==(customer.parts_markup!=null?parseFloat(customer.parts_markup):35)){await sb().from("customers").update({parts_markup:markupPct}).eq("id",customer.id);if(reloadTable)reloadTable("customers");}
+      msg("Draft INV-"+invoiceNum+" saved");
+      if(onDone)onDone("Draft INV-"+invoiceNum+" saved to the Invoice Tracker");
+    }catch(e){msg("Error: "+e.message);console.error(e);}
+    setGenerating(false);
+  };
   const generateAndSend=async()=>{
     if(generating)return;setGenerating(true);
     try{
@@ -799,7 +860,15 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
 
   return(<div><Toast msg={toast}/>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Invoice Generator</h3>
+    {!lockWO&&<h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Invoice Generator</h3>}
+    {lockWO&&<div style={{padding:"10px 12px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,marginBottom:14,fontSize:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+        <span style={{fontFamily:M,fontWeight:700,color:B.cyan}}>{lockWO.wo_id}</span>
+        <span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{fmtHours(Object.values(techHours).reduce((s,h)=>s+h,0))} logged</span>
+      </div>
+      <div style={{color:B.text,fontWeight:600,marginTop:3}}>{lockWO.title}</div>
+      <div style={{color:B.textDim,fontSize:11,marginTop:2}}>{cust||"No customer"}{lockWO.customer_wo?<span> · Customer WO# <span style={{fontFamily:M,color:B.textMuted}}>{lockWO.customer_wo}</span></span>:null}</div>
+    </div>}
 
     {step===1&&<Card style={{padding:18,maxWidth:600}}>
       <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:14}}>Step 1: Select Customer & Work Order</div>
@@ -816,8 +885,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
             // Auto-select all completed unbilled WOs under this project
             const projWOs=(wos||[]).filter(w=>w.project_id===pid&&w.status==="completed").filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});
             setSelWOs(projWOs.map(w=>w.id));
-            // If project has a customer PO, prefill it
-            if(proj.customer_po)setPoNum(proj.customer_po);
+            // The project's customer PO is prefilled by the poTouched effect below.
             setJobDesc(proj.name||"");
             // If project WOs have line items, prefill custom items
             if(lineItems){
@@ -839,7 +907,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
             const checked=selWOs.includes(w.id);
             const next=checked?selWOs.filter(id=>id!==w.id):[...selWOs,w.id];
             setSelWOs(next);
-            if(!checked&&selWOs.length===0){setJobDesc(w.title);setPoNum(w.customer_wo||"");if(w.project_id){const proj=(projects||[]).find(p=>p.id===w.project_id);if(proj?.customer_po)setPoNum(proj.customer_po);}}
+            if(!checked&&selWOs.length===0)setJobDesc(w.title); // PO# is derived from the selection — see the poTouched effect
             if(lineItems){
               const projLI=[];let hasProj=false;
               next.forEach(id=>{const ww=custWOs.find(x=>x.id===id);if(ww?.project_id){hasProj=true;const woLI=(lineItems||[]).filter(li=>li.wo_id===ww.id);if(woLI.length>0)projLI.push(...woLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})));}});
@@ -938,7 +1006,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       </div>
 
       <div style={{display:"flex",gap:8,marginTop:14}}>
-        <button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>
+        {!lockWO&&<button onClick={()=>setStep(1)} style={{...BS,flex:1}}>Back</button>}
         <button onClick={()=>{if(mode==="lineonly"||skipLabor){if(customItems.filter(it=>it.description&&it.amount>0).length===0){msg("Add at least one line item");return;}}else if(tiers.every(t=>!t.hours)&&customItems.length===0){msg("Enter hours or add a line item");return;}setStep(3);}} style={{...BP,flex:1}}>Next: Options</button>
       </div>
     </Card>}
@@ -948,14 +1016,15 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>Invoice # (YYMM##)</label><input value={invoiceNum} onChange={e=>setInvoiceNum(e.target.value)} placeholder="250301" style={{...IS,fontFamily:M}}/></div>
-          <div><label style={LS}>PO Number</label><input value={poNum} onChange={e=>setPoNum(e.target.value)} placeholder="e.g. 4605021670" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>PO Number</label><input value={poNum} onChange={e=>{poTouched.current=true;setPoNum(e.target.value);}} placeholder="Customer WO# / PO#" style={{...IS,fontFamily:M}}/></div>
         </div>
+        {!poNum&&filteredWOs.length>0&&<div style={{fontSize:11,color:B.orange}}>No customer WO# on {filteredWOs.length===1?"this work order":"these work orders"} — enter the reference the customer's AP will match this payment on.</div>}
         {/* Project customer POs — quick apply */}
         {(()=>{const custProjects=(projects||[]).filter(p=>p.customer===cust&&p.customer_po);
           return custProjects.length>0?<div>
             <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Customer PO# from projects:</div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              {custProjects.map(p=>{const active=poNum===p.customer_po;return<button key={p.id} onClick={()=>setPoNum(p.customer_po)} style={{padding:"5px 12px",borderRadius:4,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:M,border:"1px solid "+(active?B.green:B.border),background:active?B.green+"18":"transparent",color:active?B.green:B.textDim}}>
+              {custProjects.map(p=>{const active=poNum===p.customer_po;return<button key={p.id} onClick={()=>{poTouched.current=true;setPoNum(p.customer_po);}} style={{padding:"5px 12px",borderRadius:4,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:M,border:"1px solid "+(active?B.green:B.border),background:active?B.green+"18":"transparent",color:active?B.green:B.textDim}}>
                 {active?"✓ ":""}{p.customer_po} <span style={{fontFamily:F,fontWeight:400,color:B.textDim,fontSize:9}}>({p.name})</span>
               </button>;})}
             </div>
@@ -967,6 +1036,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {filteredPOs.map(p=>{const isLinked=linkedPOs.includes(p.id);return<button key={p.id} onClick={()=>{
               togglePOLink(p.id);
+              poTouched.current=true;
               const pid=p.po_id||p.id.slice(0,8);
               if(!isLinked){setPoNum(prev=>prev?(prev.includes(pid)?prev:prev+", "+pid):pid);}
               else{setPoNum(prev=>{const parts=prev.split(",").map(s=>s.trim()).filter(s=>s&&s!==pid);return parts.join(", ");});}
@@ -1019,10 +1089,13 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           <button onClick={generateXLSX} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"Excel"}</button>
           <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,background:B.cyan,opacity:generating?.6:1}}>{generating?"Generating...":"PDF"}</button>
         </div>
-        <button onClick={generateAndSend} disabled={generating} style={{...BP,width:"100%",marginTop:4,opacity:generating?.6:1}}>{generating?"Generating...":"Generate & Send Invoice"}</button>
+        <div style={{display:"flex",gap:8,marginTop:4}}>
+          <button onClick={saveDraft} disabled={generating} style={{...BS,flex:1,color:B.green,borderColor:B.green+"55",opacity:generating?.6:1}} title="Create the invoice as a DRAFT — nothing is emailed to the customer">{generating?"Saving...":"Save as Draft"}</button>
+          <button onClick={generateAndSend} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"Generate & Send Invoice"}</button>
+        </div>
       </div>
     </Card>}
-    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>setShowSendModal(false)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser}/>}
+    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);if(onDone)onDone("Invoice "+invoiceNum+" created");}} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser}/>}
   </div>);
 }
 
@@ -1123,7 +1196,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
   // Random time between 5:30 AM and 7:00 AM tomorrow
   const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
   const randHr=5+Math.floor(Math.random()*2);const randMin=randHr===5?30+Math.floor(Math.random()*30):Math.floor(Math.random()*60);
-  const[scheduleDate,setScheduleDate]=useState(tomorrow.toISOString().slice(0,10));
+  const[scheduleDate,setScheduleDate]=useState(localDateStr(tomorrow));
   const[scheduleTime,setScheduleTime]=useState(String(randHr).padStart(2,"0")+":"+String(randMin).padStart(2,"0"));
   const[sending,setSending]=useState(false);
   const[contacts,setContacts]=useState([]);

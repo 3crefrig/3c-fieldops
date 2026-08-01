@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText , fnFetch } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Logo, PdfPreviewModal, previewPdfDoc, usePasteImage } from "./ui";
 import { TicketCaptureModal } from "./VendorAudit";
-import { jsPDF } from "jspdf";
 
 let _logoB64Cache=null;
 
@@ -14,7 +13,7 @@ async function fetchLogoBase64(){
 }
 
 async function generatePOPdf(po,wo,opts){
-  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const{jsPDF}=await import("jspdf");const doc=new jsPDF({unit:"mm",format:"letter"});
   const pw=215.9,lm=20,rm=20,cw=pw-lm-rm;
   const cyan=[0,229,255],dark=[30,34,42],mid=[120,130,150],light=[240,243,248];
   let y=20;

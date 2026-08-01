@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Toast, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal, rebuildInvoiceData } from "./Invoices";
 
@@ -113,6 +113,34 @@ function PartsSales({D,A,user}){
     }catch(err){msg("Error: "+err.message);console.error(err);}
   };
 
+  // Re-send the invoice email from the list (rebuilds the PDF fresh).
+  const resendSale=async(s,e)=>{
+    if(e)e.stopPropagation();
+    const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
+    if(!inv){msg("Invoice "+(s.invoice_num||"—")+" no longer exists");return;}
+    try{
+      const d=rebuildInvoiceData(inv,{customers,pos,wos:D.wos||[]});
+      const doc=await buildInvoicePDF(d);
+      const pdfB64=doc.output("datauristring").split(",")[1];
+      setLastInvoiceData({...d,pdfB64,pdfName:"INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf",driveFileId:null});
+      setShowSendModal(true);
+    }catch(err){msg("Error: "+err.message);console.error(err);}
+  };
+  // Inline status changes — same fields the Invoices tab sets. Deliberately does NOT
+  // fire the "How was our service?" feedback email that Invoices' Mark Sent sends:
+  // dropship parts aren't a service visit.
+  const setInvStatus=async(s,status,e)=>{
+    if(e)e.stopPropagation();
+    const inv=invoices.find(i=>i.invoice_num===s.invoice_num);
+    if(!inv){msg("Invoice "+(s.invoice_num||"—")+" no longer exists");return;}
+    const upd={id:inv.id,status};
+    if(status==="sent")upd.date_sent=todayLocal();
+    if(status==="paid")upd.date_paid=todayLocal();
+    await A.updateInvoice(upd);
+    if(A.reloadTable)A.reloadTable("invoices");
+    msg("INV-"+inv.invoice_num+" marked "+status);
+  };
+
   // ── Invoice generation (reuses the standard invoice pipeline) ──
   const nextInvoiceNum=async()=>{
     const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");
@@ -133,12 +161,12 @@ function PartsSales({D,A,user}){
     });
     const customItemsTotal=r2(customItemsData.reduce((s,it)=>s+it.amount,0));
     const description=[shipTo.trim()?"Shipped to: "+shipTo.trim():null,notes.trim()||null].filter(Boolean).join("\n");
-    return{invoiceNum,date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:custPO.trim(),jobDesc:jobDesc.trim()||"Parts Supply",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:[],description,partsTotal:0,partsDetail:null,customItems:customItemsData,customItemsTotal,includeNotes:true,includeBreakdown:false,breakdownData:null,dateFrom:"",dateTo:"",customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[],subjectOverride:invoiceNum+" "+(customer?.name||cust)+" Parts Invoice",emailIntro:"Attached is the invoice for parts supplied"+(custPO.trim()?" against PO "+custPO.trim():"")+"."};
+    return{invoiceNum,shipTo:shipTo.trim(),date:new Date().toLocaleDateString(),customerId:customer?.customer_id_code||"",customerDisplayName:customer?.name||cust,customerName:customer?.contact_name||"Accounts Payable",customerAddress:customer?.address||"",customerAddress2:"",vendorNumber:customer?.vendor_number||"",poNumber:custPO.trim(),jobDesc:jobDesc.trim()||"Parts Supply",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:[],description,partsTotal:0,partsDetail:null,customItems:customItemsData,customItemsTotal,includeNotes:true,includeBreakdown:false,breakdownData:null,dateFrom:"",dateTo:"",customerEmail:customer?.email||"",ccEmails:customer?.invoice_settings?.email_recipients||[],subjectOverride:invoiceNum+" "+(customer?.name||cust)+" Parts Invoice",emailIntro:"Attached is the invoice for parts supplied"+(custPO.trim()?" against PO "+custPO.trim():"")+"."};
   };
   const backfillDriveUrl=async(invoiceNum,url)=>{if(!url)return;try{await sb().from("invoices").update({pdf_drive_url:url}).eq("invoice_num",invoiceNum);if(A.reloadTable)A.reloadTable("invoices");}catch(e){console.warn("backfillDriveUrl failed:",e);}};
   const saveRecords=async(d)=>{
     // The bill itself is a normal invoice row — the dashboard, reminders, and reports pick it up unchanged.
-    await A.createInvoice({invoice_num:d.invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:d.customItemsTotal,parts_total:0,status:"draft",wo_ids:[],tier_data:[],custom_items:d.customItems,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:new Date().toISOString().slice(0,10)});
+    await A.createInvoice({invoice_num:d.invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:d.customItemsTotal,parts_total:0,status:"draft",wo_ids:[],tier_data:[],custom_items:d.customItems,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()});
     const itemsClean=validLines.map(l=>({description:(l.description||"").trim(),part_no:(l.part_no||"").trim()||null,qty:parseFloat(l.qty)||1,unit_cost:r2(l.unit_cost),unit_price:r2(l.unit_price),po_ref:l.po_ref||null}));
     const{error}=await sb().from("parts_sales").insert({sale_ref:genSaleRef(sales),customer:customer?.name||cust,customer_po:custPO.trim()||null,ship_to:shipTo.trim()||null,items:itemsClean,cost_total:costTotal,sell_total:sellTotal,markup_pct:parseFloat(markupPct)||0,linked_po_ids:linkedPOs,invoice_num:d.invoiceNum,notes:notes.trim()||null,created_by:user?.name||""});
     if(error){console.error("parts_sales insert:",error);msg("Invoice "+d.invoiceNum+" was created, but the parts sale record failed: "+error.message);}
@@ -257,6 +285,9 @@ function PartsSales({D,A,user}){
                 <div style={{fontSize:10,color:m>=0?B.green:B.red}}>{m>=0?"+":""}{money(m)} margin</div>
               </div>
               <Badge color={stColor}>{st?st.toUpperCase():"NO INVOICE"}</Badge>
+              {st==="draft"&&<button onClick={e=>setInvStatus(s,"sent",e)} title="Mark the invoice sent" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0,color:B.cyan,borderColor:B.cyan+"55"}}>Mark Sent</button>}
+              {st==="sent"&&<button onClick={e=>setInvStatus(s,"paid",e)} title="Mark the invoice paid" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0,color:B.green,borderColor:B.green+"55"}}>Mark Paid</button>}
+              {st&&st!=="paid"&&<button onClick={e=>resendSale(s,e)} title="Email the invoice (rebuilds the PDF fresh)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>Send</button>}
               <button onClick={e=>downloadSalePDF(s,e)} title="Re-download the invoice PDF" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>PDF</button>
               <button onClick={e=>startEdit(s,e)} title="Edit this parts sale (re-syncs the invoice)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>✎ Edit</button>
               <button onClick={e=>{e.stopPropagation();deleteSale(s);}} title="Delete this parts sale record" style={{background:"none",border:"none",color:B.red+"88",cursor:"pointer",fontSize:15,padding:4}}>✕</button>

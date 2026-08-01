@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
-import { jsPDF } from "jspdf";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
 const FREQ_LABELS={weekly:"Weekly",biweekly:"Every 2 Weeks",monthly:"Monthly",quarterly:"Quarterly",biannual:"Every 6 Months",annual:"Annual"};
@@ -10,7 +9,7 @@ const STATUS_COLORS={active:B.green,expired:B.red,cancelled:B.textDim,pending_re
 const STATUS_LABELS={active:"Active",expired:"Expired",cancelled:"Cancelled",pending_renewal:"Pending Renewal"};
 const DEFAULT_SERVICES=["PM Inspection","Filter Replacement","Coil Cleaning","Refrigerant Check","Electrical Check","Belt Inspection","Thermostat Calibration","Drain Line Clearing"];
 
-function genAgreementNum(existing){const n=new Date(),pfx="AGR-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(a=>a.agreement_num&&a.agreement_num.startsWith(pfx)).reduce((m,a)=>{const s=parseInt(a.agreement_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+// genAgreementNum moved to shared.js (imported above) so App.jsx doesn't pull this module into main.
 
 // ─── Tier Manager (Admin only) ────────────────────────
 function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
@@ -103,7 +102,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
     annual_value:initial.annual_value||0,discount_pct:initial.discount_pct||0,priority_level:initial.priority_level||"medium",
     response_time_hours:initial.response_time_hours||24,equipment_ids:initial.equipment_ids||[],notes:initial.notes||"",auto_renew:initial.auto_renew||false
   }:{
-    customer_id:"",customer_name:"",tier_id:"",tier_name:"",start_date:new Date().toISOString().slice(0,10),end_date:"",
+    customer_id:"",customer_name:"",tier_id:"",tier_name:"",start_date:todayLocal(),end_date:"",
     visit_frequency:"quarterly",visits_per_year:4,included_services:[],monthly_rate:0,annual_value:0,
     discount_pct:0,priority_level:"medium",response_time_hours:24,equipment_ids:[],notes:"",auto_renew:false
   });
@@ -120,7 +119,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
 
   const save=async()=>{
     if(!f.customer_name||!f.start_date||!f.end_date||saving)return;
-    setSaving(true);try{const today=new Date().toISOString().slice(0,10);const thirtyDays=new Date(Date.now()+30*86400000).toISOString().slice(0,10);const computedStatus=f.status==="cancelled"?"cancelled":f.end_date<today?"expired":f.end_date<=thirtyDays?"pending_renewal":f.start_date<=today?"active":"active";const payload={...f,status:computedStatus};await onSave(initial?{id:initial.id,...payload}:payload);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
+    setSaving(true);try{const today=todayLocal();const thirtyDays=localDateStr(new Date(Date.now()+30*86400000));const computedStatus=f.status==="cancelled"?"cancelled":f.end_date<today?"expired":f.end_date<=thirtyDays?"pending_renewal":f.start_date<=today?"active":"active";const payload={...f,status:computedStatus};await onSave(initial?{id:initial.id,...payload}:payload);setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
 
   return(<Modal title={initial?"Edit Agreement":"Create Service Agreement"} onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -203,7 +202,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
 
 // ─── Agreement PDF Generation (SOW format, zero AI tokens) ─────
 async function generateAgreementPDF(a, coveredEquipment, customerObj) {
-  const doc = new jsPDF({ unit: "mm", format: "letter" });
+  const{jsPDF}=await import("jspdf");const doc = new jsPDF({ unit: "mm", format: "letter" });
   const pw = 215.9, ph = 279.4, lm = 20, rm = 20, cw = pw - lm - rm;
   const cyan = [0, 212, 245], dark = [16, 18, 20], mid = [100, 110, 125], light = [240, 243, 248];
   let y = 0;
@@ -535,8 +534,8 @@ function AgreementDashboard({D,A,userRole,userName}){
   const agreements=D.agreements||[];const tiers=D.agreementTiers||[];
   const active=agreements.filter(a=>a.status==="active");
   const annualRevenue=active.reduce((s,a)=>s+parseFloat(a.annual_value||0),0);
-  const today=new Date().toISOString().slice(0,10);
-  const thirtyDays=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+  const today=todayLocal();
+  const thirtyDays=localDateStr(new Date(Date.now()+30*86400000));
   const expiringSoon=agreements.filter(a=>a.status==="active"&&a.end_date>=today&&a.end_date<=thirtyDays).length;
   const renewalRate=agreements.length>0?Math.round((active.length/agreements.length)*100):0;
 

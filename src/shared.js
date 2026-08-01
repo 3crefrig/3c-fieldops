@@ -13,6 +13,18 @@ export function sb(){ return _sb; }
 // `select("*")` would be denied by Postgres. Always select these explicitly.
 export const USER_COLS="id,name,email,role,active,created_at,title,phone,available_hours_week";
 
+// Local-timezone date helpers. `new Date().toISOString().slice(0,10)` yields the
+// UTC date, which after ~8pm ET is already TOMORROW — evening time entries were
+// landing on the next day. Use todayLocal() for "today", localDateStr(d) for any
+// Date that carries a time-of-day (e.g. Date.now()±offset). Dates normalized to
+// local midnight are safe either way, but prefer these for consistency.
+export const localDateStr=(d)=>{const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
+export const todayLocal=()=>localDateStr(new Date());
+
+// AGR-YYMM-## sequence. Lives here (not ServiceAgreements.jsx) so App's
+// addAgreement action doesn't drag the whole 600-line module into the main bundle.
+export function genAgreementNum(existing){const n=new Date(),pfx="AGR-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(a=>a.agreement_num&&a.agreement_num.startsWith(pfx)).reduce((m,a)=>{const s=parseInt(a.agreement_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
+
 // Columns fetched for work_order LIST views — every column EXCEPT `signature`.
 // `signature` holds a base64 PNG (~6KB/row, ~2.5MB across the table) and is only
 // ever rendered in WODetail, one WO at a time. Including it in the bulk fetch made

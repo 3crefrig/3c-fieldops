@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { B, F, M, IS, LS, fmtHours } from "../shared";
+import { B, F, M, IS, LS, fmtHours, woOverdue, todayLocal } from "../shared";
 import { Card, Badge, StatCard, Modal } from "./ui";
 
 function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
@@ -22,7 +22,8 @@ function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
 // ═══════════════════════════════════════════
 function KPIDashboard({D,A,userRole,userName}){
   const isAdmin=userRole==="admin";const isMgr=userRole==="admin"||userRole==="manager";
-  const[range,setRange]=useState("month");const[drillDown,setDrillDown]=useState(null);
+  // Rolling 30-day default — calendar "This Month" renders a wall of zeros on the 1st.
+  const[range,setRange]=useState("d30");const[drillDown,setDrillDown]=useState(null);
   const[isMobile,setIsMobile]=useState(window.innerWidth<768);
   const[hovered,setHovered]=useState(null);
   const now=new Date();
@@ -33,7 +34,7 @@ function KPIDashboard({D,A,userRole,userName}){
     return()=>window.removeEventListener("resize",onResize);
   },[]);
 
-  const getRangeStart=()=>{const d=new Date(now);if(range==="week"){d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);}else if(range==="month"){d.setDate(1);d.setHours(0,0,0,0);}else if(range==="quarter"){d.setMonth(d.getMonth()-3);d.setHours(0,0,0,0);}else if(range==="year"){d.setMonth(0,1);d.setHours(0,0,0,0);}else{d.setFullYear(2000);}return d;};
+  const getRangeStart=()=>{const d=new Date(now);if(range==="d30"){d.setDate(d.getDate()-30);d.setHours(0,0,0,0);}else if(range==="week"){d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);}else if(range==="month"){d.setDate(1);d.setHours(0,0,0,0);}else if(range==="quarter"){d.setMonth(d.getMonth()-3);d.setHours(0,0,0,0);}else if(range==="year"){d.setMonth(0,1);d.setHours(0,0,0,0);}else{d.setFullYear(2000);}return d;};
   const rangeStart=getRangeStart();
   const inRange=(dateStr)=>{if(!dateStr)return false;return new Date(dateStr)>=rangeStart;};
 
@@ -41,10 +42,16 @@ function KPIDashboard({D,A,userRole,userName}){
   const completedWOs=D.wos.filter(o=>o.status==="completed"&&inRange(o.date_completed));
   const allWOsRange=D.wos.filter(o=>inRange(o.created_at));
 
-  // First-Time Fix Rate: completed WOs without a follow-up WO for same customer+location within 30d
-  const ftfr=(()=>{if(completedWOs.length===0)return 0;
-    let fixed=0;completedWOs.forEach(wo=>{const dc=new Date(wo.date_completed);const followUp=D.wos.find(o=>o.id!==wo.id&&o.customer===wo.customer&&o.location===wo.location&&o.status!=="completed"&&o.created_at&&new Date(o.created_at)>dc&&new Date(o.created_at)<new Date(dc.getTime()+30*86400000));
-    if(!followUp)fixed++;});return Math.round((fixed/completedWOs.length)*100);})();
+  // Overdue WOs (replaces the old First-Time Fix tile: with one dominant customer,
+  // "any newer open WO at the same site = failed fix" made FTF read 0% forever).
+  const overdueWOs=D.wos.filter(w=>woOverdue(w,todayLocal()));
+
+  // Prior-period comparison for the activity tiles (equal-length window before rangeStart).
+  const prevStart=new Date(rangeStart.getTime()-(now-rangeStart));
+  const inPrevRange=(ds)=>{if(!ds)return false;const d=new Date(ds);return d>=prevStart&&d<rangeStart;};
+  const prevCompletedCount=D.wos.filter(o=>o.status==="completed"&&inPrevRange(o.date_completed)).length;
+  const prevHrs=D.time.filter(t=>inPrevRange(t.logged_date)).reduce((s,t)=>s+parseFloat(t.hours||0),0);
+  const pctDelta=(cur,prev)=>range==="all"||prev<=0?null:Math.round(((cur-prev)/prev)*100);
 
   // Technician Utilization
   const techs=(D.users||[]).filter(u=>u.role==="technician"&&u.active!==false);
@@ -90,9 +97,9 @@ function KPIDashboard({D,A,userRole,userName}){
     return Object.entries(map).sort((a,b)=>b[1].total-a[1].total).slice(0,6);})();
 
   // Drill-down modals
-  const drillContent=drillDown==="overdue"?overdueInv:drillDown==="outstanding"?outstandingInv:drillDown==="completed"?completedWOs:null;
+  const drillContent=drillDown==="overdue"?overdueInv:drillDown==="outstanding"?outstandingInv:drillDown==="completed"?completedWOs:drillDown==="overduewos"?overdueWOs:null;
 
-  const ranges=[["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
+  const ranges=[["d30","Last 30 Days"],["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
 
   // ── KPI tile style helper (flat card look) ──
   const bentoTile=(color,idx,extra={})=>({
@@ -108,10 +115,10 @@ function KPIDashboard({D,A,userRole,userName}){
   // Build KPI tile data
   let tileIdx=0;
   const kpiTiles=[
-    {key:"ftfr",label:"First-Time Fix",value:ftfr+"%",icon:"🎯",color:ftfr>=85?B.green:ftfr>=70?B.orange:B.red,click:()=>setDrillDown("completed")},
+    {key:"od",label:"Overdue WOs",value:overdueWOs.length,icon:"⚠",color:overdueWOs.length>0?B.red:B.green,click:overdueWOs.length>0?()=>setDrillDown("overduewos"):null},
     {key:"util",label:"Tech Utilization",value:techUtil+"%",icon:"⚡",color:techUtil>=80?B.green:techUtil>=60?B.orange:B.red},
-    {key:"comp",label:"WOs Completed",value:completedWOs.length,icon:"✓",color:B.green},
-    {key:"hrs",label:"Hours Logged",value:fmtHours(totalHours),icon:"⏱",color:B.cyan},
+    {key:"comp",label:"WOs Completed",value:completedWOs.length,icon:"✓",color:B.green,delta:pctDelta(completedWOs.length,prevCompletedCount),click:()=>setDrillDown("completed")},
+    {key:"hrs",label:"Hours Logged",value:fmtHours(totalHours),icon:"⏱",color:B.cyan,delta:pctDelta(totalHours,prevHrs)},
   ];
   // Financial tiles (admin/manager)
   const finTiles=[];
@@ -158,6 +165,7 @@ function KPIDashboard({D,A,userRole,userName}){
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4,marginBottom:6}}>{t.label}</div>
                 <div style={{fontFamily:M,fontSize:22,fontWeight:700,color:B.text,letterSpacing:-0.5}}>{t.value}</div>
+                {t.delta!=null&&<div style={{fontSize:10,fontWeight:700,fontFamily:M,marginTop:5,color:t.delta>=0?B.green:B.red}}>{t.delta>=0?"↑":"↓"}{Math.abs(t.delta)}% <span style={{color:B.textDim,fontWeight:400,fontFamily:F}}>vs prior</span></div>}
               </div>
             </div>
           </div>
@@ -221,7 +229,7 @@ function KPIDashboard({D,A,userRole,userName}){
     </div>}
 
     {/* Drill-Down Modal */}
-    {drillDown&&drillContent&&<Modal title={drillDown==="overdue"?"Overdue Invoices":drillDown==="outstanding"?"Outstanding Invoices":"Completed Work Orders"} onClose={()=>setDrillDown(null)} wide>
+    {drillDown&&drillContent&&<Modal title={drillDown==="overdue"?"Overdue Invoices":drillDown==="outstanding"?"Outstanding Invoices":drillDown==="overduewos"?"Overdue Work Orders":"Completed Work Orders"} onClose={()=>setDrillDown(null)} wide>
       {drillDown==="overdue"||drillDown==="outstanding"?<div style={{display:"flex",flexDirection:"column",gap:6}}>
         {drillContent.map(inv=><Card key={inv.id} style={{padding:"12px 14px",borderLeft:"3px solid "+(drillDown==="overdue"?B.red:B.cyan)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -237,10 +245,10 @@ function KPIDashboard({D,A,userRole,userName}){
         </Card>)}
         {drillContent.length===0&&<div style={{textAlign:"center",padding:20,color:B.textDim,fontSize:13}}>None</div>}
       </div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {drillContent.slice(0,20).map(wo=><Card key={wo.id} style={{padding:"10px 14px",borderLeft:"3px solid "+B.green}}>
+        {drillContent.slice(0,20).map(wo=><Card key={wo.id} style={{padding:"10px 14px",borderLeft:"3px solid "+(drillDown==="overduewos"?B.red:B.green)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><span style={{fontSize:12,fontWeight:600,color:B.text,marginLeft:8}}>{wo.title}</span></div>
-            <span style={{fontSize:10,color:B.textDim}}>{wo.date_completed}</span>
+            <span style={{fontSize:10,color:drillDown==="overduewos"?B.red:B.textDim}}>{drillDown==="overduewos"?"Due "+wo.due_date+(wo.assignee?" · "+wo.assignee:""):wo.date_completed}</span>
           </div>
         </Card>)}
         {drillContent.length>20&&<div style={{textAlign:"center",padding:8,color:B.textDim,fontSize:11}}>+{drillContent.length-20} more</div>}

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch, loadWOSignature } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch, loadWOSignature , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
 import { POReqModal, POEditForm } from "./PurchaseOrders";
+import { InvoiceGenerator } from "./Invoices";
 import { EquipmentPicker, BarcodeScanner, EQ_TYPES, EQ_LABELS, REF_TYPES } from "./Equipment";
 
 // ─── Inline Equipment helpers (used by WODetail and CreateWO) ─────────────────
@@ -216,9 +217,10 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   </Card>);
 }
 
-function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers}){
+function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
   const reloadWOs=()=>reloadTable?reloadTable("work_orders"):loadData();
   const D_equipment=equipment||[];
+  const[showBill,setShowBill]=useState(false);
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false),[editingPO,setEditingPO]=useState(null);
   const[jobIntel,setJobIntel]=useState(null),[intelLoading,setIntelLoading]=useState(false),[intelOpen,setIntelOpen]=useState(false);
   const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
@@ -250,11 +252,11 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const[showEdit,setShowEdit]=useState(false),[editWO,setEditWO]=useState({});
   const openEditWO=()=>{setEditWO({title:wo.title||"",notes:wo.notes||"",location:wo.location||"",building:wo.building||"",assignee:wo.assignee||"Unassigned",customer:wo.customer||"",due_date:wo.due_date||"",crew:wo.crew||[]});setShowEdit(true);};
   const saveEditWO=async()=>{if(saving)return;setSaving(true);try{await onUpdateWO({...wo,...editWO,title:autoCorrect(editWO.title),notes:autoCorrect(editWO.notes),location:autoCorrect(editWO.location)});setSaving(false);setShowEdit(false);msg("Work order updated");}catch(e){console.error(e);setSaving(false);}};
-  const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[tDate,setTDate]=useState(new Date().toISOString().slice(0,10)),[note,setNote]=useState("");
-  const[cmpH,setCmpH]=useState(""),[cmpD,setCmpD]=useState(""),[cmpDate,setCmpDate]=useState(new Date().toISOString().slice(0,10));
+  const[tH,setTH]=useState(""),[tD,setTD]=useState(""),[tDate,setTDate]=useState(todayLocal()),[note,setNote]=useState("");
+  const[cmpH,setCmpH]=useState(""),[cmpD,setCmpD]=useState(""),[cmpDate,setCmpDate]=useState(todayLocal());
   const[workPerformed,setWorkPerformed]=useState("");
   const[toast,setToast]=useState(""),[saving,setSaving]=useState(false);
-  const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(new Date().toISOString().slice(0,10));
+  const[sigCanvas,setSigCanvas]=useState(null),[sigErr,setSigErr]=useState(""),[compDate,setCompDate]=useState(todayLocal());
   const[showDetails,setShowDetails]=useState(false),[showTimeEntries,setShowTimeEntries]=useState(false),[showLineItems,setShowLineItems]=useState(false),[showPhotos,setShowPhotos]=useState(false),[showPOs,setShowPOs]=useState(()=>wo.status==="in_progress"&&!(pos||[]).some(p=>p.wo_id===wo.id)),[showRefrigerant,setShowRefrigerant]=useState(false);
   const[refLog,setRefLog]=useState([]);
   const[refForm,setRefForm]=useState({action:"added",refrigerant_type:"R-448A",pounds:"",cylinder_id:"",notes:""});
@@ -309,7 +311,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const getAutoWorkPerformed=()=>{const descs=woTime.map(t=>t.description).filter(Boolean);const unique=[...new Set(descs)];return wo.work_performed||unique.join(". ")||"";};
   // Earliest logged time-charge date. logged_date values are YYYY-MM-DD strings, which sort chronologically (and are timezone-safe). `extra` folds in a date being logged right now, before woTime has reloaded.
   const firstChargeDate=(extra)=>{const ds=woTime.map(t=>t.logged_date).filter(Boolean);if(extra)ds.push(extra);ds.sort();return ds[0]||"";};
-  const openCompleteFlow=()=>{setSigErr("");setCmpH("");setCmpD("");setCmpDate(new Date().toISOString().slice(0,10));setCompDate(firstChargeDate()||new Date().toISOString().slice(0,10));setWorkPerformed(getAutoWorkPerformed());
+  const openCompleteFlow=()=>{setSigErr("");setCmpH("");setCmpD("");setCmpDate(todayLocal());setCompDate(firstChargeDate()||todayLocal());setWorkPerformed(getAutoWorkPerformed());
     // Project WOs with line items can skip time entry — go straight to review & sign
     const hasLineItems=isProjectWO&&woLineItems.length>0;
     setCompleteStep((woTime.length>0||hasLineItems)?2:1);setShowComplete(true);};
@@ -344,7 +346,23 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         {phone&&<a href={"tel:"+String(phone).replace(/[^0-9+]/g,"")} style={chip}>Call{cO.contact_name?" "+cO.contact_name.split(" ")[0]:""}</a>}
         {navQ&&<a href={"https://maps.google.com/?q="+encodeURIComponent(navQ)} target="_blank" rel="noreferrer" style={chip}>Navigate</a>}
       </div>:null;})()}
-      {isManager&&wo.status==="completed"&&!wo.invoiced&&!wo.project_id&&<button onClick={()=>{try{sessionStorage.setItem("invoice-prefill",JSON.stringify({customer:wo.customer||"",woUuid:wo.id}));}catch(e){}window.history.pushState(null,"","#tab=invoices");window.dispatchEvent(new PopStateEvent("popstate"));}} style={{...BP,width:"100%",marginTop:8,background:B.green}}>Invoice this WO →</button>}
+      {/* Bill from this WO — gated to the same roles that can reach the Finance tab
+          (manager/admin). The completion gate is deliberate: it preserves the
+          signature attestation from Review & Sign before anything gets billed. */}
+      {isManager&&(()=>{
+        const billedInv=(invoices||[]).find(i=>(i.wo_ids||[]).includes(wo.wo_id)||(i.wo_ids||[]).includes(wo.id));
+        const blocked=wo.status!=="completed"?"Complete and sign this work order before billing."
+          :!wo.customer?"Assign a customer to this work order before billing."
+          :(woHrs<=0&&woLineItems.length===0)?"No time logged on this work order."
+          :(!billedInv&&wo.invoiced)?"This work order is already marked invoiced."
+          :null;
+        if(billedInv)return(<button onClick={()=>{window.history.pushState(null,"","#tab=invoices");window.dispatchEvent(new PopStateEvent("popstate"));}} style={{...BS,width:"100%",marginTop:8,color:B.green,borderColor:B.green+"55"}} title={"Already billed on invoice "+billedInv.invoice_num}>Billed on INV-{billedInv.invoice_num} →</button>);
+        if(blocked)return(<div title={blocked} style={{marginTop:8}}>
+          <button disabled style={{...BP,width:"100%",background:B.surfaceActive,color:B.textDim,cursor:"not-allowed"}}>Bill from this WO</button>
+          <div style={{fontSize:11,color:B.textDim,marginTop:4,textAlign:"center"}}>{blocked}</div>
+        </div>);
+        return <button onClick={()=>setShowBill(true)} style={{...BP,width:"100%",marginTop:8,background:B.green}}>Bill from this WO</button>;
+      })()}
       {wo.date_completed&&<div style={{marginTop:8,padding:"8px 10px",background:B.greenGlow,borderRadius:6,fontSize:12}}><span style={{color:B.green,fontWeight:700}}>✓ Completed {fmtDate(wo.date_completed)}</span>{wo.work_performed&&<div style={{marginTop:4,fontSize:11,color:B.text,lineHeight:1.4}}>{wo.work_performed}</div>}</div>}
       {wo.status==="completed"&&woTime.length>0&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}><span style={LS}>Completion Notes</span>{woTime.sort((a,b)=>(a.logged_date||"").localeCompare(b.logged_date||"")).map((t,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none"}}><span style={{fontFamily:M,fontSize:11,color:B.textDim,minWidth:75}}>{fmtDate(t.logged_date)}</span><span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan,minWidth:30}}>{t.hours}h</span><span style={{fontSize:12,color:B.text}}>{t.description||"—"}</span></div>)}{wo.work_performed&&<div style={{marginTop:6,padding:"6px 0",borderTop:"1px solid "+B.border,fontSize:12,color:B.textMuted,fontStyle:"italic"}}>{wo.work_performed}</div>}</div>}
     </Card>
@@ -722,6 +740,15 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       </div>
     </Modal>}
     {showTroubleshoot&&<TroubleshootAssistant wo={wo} onClose={()=>setShowTroubleshoot(false)}/>}
+    {/* The Finance invoice generator itself, opened in lockWO mode — not a copy of it,
+        so the two paths can't drift and produce different invoices for the same WO. */}
+    {showBill&&isManager&&<Modal title={"Bill "+wo.wo_id} onClose={()=>setShowBill(false)} wide>
+      <InvoiceGenerator lockWO={wo} onDone={(m)=>{setShowBill(false);if(m)msg(m);reloadWOs();}}
+        wos={[wo]}
+        pos={pos} time={timeEntries} users={users} customers={customers} invoices={invoices||[]}
+        onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates||[]} currentUser={currentUser}
+        lineItems={lineItems||[]} projects={projects||[]} reloadTable={reloadTable} loadData={loadData}/>
+    </Modal>}
     {showEdit&&isManager&&<Modal title="Edit Work Order" onClose={()=>setShowEdit(false)} wide>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Title</label><input value={editWO.title} onChange={e=>setEditWO({...editWO,title:e.target.value})} style={IS}/></div>
@@ -836,7 +863,7 @@ function SwipeCard({wo,onStatusChange,children}){
   </div>);
 }
 
-function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,reloadTable,navWOId,clearNavWO}){
+function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,reloadTable,navWOId,clearNavWO,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
   const PAGE_SIZE=50;
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   useEffect(()=>{if(navWOId){const wo=orders.find(o=>o.wo_id===navWOId||o.id===navWOId);if(wo){setSel(wo);if(clearNavWO)clearNavWO();}}},[navWOId]);
@@ -844,13 +871,13 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   const[pendingOpen,setPendingOpen]=useState(null);
   useEffect(()=>{if(pendingOpen){const wo=orders.find(o=>o.wo_id===pendingOpen||o.id===pendingOpen);if(wo){setSel(wo);setPendingOpen(null);}}},[orders,pendingOpen]);
   const toggleBulk=(id)=>setBulkSel(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
-  const bulkAction=async(action)=>{for(const id of bulkSel){const wo=orders.find(o=>o.id===id);if(!wo)continue;if(action==="complete")await onUpdateWO({...wo,status:"completed",date_completed:new Date().toISOString().slice(0,10)});else if(action==="active")await onUpdateWO({...wo,status:"in_progress"});else if(action==="pending")await onUpdateWO({...wo,status:"pending"});}setBulkSel([]);setBulkMode(false);};
+  const bulkAction=async(action)=>{for(const id of bulkSel){const wo=orders.find(o=>o.id===id);if(!wo)continue;if(action==="complete")await onUpdateWO({...wo,status:"completed",date_completed:todayLocal()});else if(action==="active")await onUpdateWO({...wo,status:"in_progress"});else if(action==="pending")await onUpdateWO({...wo,status:"pending"});}setBulkSel([]);setBulkMode(false);};
   const custList=[...new Set(orders.map(o=>o.customer).filter(Boolean))].sort();
   const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders} equipment={equipment} reloadTable={reloadTable}/>;
-  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers}/>;}
-  const today=new Date().toISOString().slice(0,10);
+  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers} invoices={invoices} projects={projects} emailTemplates={emailTemplates} onCreateInvoice={onCreateInvoice} currentUser={currentUser}/>;}
+  const today=todayLocal();
   const poByWO={},phByWO={};pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -872,7 +899,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
       {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=calcWOHours(wo.id,timeEntries);const hasLI=wo.project_id&&(lineItems||[]).some(li=>li.wo_id===wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
-        <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{const upd={...wo,status:st};if(st==="completed")upd.date_completed=new Date().toISOString().slice(0,10);await onUpdateWO(upd);}}><Card style={{padding:"14px 16px",marginBottom:6}}>
+        <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{const upd={...wo,status:st};if(st==="completed")upd.date_completed=todayLocal();await onUpdateWO(upd);}}><Card style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
             <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
@@ -906,6 +933,12 @@ function TMSQueue({orders,wlp}){
   const[localVals,setLocalVals]=useState({});
   const[saving,setSaving]=useState({});
   const[hideEntered,setHideEntered]=useState(false);
+  const[copied,setCopied]=useState(null);
+  // One paste-ready line per WO for entry into the customer's TMS system —
+  // date | WO# | building/location | hours | work performed | tech.
+  const copyRow=async(wo)=>{const hrs=calcWOHours(wo.id,wlp.timeEntries||[]);
+    const parts=[fmtDate((wo.date_completed||wo.created_at||"").slice(0,10)),wo.wo_id,[wo.building,wo.location].filter(Boolean).join(" "),hrs>0?fmtHours(hrs):null,wo.work_performed||wo.title||null,wo.assignee||null].filter(Boolean);
+    try{await navigator.clipboard.writeText(parts.join(" | "));setCopied(wo.id);setTimeout(()=>setCopied(c=>c===wo.id?null:c),1500);}catch(e){console.error("copy failed:",e);}};
   const list=[...orders].sort((a,b)=>{const da=a.date_completed||a.created_at||"";const db=b.date_completed||b.created_at||"";return db.localeCompare(da);});
   const visible=hideEntered?list.filter(w=>!w.tms_entered):list;
   const setLocal=(id,val)=>setLocalVals(v=>({...v,[id]:val}));
@@ -946,6 +979,7 @@ function TMSQueue({orders,wlp}){
             {!sv&&dirty&&<span style={{fontSize:10,color:B.orange}}>•</span>}
             {!sv&&!dirty&&(wo.customer_wo)&&<span style={{fontSize:11,color:B.green}} title="Saved">✓</span>}
           </div>
+          <button onClick={()=>copyRow(wo)} title="Copy a paste-ready line for the TMS: date | WO# | location | hours | work | tech" style={{flexShrink:0,padding:"5px 10px",borderRadius:4,border:"1px solid "+(copied===wo.id?B.green:B.border),background:copied===wo.id?B.green+"18":"transparent",color:copied===wo.id?B.green:B.textMuted,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{copied===wo.id?"Copied ✓":"Copy"}</button>
           <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",flexShrink:0,padding:"4px 8px",borderRadius:4,background:wo.tms_entered?B.green+"22":"transparent",border:"1px solid "+(wo.tms_entered?B.green:B.border)}}>
             <input type="checkbox" checked={!!wo.tms_entered} disabled={sv==="tms_entered"} onChange={()=>toggleTMS(wo)}/>
             <span style={{fontSize:11,fontWeight:600,color:wo.tms_entered?B.green:B.textDim}}>{sv==="tms_entered"?"...":(wo.tms_entered?"In TMS":"Mark TMS")}</span>
@@ -974,7 +1008,7 @@ function WOOverview({orders,wlp,pos,time}){
   const sortedMonths=Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0]));
   const weekLabel=weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" \u2014 "+weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
   const pendingPOs=pos.filter(p=>p.status==="pending").length;
-  const thirtyDaysAgo=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  const thirtyDaysAgo=localDateStr(new Date(Date.now()-30*86400000));
   const staleWOs=orders.filter(o=>o.status==="pending"&&o.created_at?.slice(0,10)<thirtyDaysAgo);
   const filteredWeek=filter==="all"?thisWeek:filter==="pending"?thisWeek.filter(o=>o.status==="pending"):filter==="active"?thisWeek.filter(o=>o.status==="in_progress"):filter==="done"?thisWeek.filter(o=>o.status==="completed"):filter==="tms"?thisWeek.filter(o=>!o.tms_entered):filter==="stale"?staleWOs:thisWeek;
 

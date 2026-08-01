@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, cleanText, SUPABASE_URL } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, cleanText, SUPABASE_URL , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, EmptyState, Spinner } from "./ui";
 
 // ── Status metadata (computed per render so theme colors stay live) ──
@@ -13,7 +13,7 @@ function statusMeta(){
   };
 }
 const docxUrl=(rfq)=>rfq?.docx_path?SUPABASE_URL+"/storage/v1/object/public/rfq-docs/"+rfq.docx_path:null;
-const todayStr=()=>new Date().toISOString().slice(0,10);
+const todayStr=()=>todayLocal();
 
 // ── Create / Edit form ────────────────────────────────────────
 function RFQForm({initial,onSave,onClose,signerName}){
