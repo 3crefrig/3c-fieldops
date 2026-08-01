@@ -13,6 +13,25 @@ export function sb(){ return _sb; }
 // `select("*")` would be denied by Postgres. Always select these explicitly.
 export const USER_COLS="id,name,email,role,active,created_at,title,phone,available_hours_week";
 
+// Columns fetched for work_order LIST views — every column EXCEPT `signature`.
+// `signature` holds a base64 PNG (~6KB/row, ~2.5MB across the table) and is only
+// ever rendered in WODetail, one WO at a time. Including it in the bulk fetch made
+// every loadData()/reloadTable("work_orders") ship ~2.9MB instead of ~340KB, which
+// is what blew the Supabase free-tier egress quota (2026-08-01).
+// WODetail loads the signature on demand via loadWOSignature() below.
+// NOTE: when a migration adds a column to work_orders, add it here too or it will
+// silently be missing from the app's data.
+export const WO_COLS="id,wo_id,title,priority,status,assignee,due_date,hours_total,notes,location,building,wo_type,date_completed,created_at,customer,field_notes,crew,customer_wo,work_performed,tms_entered,project_id,chamber_id,invoiced,equipment_id,agreement_id,nte,nte_approved_by,nte_approved_at,dispatched_at,on_site_at,resolved_at,sla_response_hours";
+
+// Fetch a single work order's signature (excluded from WO_COLS to keep list
+// payloads small). Returns the base64 data-URL string, or null.
+export async function loadWOSignature(woId){
+  if(!woId)return null;
+  const{data,error}=await sb().from("work_orders").select("signature").eq("id",woId).single();
+  if(error){console.warn("loadWOSignature failed:",error.message);return null;}
+  return data?.signature||null;
+}
+
 export const DARK={bg:"#101214",surface:"#1A1D21",surfaceActive:"#2A2F35",border:"#2E3338",text:"#E8EAED",textMuted:"#8B929A",textDim:"#5E656E",cyan:"#00D4F5",cyanDark:"#00A5C0",cyanGlow:"rgba(0,212,245,0.12)",red:"#FF4757",orange:"#FFA040",green:"#26D9A2",purple:"#A78BFA",greenGlow:"rgba(38,217,162,0.15)",orangeGlow:"rgba(255,160,64,0.15)"};
 export const LIGHT={bg:"#F5F6F8",surface:"#FFFFFF",surfaceActive:"#E8EAED",border:"#D1D5DB",text:"#1A1D21",textMuted:"#4B5563",textDim:"#9CA3AF",cyan:"#0891B2",cyanDark:"#0E7490",cyanGlow:"rgba(8,145,178,0.1)",red:"#DC2626",orange:"#D97706",green:"#059669",purple:"#7C3AED",greenGlow:"rgba(5,150,105,0.1)",orangeGlow:"rgba(217,119,6,0.1)"};
 let _theme=localStorage.getItem("fieldops-theme")||"dark";

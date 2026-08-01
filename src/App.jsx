@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup } from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup } from "./shared";
 import { Logo, Spinner } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
@@ -19,7 +19,7 @@ import { registerPush } from "./push";
 function App(){
   const[authUser,setAuthUser]=useState(null);const[appUser,setAppUser]=useState(null);
   const[data,setData]=useState(null);const[loading,setLoading]=useState(true);const[syncing,setSyncing]=useState(false);
-  const[offlineMode,setOfflineMode]=useState(false);const[offlineQueueCount,setOfflineQueueCount]=useState(0);const syncingRef=useRef(false);
+  const[offlineMode,setOfflineMode]=useState(false);const[offlineQueueCount,setOfflineQueueCount]=useState(0);const syncingRef=useRef(false);const lastLoadRef=useRef(0);
 
   useEffect(()=>{const client=sb();if(!client)return;
     client.auth.getSession().then(({data:{session}})=>{setAuthUser(session?.user||null);});
@@ -29,7 +29,7 @@ function App(){
 
   const loadData=useCallback(async()=>{try{const client=sb();if(!client)return;
     const[wos,pos,time,photos,users,schedule,templates,notifs,customers,emailTemplates,projects,woDrafts,invoices,feedbackData,equipmentData,agreementsData,agreementTiersData,lineItemsData,rfqsData,rfqItemsData,rfqSpecsData,poTicketsData,poTicketItemsData,vendorBillsData,vendorBillItemsData]=await Promise.all([
-      client.from("work_orders").select("*").order("created_at",{ascending:false}),
+      client.from("work_orders").select(WO_COLS).order("created_at",{ascending:false}),
       client.from("purchase_orders").select("*").order("created_at",{ascending:false}),
       client.from("time_entries").select("*").order("logged_date",{ascending:false}),
       client.from("photos").select("*").order("uploaded_at",{ascending:false}),
@@ -63,13 +63,13 @@ function App(){
     try{const{data:rates}=await client.rpc("user_rates");if(Array.isArray(rates)&&rates.length){const rm=Object.fromEntries(rates.map(r=>[r.id,r]));usersData=usersData.map(u=>rm[u.id]?{...u,billing_rate:rm[u.id].billing_rate,cost_rate:rm[u.id].cost_rate}:u);}}catch(e){/* techs: no rates, expected */}
     const freshData={wos:wos.data||[],pos:pos.data||[],time:time.data||[],photos:photos.data||[],users:usersData,schedule:schedule.data||[],templates:templates.data||[],notifs:notifs.data||[],customers:customers.data||[],emailTemplates:emailTemplates.data||[],projects:projects.data||[],woDrafts:woDrafts.data||[],invoices:invoices.data||[],feedback:feedbackData.data||[],equipment:equipmentData.data||[],agreements:agreementsData.data||[],agreementTiers:agreementTiersData.data||[],lineItems:lineItemsData.data||[],rfqs:rfqsData.data||[],rfqItems:rfqItemsData.data||[],rfqSpecs:rfqSpecsData.data||[],poTickets:poTicketsData.data||[],poTicketItems:poTicketItemsData.data||[],vendorBills:vendorBillsData.data||[],vendorBillItems:vendorBillItemsData.data||[]};
     setData(prev=>({...freshData,onlineUsers:prev?.onlineUsers||[]}));
-    setOfflineMode(false);setLoading(false);
+    setOfflineMode(false);setLoading(false);lastLoadRef.current=Date.now();
     try{await cacheData('appData',freshData);}catch(e){console.warn("IndexedDB cache write failed:",e);}
   }catch(err){console.error("loadData failed:",err);
     try{const cached=await getCachedData('appData');if(cached){setData(prev=>({...cached,onlineUsers:prev?.onlineUsers||[]}));setOfflineMode(true);setLoading(false);console.log("Loaded from offline cache");}}catch(e){console.warn("Offline cache read failed:",e);}
   }},[]);
   const tableMap={work_orders:{key:"wos",order:"created_at",asc:false},purchase_orders:{key:"pos",order:"created_at",asc:false},time_entries:{key:"time",order:"logged_date",asc:false},photos:{key:"photos",order:"uploaded_at",asc:false},users:{key:"users",order:"name",asc:true},schedule:{key:"schedule",order:"time",asc:true},recurring_templates:{key:"templates",order:"title",asc:true},notifications:{key:"notifs",order:"created_at",asc:false,limit:50},customers:{key:"customers",order:"name",asc:true},email_templates:{key:"emailTemplates",order:"name",asc:true},projects:{key:"projects",order:"created_at",asc:false},wo_drafts:{key:"woDrafts",order:"created_at",asc:false},invoices:{key:"invoices",order:"created_at",asc:false},feedback:{key:"feedback",order:"submitted_at",asc:false},equipment:{key:"equipment",order:"customer_name",asc:true},service_agreements:{key:"agreements",order:"created_at",asc:false},agreement_tiers:{key:"agreementTiers",order:"name",asc:true},wo_line_items:{key:"lineItems",order:"sort_order",asc:true},rfqs:{key:"rfqs",order:"created_at",asc:false},rfq_items:{key:"rfqItems",view:"rfq_items_public",order:"line_no",asc:true},rfq_specs:{key:"rfqSpecs",order:"created_at",asc:true},po_tickets:{key:"poTickets",order:"created_at",asc:false},po_ticket_items:{key:"poTicketItems",order:"line_no",asc:true},vendor_bills:{key:"vendorBills",order:"created_at",asc:false},vendor_bill_items:{key:"vendorBillItems",order:"line_no",asc:true}};
-  const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(m.view||table).select(table==="users"?USER_COLS:"*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);let{data:d}=await q;
+  const reloadTable=useCallback(async(table)=>{const client=sb();if(!client)return;const m=tableMap[table];if(!m)return;let q=client.from(m.view||table).select(table==="users"?USER_COLS:table==="work_orders"?WO_COLS:"*").order(m.order,{ascending:m.asc});if(m.limit)q=q.limit(m.limit);let{data:d}=await q;
     // Re-merge rate columns (revoked from the users table; only via user_rates RPC for mgr/admin).
     if(table==="users"&&Array.isArray(d)){try{const{data:rates}=await client.rpc("user_rates");if(Array.isArray(rates)&&rates.length){const rm=Object.fromEntries(rates.map(r=>[r.id,r]));d=d.map(u=>rm[u.id]?{...u,billing_rate:rm[u.id].billing_rate,cost_rate:rm[u.id].cost_rate}:u);}}catch(e){}}
     setData(prev=>({...prev,[m.key]:d||[]}));},[]);
@@ -91,7 +91,11 @@ function App(){
     const debouncedReload=(table)=>{if(_reloadTimers[table])clearTimeout(_reloadTimers[table]);_reloadTimers[table]=setTimeout(()=>reloadTable(table),500);};
     const chan=client.channel("fieldops-rt").on("postgres_changes",{event:"*",schema:"public",table:"work_orders"},()=>debouncedReload("work_orders")).on("postgres_changes",{event:"*",schema:"public",table:"purchase_orders"},()=>debouncedReload("purchase_orders")).on("postgres_changes",{event:"*",schema:"public",table:"time_entries"},()=>debouncedReload("time_entries")).on("postgres_changes",{event:"*",schema:"public",table:"users"},()=>debouncedReload("users")).on("postgres_changes",{event:"*",schema:"public",table:"photos"},()=>debouncedReload("photos")).on("postgres_changes",{event:"*",schema:"public",table:"notifications"},()=>debouncedReload("notifications")).on("postgres_changes",{event:"*",schema:"public",table:"customers"},()=>debouncedReload("customers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_drafts"},()=>debouncedReload("wo_drafts")).on("postgres_changes",{event:"*",schema:"public",table:"invoices"},()=>debouncedReload("invoices")).on("postgres_changes",{event:"*",schema:"public",table:"equipment"},()=>debouncedReload("equipment")).on("postgres_changes",{event:"*",schema:"public",table:"service_agreements"},()=>debouncedReload("service_agreements")).on("postgres_changes",{event:"*",schema:"public",table:"agreement_tiers"},()=>debouncedReload("agreement_tiers")).on("postgres_changes",{event:"*",schema:"public",table:"wo_line_items"},()=>debouncedReload("wo_line_items")).on("postgres_changes",{event:"*",schema:"public",table:"projects"},()=>debouncedReload("projects")).on("postgres_changes",{event:"*",schema:"public",table:"rfqs"},()=>debouncedReload("rfqs")).on("postgres_changes",{event:"*",schema:"public",table:"rfq_items"},()=>debouncedReload("rfq_items")).on("postgres_changes",{event:"*",schema:"public",table:"rfq_specs"},()=>debouncedReload("rfq_specs")).on("postgres_changes",{event:"*",schema:"public",table:"po_tickets"},()=>debouncedReload("po_tickets")).on("postgres_changes",{event:"*",schema:"public",table:"po_ticket_items"},()=>debouncedReload("po_ticket_items")).on("postgres_changes",{event:"*",schema:"public",table:"vendor_bills"},()=>debouncedReload("vendor_bills")).on("postgres_changes",{event:"*",schema:"public",table:"vendor_bill_items"},()=>debouncedReload("vendor_bill_items")).on('presence',{event:'sync'},()=>{const state=chan.presenceState();const online=Object.values(state).flat().map(p=>p.name);setData(prev=>prev?{...prev,onlineUsers:online}:prev);}).subscribe();
     chan.track({name:appUser?.name,role:appUser?.role});
-    const poll=setInterval(()=>loadData(),300000);
+    // Safety-net poll for when the realtime socket silently drops (common on field
+    // cell connections / backgrounded mobile tabs). Realtime is the primary sync
+    // path, so this is a fallback, not the mechanism — 15min keeps the net without
+    // the egress cost of a full 25-table refetch every 5min.
+    const poll=setInterval(()=>loadData(),900000);
     // Replay offline queue when back online
     const replayOfflineQueue=async()=>{if(syncingRef.current)return;syncingRef.current=true;
       try{const queued=await getQueuedMutations();if(queued.length===0){syncingRef.current=false;return;}
@@ -105,7 +109,11 @@ function App(){
         if(remaining===0){setOfflineMode(false);await loadData();}
       }catch(e){console.error("replayOfflineQueue error:",e);}finally{setSyncing(false);syncingRef.current=false;}};
     const onOnline=()=>{replayOfflineQueue();};window.addEventListener("online",onOnline);
-    const onVis=()=>{if(document.visibilityState==="visible"){if(navigator.onLine)replayOfflineQueue();loadData();}};document.addEventListener("visibilitychange",onVis);
+    // Offline replay always runs on return (cheap, and correctness-critical). The full
+    // refetch is skipped if we loaded <60s ago — app-switching on a phone fires this
+    // constantly and each one was a full 25-table pull. Realtime covers the gap, so
+    // the "fresh on return" behaviour is preserved without the redundant traffic.
+    const onVis=()=>{if(document.visibilityState==="visible"){if(navigator.onLine)replayOfflineQueue();if(Date.now()-lastLoadRef.current>60000)loadData();}};document.addEventListener("visibilitychange",onVis);
     // Smart Recurring PM: auto-generate WOs from templates with past-due dates
     const checkRecurringPMs=async()=>{
       const{data:tpls}=await client.from("recurring_templates").select("*").eq("active",true);

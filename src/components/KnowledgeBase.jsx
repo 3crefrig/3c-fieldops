@@ -68,12 +68,26 @@ function KnowledgeBase({ userName, userRole }) {
   const msg = m => { setToast(m); setTimeout(() => setToast(""), 3000); };
   const load = async () => { const { data } = await sb().from("kb_articles").select("*").order("created_at", { ascending: false }); setArticles(data || []); setLoading(false); };
   useEffect(() => { load(); }, []);
+  // Load the selected article's files whenever the selection changes.
+  // This MUST stay an effect. It used to be called during render, guarded by
+  // `articleFiles.length === 0` — but for an article with NO files that condition is
+  // permanently true, so each fetch re-rendered and refetched forever. That loop ran
+  // 576k queries against a 29-row table and was a top egress source (fixed 2026-08-01).
+  useEffect(() => {
+    if (!selArticle?.id) { setArticleFiles([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await sb().from("kb_files").select("*").eq("article_id", selArticle.id).order("uploaded_at", { ascending: true });
+      if (!cancelled) setArticleFiles(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [selArticle?.id]);
   const cats = { guide: "📖 Troubleshooting", manual: "📄 Manuals & Specs", tip: "💡 Tips & Tricks", parts: "🔩 Parts Reference", sop: "📋 SOPs" };
   const catColors = { guide: B.cyan, manual: B.cyan, tip: B.green, parts: B.orange, sop: B.red };
   const filtered = articles.filter(a => { if (!isMgr && a.status !== "approved") return false; if (tab !== "all" && tab !== "pending" && a.category !== tab) return false; if (tab === "pending" && a.status !== "pending") return false; if (search) { const s = search.toLowerCase(); return a.title.toLowerCase().includes(s) || a.content?.toLowerCase().includes(s) || a.symptoms?.toLowerCase().includes(s) || a.tags?.some(t => t.toLowerCase().includes(s)) || (a.part_number || "").toLowerCase().includes(s); } return true; });
   const pendingCount = articles.filter(a => a.status === "pending").length;
   const resetForm = () => { setTitle(""); setCategory("guide"); setContent(""); setSymptoms(""); setFixSteps(""); setPartNum(""); setSupplier(""); setTags(""); setPendingFiles([]); };
-  const openEdit = (a) => { setTitle(a.title); setCategory(a.category); setContent(a.content || ""); setSymptoms(a.symptoms || ""); setFixSteps(a.fix_steps || ""); setPartNum(a.part_number || ""); setSupplier(a.supplier || ""); setTags((a.tags || []).join(", ")); setSelArticle(a); setPendingFiles([]); loadFiles(a.id); setShowCreate(true); };
+  const openEdit = (a) => { setTitle(a.title); setCategory(a.category); setContent(a.content || ""); setSymptoms(a.symptoms || ""); setFixSteps(a.fix_steps || ""); setPartNum(a.part_number || ""); setSupplier(a.supplier || ""); setTags((a.tags || []).join(", ")); setSelArticle(a); setPendingFiles([]); setShowCreate(true); };
   const save = async () => {
     if (!title.trim() || saving) return; if (cleanText(title, "Title") === null || cleanText(content, "Content") === null) return; setSaving(true);
     try {
@@ -116,7 +130,6 @@ function KnowledgeBase({ userName, userRole }) {
 
   if (selArticle && !showCreate) {
     const a = articles.find(x => x.id === selArticle.id); if (!a) { setSelArticle(null); return null; }
-    if (articleFiles.length === 0 || articleFiles[0]?.article_id !== a.id) loadFiles(a.id);
     const aPhotos = articleFiles.filter(f => f.file_type === "photo"); const aDocs = articleFiles.filter(f => f.file_type !== "photo");
     return (<div><Toast msg={toast} />
       <button onClick={() => { setSelArticle(null); setArticleFiles([]); }} style={{ background: "none", border: "none", color: B.cyan, fontSize: 12, cursor: "pointer", fontFamily: F, marginBottom: 10 }}>← Back</button>
