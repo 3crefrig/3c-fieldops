@@ -241,6 +241,17 @@ async function buildInvoicePDF(d){
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
   let by=y+12;
   addrLines.forEach(l=>{txt(l,lm+5,by);by+=4.5;});
+  // SHIP TO box (dropship parts sales) — sits beside BILL TO when a destination is set.
+  if(d.shipTo){
+    const sx=lm+cw*0.64,sw=cw*0.36;
+    R(sx,y,sw,billH,light);
+    doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(sx,y,sx,y+billH);
+    doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);
+    txt("SHIP TO",sx+5,y+5.5);
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+    let sy=y+12;
+    doc.splitTextToSize(d.shipTo,sw-10).slice(0,Math.max(2,Math.floor((billH-12)/4.5))).forEach(l=>{txt(l,sx+5,sy);sy+=4.5;});
+  }
   y+=billH+6;
 
   // ── Order info row ──
@@ -291,8 +302,11 @@ async function buildInvoicePDF(d){
     y+=2;L(y,[220,225,235],0.2);y+=4;
   }
 
-  // Description / coverage text
-  const descText=d.breakdownData?.description||d.description;
+  // Description / coverage text. When the SHIP TO box already rendered the
+  // destination, strip the redundant "Shipped to:" line that rides in the notes
+  // (kept there for the Excel export and the invoice record).
+  let descText=d.breakdownData?.description||d.description;
+  if(d.shipTo&&descText)descText=descText.split("\n").filter(l=>!l.startsWith("Shipped to: ")).join("\n").trim();
   if(descText){
     pageBreak(16);
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
@@ -431,7 +445,7 @@ function rebuildInvoiceData(inv,{customers,pos,wos}){
   const partsDetail=invPOs.map(p=>({desc:p.description+(p.po_id?" ("+p.po_id+")":""),amount:Math.round(parseFloat(p.amount||0)*(1+mkup/100)*100)/100}));
   const customItems=Array.isArray(inv.custom_items)?inv.custom_items:[];
   const customItemsTotal=customItems.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
-  return{invoiceNum:inv.invoice_num,date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null,customItems,customItemsTotal};
+  return{invoiceNum:inv.invoice_num,shipTo:((/^Shipped to: (.+)$/m.exec(inv.notes||"")||[])[1]||""),date:issued.toLocaleDateString(),customerId:c?.customer_id_code||"",customerDisplayName:c?.name||inv.customer,customerName:c?.contact_name||"Accounts Payable",customerAddress:c?.address||"",customerAddress2:"",vendorNumber:c?.vendor_number||"",poNumber:inv.po_number||"",jobDesc:inv.job_desc||"Repairs",paymentTerms:terms,dueDate:due.toLocaleDateString(),tiers:inv.tier_data||[],description:inv.notes||"",partsTotal:parseFloat(inv.parts_total)||0,partsDetail:partsDetail.length>0?partsDetail:null,customItems,customItemsTotal};
 }
 
 async function openInvoicePDF(inv,ctx){
