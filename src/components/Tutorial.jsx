@@ -34,8 +34,9 @@ export const tutorialPrefs={
   resetDone:()=>localStorage.removeItem(LS_DONE),
 };
 export const startTour=(tab)=>{
-  // Jump to the tab first, then launch once it has mounted.
-  gotoTab(tab);
+  // Jump to the tab first, then launch once it has mounted. Keys starting with
+  // "_" (The Basics) run on whatever page is open — no tab switch.
+  if(!tab.startsWith("_"))gotoTab(tab);
   setTimeout(()=>window.dispatchEvent(new CustomEvent("start-tour",{detail:tab})),250);
 };
 
@@ -43,11 +44,22 @@ export const startTour=(tab)=>{
 // target = data-tour key (omit for a centered card). Keep steps SHORT — one
 // idea each, tied to what's on screen. roles limits who sees the tour.
 export const TOURS={
+  // The Basics — offered before anything else on a brand-new device. Every step
+  // targets chrome that exists on every tab, so it can run from anywhere.
+  _welcome:{title:"The Basics",steps:[
+    {title:"Welcome to 3C FieldOps 👋",body:"This app runs the whole shop — jobs, hours, parts, paperwork. This 60-second tour shows you how to get around; each page then offers its own short tour when you first open it."},
+    {target:"global-search",title:"Search finds everything",body:"Job numbers, customers, purchase orders, equipment — type a few letters and jump straight there. On a keyboard, Ctrl+K opens it from anywhere."},
+    {title:"Tabs are grouped",body:"The buttons across the top (or the bar at the bottom on your phone) switch pages. Start with the first tab each morning — it's built to show what needs your attention."},
+    {title:"The bell keeps you posted",body:"🔔 collects everything aimed at you: new assignments, approvals, overdue work. Tap an alert and it takes you to the thing itself."},
+    {title:"Help is always on",body:"The Guide tab holds written how-tos, these tours (replay any time), and a Tips mode that puts tappable ⦿ dots on controls. If you're ever lost, start there."},
+  ]},
   today:{title:"My Day",roles:["technician"],steps:[
     {title:"Your home base",body:"My Day shows the jobs assigned to you, today's logged hours, and anything still needing time. Start here every morning."},
     {target:"quick-log",title:"Log time in seconds",body:"This floating button is the fastest way to log hours — pick the job, hours, a short note, done. It follows you on every tab."},
+    {title:"Reading a job card",body:"The colored edge is priority, the badge is status (orange Pending, blue Active, green Done). Tap any card to open the full job."},
     {target:"nav-groups",title:"Everything else",body:"All Orders has every job you can see, Week Plan lays out your week, Hours lists what you've logged, Knowledge holds the shop's repair guides."},
-    {title:"Finishing a job",body:"Open the job → ✓ Done → confirm hours → customer signs on your screen. You can enter their work-order number right there so the office doesn't have to chase it."},
+    {title:"Finishing a job",body:"Open the job → ✓ Done → confirm hours → customer signs on your screen. Enter their work-order number right there so the office doesn't have to chase it."},
+    {title:"Stay reachable",body:"If a “Turn on job alerts” bar appears, tap Enable then Allow — you'll get a buzz when work is assigned to you. iPhones need the app added to the Home Screen first."},
   ]},
   overview:{title:"Overview",roles:["manager","admin"],steps:[
     {title:"Your command center",body:"Everything that needs attention surfaces here: KPIs, overdue work, service requests, repeat failures, and the live activity feed."},
@@ -58,9 +70,25 @@ export const TOURS={
   ]},
   orders:{title:"Work Orders",steps:[
     {target:"wo-search",title:"Find any job",body:"Search hits job numbers, titles, customers, locations, assignees, and the customer's own WO number."},
-    {target:"wo-new",title:"New work order",body:"Create a job here. The creator's tech gets assigned automatically on any PO raised from it later."},
-    {title:"Cards do things",body:"Swipe right to start a job, swipe left toward complete — completing always goes through Review & Sign so nothing skips the signature. The TMS button marks customer-system entry."},
-    {title:"Inside a job",body:"Call and Navigate chips at the top, then time, photos, POs, equipment, and completion. Managers can set an NTE cap — it tracks labor AND parts against the limit."},
+    {target:"wo-new",title:"New work order",body:"Create a job here — title, customer, priority, due date, assignee. It lands on the assigned tech's My Day instantly, with a push alert."},
+    {title:"What the statuses mean",body:"Pending (orange) = not started. Active (blue) = someone's on it — logging time flips this automatically. Done (green) = completed and signed."},
+    {title:"Cards do things",body:"Swipe right to start a job, swipe left to complete — completing always goes through Review & Sign so nothing skips the signature. The TMS button marks customer-system entry."},
+    {title:"Inside a job",body:"Call and Navigate chips at the top, then time, photos, purchase orders, equipment, and completion — everything about the job in one place."},
+    {roles:["manager","admin"],title:"Manager extras",body:"Edit any job, set an NTE spending cap (tracks labor AND parts), see the AI job summary, and bill straight from a completed job with the green button."},
+  ]},
+  inbox:{title:"Requests",roles:["manager","admin"],steps:[
+    {title:"Email becomes work",body:"Emails sent to service@ appear here as drafts — the AI pulls out the customer, location, and problem for you."},
+    {title:"Approve & go",body:"Review, tweak anything, Approve & Create WO. You land on the new numbered job immediately, ready to assign. Rejected requests keep a record too."},
+  ]},
+  users:{title:"Users",roles:["admin"],steps:[
+    {title:"The roster",body:"Add someone with their Gmail and a role — Technician, Manager, or Admin — and they can sign in immediately. New techs get the welcome email automatically."},
+    {title:"Roles set what they see",body:"Techs see their own jobs and hours — no pricing, no invoices. Managers add approvals and money screens. Deactivate keeps history but blocks sign-in."},
+  ]},
+  feedback:{title:"Feedback",roles:["manager","admin"],steps:[
+    {title:"How'd we do?",body:"When an invoice is sent, the customer gets a one-tap rating link automatically. Scores and comments collect here — worth a glance each week."},
+  ]},
+  team:{title:"Team",roles:["manager","admin"],steps:[
+    {title:"Who's doing what",body:"Each tech's active jobs, completions, and logged hours, plus a live Online badge when they have the app open."},
   ]},
   planner:{title:"Week Plan",steps:[
     {title:"The week at a glance",body:"Jobs appear under the day they're due, with batching hints when several land at the same site. Tap any job to open it."},
@@ -72,13 +100,16 @@ export const TOURS={
   ]},
   pos:{title:"Purchase Orders",roles:["manager","admin"],steps:[
     {target:"po-new",title:"Create instantly",body:"Parts run? Create the PO here — you're auto-assigned as its tech, and more techs can be attached on the card."},
-    {title:"Approvals",body:"Pending POs show an inline amount box + Approve right on the card. They can also be approved straight from the 🔔 bell."},
+    {title:"The approval lane",body:"Pending POs show an inline amount box + Approve right on the card — set the real amount and approve in one motion. Small POs under your threshold skip approval automatically."},
+    {title:"Approve from anywhere",body:"PO requests also land in the 🔔 bell with Approve / Reject buttons — you never have to come to this tab just to unblock a tech at the counter."},
     {title:"Counter tickets",body:"The 🧾 button snaps the supply-house ticket at pickup. Those tickets power the Supply Audit's 3-way match against vendor bills."},
+    {title:"Paperwork",body:"PO Form makes a signed-looking PDF for vendors that require one; Preview shows it without downloading."},
   ]},
   invoices:{title:"Invoices",roles:["manager","admin"],steps:[
-    {target:"inv-create",title:"Three-step generator",body:"Pick the customer and jobs, confirm hours and rates, generate. Rates come from the customer's saved tiers."},
-    {title:"Send = sent",body:"The Send button on any row emails the PDF and marks the invoice sent in one motion — the feedback request goes out automatically. Schedule-send delivers early morning and still updates the tracker."},
-    {title:"Getting paid",body:"Mark Paid stamps the date and feeds Avg-Days-to-Pay and the AR tiles on Overview."},
+    {target:"inv-create",title:"Three-step generator",body:"Pick the customer and jobs, confirm hours and rates, generate. Rates come from the customer's saved tiers — no math by hand."},
+    {title:"One row = one invoice",body:"Each row shows status and age: Draft (orange) hasn't gone out, Sent (blue) is awaiting payment and turns red past the overdue threshold, Paid (green) is done. Tap a row to expand its jobs, labor, and parts."},
+    {title:"Send = sent",body:"Send emails the PDF and marks the invoice sent in one motion — the customer feedback request goes out automatically. Schedule-send delivers early next morning and still updates the tracker."},
+    {title:"Getting paid",body:"Mark Paid stamps the date and feeds Avg-Days-to-Pay and the AR tiles on Overview. Excel and PDF re-download any invoice exactly as issued."},
   ]},
   billing:{title:"Billing",roles:["manager","admin"],steps:[
     {title:"Timesheet exports",body:"For customers billed through their own system (Duke SoM, Facilities), export the completed-work table here — copy it, download Excel, or email it directly. Every row opens its work order."},
@@ -117,6 +148,10 @@ export const TOURS={
 };
 
 // ── Layer ─────────────────────────────────────────────────────────────────
+// Steps can carry their own roles list (e.g. a manager-only step inside a tour
+// everyone sees) — resolve the effective steps for a role here.
+export const stepsForRole=(tour,role)=>tour.steps.filter(s=>!s.roles||s.roles.includes(role));
+
 export function TutorialLayer({tab,role}){
   const[tourTab,setTourTab]=useState(null);
   const[step,setStep]=useState(0);
@@ -125,15 +160,18 @@ export function TutorialLayer({tab,role}){
   const tour=tourTab?TOURS[tourTab]:null;
   const roleOk=(t)=>!t.roles||t.roles.includes(role);
 
-  // Invite chip: first visit to a tab that has a tour for this role.
+  // Invite chip: brand-new device gets "The Basics" first; after that, each
+  // tab with a tour offers itself on first visit.
   useEffect(()=>{
     setInviteFor(null);
-    const t=TOURS[tab];
-    if(!t||!roleOk(t))return;
     if(tourTab)return;
     if(!tutorialPrefs.invitesOn())return;
-    if(tutorialPrefs.doneMap()[tab])return;
-    const id=setTimeout(()=>setInviteFor(tab),900);
+    const done=tutorialPrefs.doneMap();
+    let offer=null;
+    if(!done._welcome&&Object.keys(done).length===0)offer="_welcome";
+    else{const t=TOURS[tab];if(t&&roleOk(t)&&!done[tab])offer=tab;}
+    if(!offer)return;
+    const id=setTimeout(()=>setInviteFor(offer),900);
     return()=>clearTimeout(id);
   // eslint-disable-next-line
   },[tab,tourTab]);
@@ -148,14 +186,14 @@ export function TutorialLayer({tab,role}){
   // eslint-disable-next-line
   },[role]);
 
-  const endTour=(markDone)=>{if(markDone&&tourTab)tutorialPrefs.markDone(tourTab);setTourTab(null);setStep(0);};
+  const endTour=(markDone)=>{if(markDone&&tourTab){tutorialPrefs.markDone(tourTab);window.dispatchEvent(new Event("tut-done-changed"));}setTourTab(null);setStep(0);};
 
   return(<>
     {inviteFor&&!tourTab&&<InviteChip title={TOURS[inviteFor].title}
       onStart={()=>{setStep(0);setTourTab(inviteFor);setInviteFor(null);}}
       onSkip={()=>{tutorialPrefs.markDone(inviteFor);setInviteFor(null);}}
       onNever={()=>{tutorialPrefs.setInvites(false);setInviteFor(null);}}/>}
-    {tour&&<TourOverlay tour={tour} step={step} setStep={setStep} onClose={(finished)=>endTour(finished!==false)}/>}
+    {tour&&<TourOverlay tour={{...tour,steps:stepsForRole(tour,role)}} step={step} setStep={setStep} onClose={(finished)=>endTour(finished!==false)}/>}
     {tipsOn&&!tour&&<HotspotLayer tab={tab}/>}
   </>);
 }
@@ -246,9 +284,20 @@ function HotspotLayer({tab}){
     const t1=setTimeout(scan,600);const t2=setTimeout(scan,1600);
     const on=()=>{scan();setOpenTip(null);};
     window.addEventListener("resize",on);window.addEventListener("scroll",on,true);
-    return()=>{clearTimeout(t1);clearTimeout(t2);window.removeEventListener("resize",on);window.removeEventListener("scroll",on,true);};
+    // Detail views (a work order, an invoice row, a modal) render without a tab
+    // change — watch the DOM so their dots appear too. Debounced to stay cheap.
+    let deb=null;
+    const mo=new MutationObserver(()=>{clearTimeout(deb);deb=setTimeout(scan,400);});
+    mo.observe(document.body,{childList:true,subtree:true});
+    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(deb);mo.disconnect();window.removeEventListener("resize",on);window.removeEventListener("scroll",on,true);};
   },[tab,scan]);
   return(<>
+    {/* Reminder pill — makes it obvious tips mode is on and how to leave it */}
+    <div style={{position:"fixed",right:14,bottom:"max(14px, env(safe-area-inset-bottom))",zIndex:1152,background:B.surface,border:"1px solid "+B.cyan+"55",borderRadius:20,padding:"6px 12px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 6px 20px rgba(0,0,0,.3)"}}>
+      <span style={{width:10,height:10,borderRadius:5,background:B.cyan,animation:"tutPulse 2s ease-in-out infinite",flexShrink:0}}/>
+      <span style={{fontSize:11,fontWeight:600,color:B.text,fontFamily:F}}>Tips on — tap a dot</span>
+      <button onClick={()=>{localStorage.setItem("fieldops-tut-tips","off");window.dispatchEvent(new Event("tut-prefs-changed"));}} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer",padding:0,fontWeight:700}}>turn off</button>
+    </div>
     {spots.map(s=><button key={s.id} onClick={(e)=>{e.stopPropagation();setOpenTip(openTip&&openTip.id===s.id?null:{...s});}}
       title="What's this?"
       style={{position:"fixed",top:s.y,left:s.x,width:14,height:14,borderRadius:"50%",background:B.cyan,border:"2px solid "+B.bg,cursor:"pointer",zIndex:1150,padding:0,animation:"tutPulse 2s ease-in-out infinite"}}/>)}

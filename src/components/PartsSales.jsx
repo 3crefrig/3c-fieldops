@@ -322,7 +322,7 @@ function PartsSales({D,A,user}){
             <span style={{fontSize:12,fontWeight:700,color:B.text}}>Parts</span>
             <div style={{display:"flex",gap:10}}>
               <button onClick={addLine} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,fontWeight:600}}>+ Add Part</button>
-              <button onClick={()=>setShowPOPicker(!showPOPicker)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,fontWeight:600}}>Add from Vendor PO</button>
+              <button data-tip="Pull a vendor PO in as a line item — cost comes across, markup is applied, and that PO can never be billed twice." onClick={()=>setShowPOPicker(!showPOPicker)} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,fontWeight:600}}>Add from Vendor PO</button>
             </div>
           </div>
           {showPOPicker&&<div style={{padding:10,background:B.cyan+"08",border:"1px dashed "+B.cyan+"55",borderRadius:6,marginBottom:8}}>

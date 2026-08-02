@@ -79,7 +79,7 @@ function EquipmentPicker({equipment,customerName,value,onChange}){
         <option value="">— None —</option>
         {filtered.map(e=><option key={e.id} value={e.id}>{e.equipment_number?e.equipment_number+" · ":""}{e.model||"Unknown"} — {e.serial_number||e.asset_tag||"No ID"} ({e.location||""})</option>)}
       </select>
-      <button onClick={()=>setScanning(true)} type="button" style={{...BS,padding:"10px 14px",whiteSpace:"nowrap",fontSize:12}}>Scan</button>
+      <button data-tip="Scan the barcode or QR on the unit’s asset tag to select it instantly — or type the tag by hand." onClick={()=>setScanning(true)} type="button" style={{...BS,padding:"10px 14px",whiteSpace:"nowrap",fontSize:12}}>Scan</button>
     </div>
     {selected&&<div style={{marginTop:6,padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,fontSize:11,color:B.textMuted}}>
       {selected.equipment_number&&<span style={{fontWeight:700,color:B.orange}}>{selected.equipment_number} · </span>}
