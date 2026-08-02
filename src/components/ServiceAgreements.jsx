@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum} from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum, openWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
@@ -511,7 +511,7 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
       <span style={LS}>Service History ({linkedWOs.length} visits)</span>
       {linkedWOs.length===0?<div style={{fontSize:12,color:B.textDim,marginTop:6}}>No service visits recorded yet</div>:
       <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:6}}>
-        {linkedWOs.slice(0,15).map(w=><div key={w.id} style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,borderLeft:"3px solid "+(w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange),fontSize:12}}>
+        {linkedWOs.slice(0,15).map(w=><div key={w.id} onClick={()=>openWO(w.wo_id||w.id)} title="Open this work order" style={{cursor:"pointer",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,borderLeft:"3px solid "+(w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange),fontSize:12}}>
           <span style={{fontFamily:M,fontWeight:700,color:B.cyan}}>{w.wo_id}</span>
           <span style={{color:B.textMuted,marginLeft:8}}>{w.title}</span>
           <span style={{color:B.textDim,marginLeft:8}}>{w.created_at?.slice(0,10)}</span>

@@ -66,6 +66,7 @@ function useHashTab(defaultTab,validTabs){
 function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
   const techTabs=["today","planner","orders","time","equipment","rfqs","calendar","projects","kb","guide"];
   const[tab,setTab]=useHashTab("today",techTabs);const[navWOId,setNavWOId]=useState(null);
+  useEffect(()=>{const h=(e)=>{setTab("orders");setNavWOId(e.detail);};window.addEventListener("open-wo",h);return()=>window.removeEventListener("open-wo",h);},[setTab]);
   const[quickLog,setQuickLog]=useState(false),[qlWO,setQlWO]=useState(""),[qlH,setQlH]=useState(""),[qlD,setQlD]=useState(""),[qlDate,setQlDate]=useState(todayLocal()),[qlSaving,setQlSaving]=useState(false);
   const my=D.wos.filter(o=>o.assignee===user.name||(o.crew&&o.crew.includes(user.name)));
   const myActive=my.filter(o=>o.status!=="completed");
@@ -148,6 +149,7 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
 function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
   const mgrTabs=["overview","inbox","orders","planner","pos","rfqs","audit","reports","billing","invoices","parts","feedback","agreements","equipment","team","customers","users","calendar","projects","kb","guide"];
   const[tab,setTab]=useHashTab("overview",mgrTabs);const[navWOId,setNavWOId]=useState(null);
+  useEffect(()=>{const h=(e)=>{setTab("orders");setNavWOId(e.detail);};window.addEventListener("open-wo",h);return()=>window.removeEventListener("open-wo",h);},[setTab]);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   // invoices/projects/emailTemplates/onCreateInvoice/currentUser feed the "Bill from
   // this WO" popup on WODetail — managers and admins only, matching Finance tab access.
@@ -180,6 +182,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
 function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
   const adminTabs=["overview","inbox","orders","planner","pos","rfqs","audit","reports","billing","invoices","parts","feedback","proposals","agreements","recurring","equipment","customers","users","settings","calendar","projects","kb","guide"];
   const[tab,setTab]=useHashTab("overview",adminTabs);const[navWOId,setNavWOId]=useState(null);
+  useEffect(()=>{const h=(e)=>{setTab("orders");setNavWOId(e.detail);};window.addEventListener("open-wo",h);return()=>window.removeEventListener("open-wo",h);},[setTab]);
   const pendingDrafts=(D.woDrafts||[]).filter(d=>d.status==="pending_review").length;
   const wlp={canEdit:true,pos:D.pos,onCreatePO:A.createPO,onUpdateWO:A.updateWO,onDeleteWO:A.deleteWO,onCreateWO:A.createWO,timeEntries:D.time,photos:D.photos,onAddTime:A.addTime,onUpdateTime:A.updateTime,onDeleteTime:A.deleteTime,onAddPhoto:A.addPhoto,users:D.users,customers:D.customers,equipment:D.equipment||[],lineItems:D.lineItems||[],userName:user.name,userRole:user.role,loadData:A.loadData,reloadTable:A.reloadTable,navWOId,clearNavWO:()=>setNavWOId(null),invoices:D.invoices||[],projects:D.projects||[],emailTemplates:D.emailTemplates||[],onCreateInvoice:A.createInvoice,currentUser:user};
   return(<Shell user={user} onLogout={onLogout} tab={tab} setTab={setTab} syncing={syncing} offlineQueueCount={offlineQueueCount} notifications={visibleNotifs(D.notifs,user.role)} onMarkRead={A.markRead} onQuickApprovePO={A.quickApprovePO} onQuickRejectPO={A.quickRejectPO} onNavigateWO={(woId)=>{setTab("orders");if(woId)setNavWOId(woId);}} onRefresh={A.loadData} searchData={{wos:D.wos,pos:D.pos,customers:D.customers,equipment:D.equipment,projects:D.projects}} tabs={[{key:"overview",label:"Overview",icon:"📊"},{key:"inbox",label:"Requests"+(pendingDrafts?" ("+pendingDrafts+")":""),icon:"📬"},{key:"orders",label:"All Orders",icon:"📋"},{key:"planner",label:"Week Plan",icon:"🗓"},{key:"pos",label:"PO Mgmt",icon:"📄"},{key:"rfqs",label:"RFQs",icon:"📨"},{key:"audit",label:"Supply Audit",icon:"🧾"},{key:"reports",label:"Reports",icon:"📈"},{key:"billing",label:"Billing",icon:"💰"},{key:"invoices",label:"Invoices",icon:"📝"},{key:"parts",label:"Parts Sales",icon:"📦"},{key:"feedback",label:"Feedback",icon:"⭐"},{key:"proposals",label:"Proposals",icon:"📑"},{key:"agreements",label:"Agreements",icon:"📋"},{key:"recurring",label:"PM Schedule",icon:"🔁"},{key:"equipment",label:"Equipment",icon:"🔧"},{key:"customers",label:"Customers",icon:"🏢"},{key:"users",label:"Users",icon:"👤"},{key:"settings",label:"Settings",icon:"⚙️"},{key:"calendar",label:"Calendar",icon:"📅"},{key:"projects",label:"Projects",icon:"🏗️"},{key:"kb",label:"Knowledge",icon:"📖"},{key:"guide",label:"Guide",icon:"📘"}]}>

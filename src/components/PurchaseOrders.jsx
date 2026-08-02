@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText , fnFetch } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText , fnFetch , openWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Logo, PdfPreviewModal, previewPdfDoc, usePasteImage } from "./ui";
 import { TicketCaptureModal } from "./VendorAudit";
 
@@ -209,7 +209,10 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
   };
   const[inlineAmt,setInlineAmt]=useState({});   // po.id → amount typed on the card ($0 POs approve inline, no Edit detour)
   const[selPOs,setSelPOs]=useState([]);          // bulk-approve selection (pending filter)
-  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||((p.assigned_techs||[]).join(" ").toLowerCase().includes(s))||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
+  const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  // Deep-link: GlobalSearch / bell dispatch "open-po" with a po_id — prefill the search box.
+  useEffect(()=>{const h=(e)=>{setFilter("all");setSearch(String(e.detail||""));};window.addEventListener("open-po",h);return()=>window.removeEventListener("open-po",h);},[]);
+  const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||((p.assigned_techs||[]).join(" ").toLowerCase().includes(s))||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   const approve=async(po)=>{const amt=parseFloat(po.amount)||parseFloat(inlineAmt[po.id])||0;if(!amt){msg("Type the amount in the $ box first");return;}await onUpdatePO({...po,amount:amt,status:"approved"});setInlineAmt(a=>({...a,[po.id]:""}));msg("PO "+po.po_id+" approved"+(parseFloat(po.amount)?"":" — $"+amt.toFixed(2))); };
   const toggleSel=(id)=>setSelPOs(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
@@ -234,7 +237,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             {po.status==="pending"&&<input type="checkbox" checked={selPOs.includes(po.id)} onChange={()=>toggleSel(po.id)} style={{width:18,height:18,accentColor:B.cyan,cursor:"pointer",marginTop:4,flexShrink:0}}/>}
             <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:700,fontSize:15,color:B.text}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{wo&&<span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:700,fontSize:15,color:B.text}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{wo&&<button onClick={()=>openWO(wo.wo_id||wo.id)} title={"Open "+wo.wo_id+(wo.title?" — "+wo.title:"")} style={{fontFamily:M,fontSize:11,color:B.cyan,background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textDecorationColor:B.cyan+"44"}}>{wo.wo_id}</button>}</div>
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · {parseFloat(po.amount)?<span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount).toFixed(2)}</span>:<span style={{fontFamily:M,fontWeight:700,color:B.orange}}>$ —  needs amount</span>}{wo&&<span> · {wo.title}</span>}</div>
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}

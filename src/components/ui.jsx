@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { B, F, M, IS, LS, BP, BS, haptic, getTheme } from "../shared";
+import { B, F, M, IS, LS, BP, BS, haptic, getTheme , openPO, openEquipment} from "../shared";
 
 // Theme-aware logo: the dark theme uses the dark-background brand lockup
 // (white 3C + cyan banner, transparent bg); light theme keeps the original.
@@ -129,9 +129,9 @@ export function GlobalSearch({data,onNavigateWO,setTab}){
     const r=[];const cap=8;
     const matches=(...fields)=>fields.some(v=>v&&String(v).toLowerCase().includes(query));
     (data?.wos||[]).forEach(w=>{if(r.length>=cap*4)return;if(matches(w.wo_id,w.title,w.customer,w.customer_wo,w.location,w.assignee))r.push({kind:"wo",icon:"📋",title:w.wo_id+" — "+w.title,sub:[w.customer,w.status,w.assignee].filter(Boolean).join(" · "),color:w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange,onClick:()=>{if(onNavigateWO)onNavigateWO(w.id);setOpen(false);setQ("");}});});
-    (data?.pos||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.po_id,p.description,p.requested_by))r.push({kind:"po",icon:"🧾",title:p.po_id+" — $"+parseFloat(p.amount||0).toFixed(0),sub:(p.description||"").slice(0,60)+" · "+p.status,color:p.status==="approved"?B.green:p.status==="rejected"?B.red:B.orange,onClick:()=>{setTab&&setTab("pos");setOpen(false);setQ("");}});});
+    (data?.pos||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.po_id,p.description,p.requested_by))r.push({kind:"po",icon:"🧾",title:p.po_id+" — $"+parseFloat(p.amount||0).toFixed(0),sub:(p.description||"").slice(0,60)+" · "+p.status,color:p.status==="approved"?B.green:p.status==="rejected"?B.red:B.orange,onClick:()=>{openPO(p.po_id);setOpen(false);setQ("");}});});
     (data?.customers||[]).forEach(c=>{if(r.length>=cap*4)return;if(matches(c.name,c.contact_name,c.email,c.phone))r.push({kind:"customer",icon:"👤",title:c.name,sub:[c.contact_name,c.phone].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{setTab&&setTab("customers");setOpen(false);setQ("");}});});
-    (data?.equipment||[]).forEach(e=>{if(r.length>=cap*4)return;if(matches(e.model,e.manufacturer,e.serial_number,e.asset_tag,e.customer_name))r.push({kind:"equipment",icon:"🔧",title:(e.model||"Equipment")+(e.asset_tag?" · "+e.asset_tag:""),sub:[e.customer_name,e.manufacturer,e.serial_number].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{setTab&&setTab("equipment");setOpen(false);setQ("");}});});
+    (data?.equipment||[]).forEach(e=>{if(r.length>=cap*4)return;if(matches(e.model,e.manufacturer,e.serial_number,e.asset_tag,e.customer_name))r.push({kind:"equipment",icon:"🔧",title:(e.model||"Equipment")+(e.asset_tag?" · "+e.asset_tag:""),sub:[e.customer_name,e.manufacturer,e.serial_number].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{openEquipment(e.id);setOpen(false);setQ("");}});});
     (data?.projects||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.name,p.customer,p.location))r.push({kind:"project",icon:"🏗️",title:p.name,sub:[p.customer,p.status].filter(Boolean).join(" · "),color:B.orange,onClick:()=>{setTab&&setTab("projects");setOpen(false);setQ("");}});});
     const order={wo:0,po:1,customer:2,equipment:3,project:4};
     return r.sort((a,b)=>(order[a.kind]||9)-(order[b.kind]||9)).slice(0,20);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, fmtHours, fmtDate } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, fmtHours, fmtDate , openWO} from "../shared";
 import { Card, Badge, Modal, Toast } from "./ui";
 
 function CompanyCalendar({userRole,wos,userName,time}){
@@ -116,7 +116,7 @@ function CompanyCalendar({userRole,wos,userName,time}){
                 <span style={{fontSize:12,fontWeight:700,color:B.text}}>{n}</span>
                 <span style={{fontFamily:M,fontSize:12,fontWeight:700,color:tb.hours>12?B.orange:B.green}}>{fmtHours(tb.hours)}</span>
               </div>
-              {tb.entries.map(t=><div key={t.id} style={{display:"flex",gap:6,alignItems:"baseline",marginTop:4}}>
+              {tb.entries.map(t=><div key={t.id} onClick={()=>t.wo_id&&openWO(t.wo_id)} title="Open this work order" style={{display:"flex",gap:6,alignItems:"baseline",marginTop:4,cursor:t.wo_id?"pointer":"default"}}>
                 <span style={{fontFamily:M,fontSize:10,color:B.cyan,flexShrink:0}}>{woLabel(t.wo_id)}</span>
                 <span style={{fontSize:11,color:B.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.description||"Work performed"}</span>
                 <span style={{fontFamily:M,fontSize:10,color:B.textDim,marginLeft:"auto",flexShrink:0}}>{fmtHours(t.hours)}</span>
@@ -130,7 +130,7 @@ function CompanyCalendar({userRole,wos,userName,time}){
               <div style={{width:8,height:8,borderRadius:"50%",background:typeColors[e.event_type]||B.cyan,flexShrink:0}}/>
               <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>{e.title}</div>{e.description&&<div style={{fontSize:10,color:B.textDim}}>{e.description}</div>}</div>
             </div>)}
-            {dues.map(w=><div key={w.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0"}}>
+            {dues.map(w=><div key={w.id} onClick={()=>openWO(w.wo_id||w.id)} title="Open this work order" style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:"pointer"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:B.green,flexShrink:0}}/>
               <div><div style={{fontSize:12,fontWeight:600,color:B.text}}><span style={{fontFamily:M,color:B.cyan}}>{w.wo_id}</span> {w.title}</div><div style={{fontSize:10,color:B.textDim}}>Due · {w.assignee||"Unassigned"}</div></div>
             </div>)}

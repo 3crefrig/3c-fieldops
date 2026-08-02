@@ -21,6 +21,15 @@ export const USER_COLS="id,name,email,role,active,created_at,title,phone,availab
 export const localDateStr=(d)=>{const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 export const todayLocal=()=>localDateStr(new Date());
 
+// Global deep-link helpers — any component can open a WO or jump to a tab without
+// prop-drilling. The three dashboards listen for "open-wo" (sets tab + navWOId);
+// POMgmt listens for "open-po" (prefills its search); EquipmentDashboard listens
+// for "open-equipment" (selects the unit). useHashTab picks up the hash change.
+export const gotoTab=(t)=>{const h="#tab="+t;if(window.location.hash!==h)window.history.pushState(null,"",h);window.dispatchEvent(new PopStateEvent("popstate"));};
+export const openWO=(idOrWoId)=>{if(!idOrWoId)return;window.dispatchEvent(new CustomEvent("open-wo",{detail:idOrWoId}));};
+export const openPO=(poId)=>{if(!poId)return;gotoTab("pos");window.dispatchEvent(new CustomEvent("open-po",{detail:poId}));};
+export const openEquipment=(eqId)=>{if(!eqId)return;gotoTab("equipment");window.dispatchEvent(new CustomEvent("open-equipment",{detail:eqId}));};
+
 // Single source for invoice numbers (YYMM##). Three separate copies of this
 // max+1 logic used to live in Invoices.jsx, PartsSales.jsx, and tryAutoInvoice —
 // two invoices created near-simultaneously could collide. A unique index on
