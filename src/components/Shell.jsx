@@ -48,7 +48,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
-      {searchData&&<div data-tour="global-search" data-tip="Search jumps straight to any work order, PO, customer, or piece of equipment. Ctrl+K opens it from anywhere." style={{display:"contents"}}><GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/></div>}
+      {searchData&&<div data-tour="global-search" data-tip="Search jumps straight to any work order, PO, customer, or piece of equipment. Ctrl+K opens it from anywhere." style={{display:"flex",alignItems:"center",minWidth:0,flex:"0 1 auto"}}><GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/></div>}
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
         {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline{offlineQueueCount>0?" ("+offlineQueueCount+" queued)":""}</span>}
