@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch, loadWOSignature , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage} from "./ui";
 import { SignaturePad } from "./SignaturePad";
@@ -878,7 +878,16 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders} equipment={equipment} reloadTable={reloadTable}/>;
   if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers} invoices={invoices} projects={projects} emailTemplates={emailTemplates} onCreateInvoice={onCreateInvoice} currentUser={currentUser}/>;}
   const today=todayLocal();
-  const poByWO={},phByWO={};pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
+  // Lookup maps memoized — these were rebuilt (and calcWOHours re-filtered all time
+  // entries per card) on EVERY render, including each search-box keystroke.
+  const{poByWO,phByWO,hrsByWO,liWOSet}=useMemo(()=>{
+    const poByWO={},phByWO={},hrsByWO={};
+    pos.forEach(p=>{if(!poByWO[p.wo_id])poByWO[p.wo_id]=[];poByWO[p.wo_id].push(p);});
+    photos.forEach(p=>{if(!phByWO[p.wo_id])phByWO[p.wo_id]=[];phByWO[p.wo_id].push(p);});
+    timeEntries.forEach(t=>{hrsByWO[t.wo_id]=(hrsByWO[t.wo_id]||0)+parseFloat(t.hours||0);});
+    const liWOSet=new Set((lineItems||[]).map(li=>li.wo_id));
+    return{poByWO,phByWO,hrsByWO,liWOSet};
+  },[pos,photos,timeEntries,lineItems]);
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
@@ -898,7 +907,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
-      {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=calcWOHours(wo.id,timeEntries);const hasLI=wo.project_id&&(lineItems||[]).some(li=>li.wo_id===wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
+      {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
         <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{const upd={...wo,status:st};if(st==="completed")upd.date_completed=todayLocal();await onUpdateWO(upd);}}><Card style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
@@ -999,10 +1008,13 @@ function WOOverview({orders,wlp,pos,time}){
   const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay());weekStart.setHours(0,0,0,0);
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
   const getWODate=(wo)=>{const d=wo.date_completed||wo.created_at||wo.due_date;return d?new Date(d):new Date();};
-  const active=orders.filter(o=>o.status!=="completed");
-  const completedThisWeek=orders.filter(o=>o.status==="completed"&&getWODate(o)>=weekStart);
-  const thisWeek=[...active,...completedThisWeek];
-  const past=orders.filter(o=>o.status==="completed"&&getWODate(o)<weekStart);
+  // Partitions memoized — parsing dates on all ~450 WOs three times per render adds up.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const{active,completedThisWeek,thisWeek,past}=useMemo(()=>{
+    const active=orders.filter(o=>o.status!=="completed");
+    const completedThisWeek=orders.filter(o=>o.status==="completed"&&getWODate(o)>=weekStart);
+    return{active,completedThisWeek,thisWeek:[...active,...completedThisWeek],past:orders.filter(o=>o.status==="completed"&&getWODate(o)<weekStart)};
+  },[orders]);
   const[showArchive,setShowArchive]=useState(false);
   const[archiveMonth,setArchiveMonth]=useState(null);
   const[filter,setFilter]=useState("all");

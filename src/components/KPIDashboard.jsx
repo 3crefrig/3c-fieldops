@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { B, F, M, IS, LS, fmtHours, woOverdue, todayLocal } from "../shared";
 import { Card, Badge, StatCard, Modal } from "./ui";
 
@@ -25,7 +25,8 @@ function KPIDashboard({D,A,userRole,userName}){
   // Rolling 30-day default — calendar "This Month" renders a wall of zeros on the 1st.
   const[range,setRange]=useState("d30");const[drillDown,setDrillDown]=useState(null);
   const[isMobile,setIsMobile]=useState(window.innerWidth<768);
-  const[hovered,setHovered]=useState(null);
+  // NOTE: tile hover is CSS (.card-hover), NOT state — a setHovered on mouse-enter
+  // re-rendered the whole dashboard (and recomputed every KPI) per mouse movement.
   const now=new Date();
 
   useEffect(()=>{
@@ -35,7 +36,8 @@ function KPIDashboard({D,A,userRole,userName}){
   },[]);
 
   const getRangeStart=()=>{const d=new Date(now);if(range==="d30"){d.setDate(d.getDate()-30);d.setHours(0,0,0,0);}else if(range==="week"){d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);}else if(range==="month"){d.setDate(1);d.setHours(0,0,0,0);}else if(range==="quarter"){d.setMonth(d.getMonth()-3);d.setHours(0,0,0,0);}else if(range==="year"){d.setMonth(0,1);d.setHours(0,0,0,0);}else{d.setFullYear(2000);}return d;};
-  const rangeStart=getRangeStart();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rangeStart=useMemo(getRangeStart,[range]);
   const inRange=(dateStr)=>{if(!dateStr)return false;return new Date(dateStr)>=rangeStart;};
 
   // ── KPI Calculations ──
@@ -44,7 +46,8 @@ function KPIDashboard({D,A,userRole,userName}){
 
   // Overdue WOs (replaces the old First-Time Fix tile: with one dominant customer,
   // "any newer open WO at the same site = failed fix" made FTF read 0% forever).
-  const overdueWOs=D.wos.filter(w=>woOverdue(w,todayLocal()));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const overdueWOs=useMemo(()=>D.wos.filter(w=>woOverdue(w,todayLocal())),[D.wos]);
 
   // Prior-period comparison for the activity tiles (equal-length window before rangeStart).
   const prevStart=new Date(rangeStart.getTime()-(now-rangeStart));
@@ -85,29 +88,31 @@ function KPIDashboard({D,A,userRole,userName}){
   const totalHours=D.time.filter(t=>inRange(t.logged_date)).reduce((s,t)=>s+parseFloat(t.hours||0),0);
 
   // Weekly sparkline data (8 weeks)
-  const sparkWeeks=(()=>{const weeks=[];for(let i=7;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sparkWeeks=useMemo(()=>{const weeks=[];for(let i=7;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
     const hrs=D.time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
     const comp=D.wos.filter(o=>o.status==="completed"&&o.date_completed&&new Date(o.date_completed)>=ws&&new Date(o.date_completed)<=we).length;
     const rev=(D.invoices||[]).filter(i=>i.status==="paid"&&i.date_paid&&new Date(i.date_paid)>=ws&&new Date(i.date_paid)<=we).reduce((s,i)=>s+parseFloat(i.amount||0),0);
-    weeks.push({hrs,comp,rev});}return weeks;})();
+    weeks.push({hrs,comp,rev});}return weeks;},[D.time,D.wos,D.invoices]);
 
   // Top customers by WO count
-  const custStats=(()=>{const map={};D.wos.filter(o=>inRange(o.created_at)).forEach(o=>{const c=o.customer||"Unknown";if(!map[c])map[c]={total:0,done:0,hours:0};map[c].total++;if(o.status==="completed")map[c].done++;});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const custStats=useMemo(()=>{const map={};D.wos.filter(o=>inRange(o.created_at)).forEach(o=>{const c=o.customer||"Unknown";if(!map[c])map[c]={total:0,done:0,hours:0};map[c].total++;if(o.status==="completed")map[c].done++;});
     D.time.filter(t=>inRange(t.logged_date)).forEach(t=>{const wo=D.wos.find(w=>w.id===t.wo_id);if(wo){const c=wo.customer||"Unknown";if(map[c])map[c].hours+=parseFloat(t.hours||0);}});
-    return Object.entries(map).sort((a,b)=>b[1].total-a[1].total).slice(0,6);})();
+    return Object.entries(map).sort((a,b)=>b[1].total-a[1].total).slice(0,6);},[D.wos,D.time,rangeStart]);
 
   // Drill-down modals
   const drillContent=drillDown==="overdue"?overdueInv:drillDown==="outstanding"?outstandingInv:drillDown==="completed"?completedWOs:drillDown==="overduewos"?overdueWOs:null;
 
   const ranges=[["d30","Last 30 Days"],["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
 
-  // ── KPI tile style helper (flat card look) ──
+  // ── KPI tile style helper (flat card look; hover shadow via .card-hover CSS) ──
   const bentoTile=(color,idx,extra={})=>({
     background:B.surface,
     border:"1px solid "+B.border,
     borderRadius:10,
     borderLeft:"3px solid "+color,
-    boxShadow:hovered===`tile-${idx}`?"0 2px 6px rgba(0,0,0,0.12)":"0 1px 3px rgba(0,0,0,0.08)",
+    boxShadow:"0 1px 3px rgba(0,0,0,0.08)",
     padding:"16px 18px",
     ...extra,
   });
@@ -155,11 +160,9 @@ function KPIDashboard({D,A,userRole,userName}){
         const idx=i;
         const gridStyle=t.wide&&!isMobile?{gridColumn:"span 2"}:{};
         return(
-          <div key={t.key}
+          <div key={t.key} className="card-hover"
             style={{...bentoTile(t.color,idx,gridStyle),cursor:t.click?"pointer":"default",position:"relative",overflow:"hidden"}}
             onClick={t.click||undefined}
-            onMouseEnter={()=>setHovered(`tile-${idx}`)}
-            onMouseLeave={()=>setHovered(null)}
           >
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
               <div>
@@ -185,10 +188,8 @@ function KPIDashboard({D,A,userRole,userName}){
         {label:"Completions (8 wk)",val:sparkWeeks[sparkWeeks.length-1].comp,data:sparkWeeks.map(w=>w.comp),color:B.green,idx:allTiles.length+1},
         ...(isAdmin?[{label:"Revenue (8 wk)",val:"$"+sparkWeeks[sparkWeeks.length-1].rev.toLocaleString(),data:sparkWeeks.map(w=>w.rev),color:B.cyan,idx:allTiles.length+2}]:[]),
       ].map(sp=>(
-        <div key={sp.label}
+        <div key={sp.label} className="card-hover"
           style={bentoTile(sp.color,sp.idx,{gridColumn:isMobile?"span 2":"auto"})}
-          onMouseEnter={()=>setHovered(`tile-${sp.idx}`)}
-          onMouseLeave={()=>setHovered(null)}
         >
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4}}>{sp.label}</span>
