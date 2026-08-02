@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate , fnFetch } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate , fnFetch , openWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
@@ -589,7 +589,7 @@ function ProposalEditModal({prop,est:initialEst,customers,users,onSave,onClose})
   </Modal>);
 }
 
-function ProposalDashboard({D,userName}){
+function ProposalDashboard({D,A,userName}){
   const[proposals,setProposals]=useState([]);const[estimates,setEstimates]=useState([]);
   const[loading,setLoading]=useState(true);const[toast,setToast]=useState("");const[view,setView]=useState("list");const[selProp,setSelProp]=useState(null);const[editing,setEditing]=useState(null);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
@@ -648,6 +648,7 @@ function ProposalDashboard({D,userName}){
             <button onClick={()=>generateProposalPdf(prop,est)} style={{...BS,padding:"5px 10px",fontSize:11}}>PDF</button>
             {(prop.status==="draft"||prop.status==="sent")&&<button onClick={()=>setEditing(prop)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>}
             {prop.status==="draft"&&<button onClick={()=>sendProposal(prop)} style={{...BP,padding:"5px 12px",fontSize:11}}>Send</button>}
+            {prop.status==="approved"&&A&&<button onClick={async()=>{const r=await A.createWO({title:prop.title||"Proposal work",customer:prop.customer_name||"",priority:"medium",wo_type:"CM",due_date:"TBD",assignee:"Unassigned",notes:("From proposal "+(prop.proposal_num||"")+(prop.scope_of_work?"\n\n"+prop.scope_of_work:"")).slice(0,2000)});msg("Work order created from "+(prop.proposal_num||"proposal"));if(r&&r.wo_id)openWO(r.wo_id);}} title="Create a work order pre-filled from this approved proposal" style={{...BP,padding:"5px 12px",fontSize:11,background:B.green}}>{"\u2192"} WO</button>}
             <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/#/proposal/"+prop.approval_token);msg("Link copied!");}} style={{...BS,padding:"5px 10px",fontSize:11}}>🔗</button>
             <button onClick={()=>del(prop.id)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
           </div>

@@ -226,7 +226,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       {/* Actions */}
       <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",flexWrap:"wrap"}}>
         <button onClick={()=>{setRejectId(sel.id);}} style={{...BS,color:B.red,borderColor:B.red+"40"}}>Reject</button>
-        <button onClick={()=>{onApprove(sel,edits);closeDraft();haptic(50);notice("Approved — work order created");}} style={{...BP,background:B.green}}>Approve & Create WO</button>
+        <button onClick={async()=>{const newId=await onApprove(sel,edits);closeDraft();haptic(50);notice("Approved — work order created");if(newId)openWO(newId);}} style={{...BP,background:B.green}}>Approve & Create WO</button>
       </div>
     </Modal>}
 

@@ -55,6 +55,27 @@ function RepeatFailures({wos,pos,equipment}){
   </Card>);
 }
 
+// Quick time logging for managers/admins — they had NO way to log hours without
+// opening a WO from the orders tab (techs have their own FAB in TechDash).
+function QuickLogFAB({wos,userName,onAddTime}){
+  const[open,setOpen]=useState(false);const[woId,setWoId]=useState("");const[h,setH]=useState("");const[d,setD]=useState("");const[date,setDate]=useState(todayLocal());const[saving,setSaving]=useState(false);
+  const active=wos.filter(o=>o.status!=="completed");
+  const submit=async()=>{if(!woId||!h||saving)return;if(cleanText(d,"Description")===null)return;setSaving(true);try{await onAddTime({wo_id:woId,hours:parseFloat(h)||0,description:d.trim()||"Work performed",logged_date:date,technician:userName});}finally{setSaving(false);}setOpen(false);setWoId("");setH("");setD("");};
+  return(<>
+    <button onClick={()=>{setOpen(true);haptic(30);}} title="Quick log time" style={{position:"fixed",bottom:"max(90px, calc(70px + env(safe-area-inset-bottom)))",right:20,width:58,height:58,borderRadius:"50%",background:B.cyan,border:"none",color:B.bg,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:150}}><Icon name="clock" size={24}/></button>
+    {open&&<Modal title="Quick Log Time" onClose={()=>setOpen(false)}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={LS}>Work Order</label><select value={woId} onChange={e=>setWoId(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="">{"\u2014 Select \u2014"}</option>{active.map(o=><option key={o.id} value={o.id}>{o.wo_id} {"\u2014"} {o.title}</option>)}</select></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={LS}>Hours</label><input value={h} onChange={e=>setH(e.target.value)} type="number" step="0.25" min="0" style={{...IS,fontFamily:M}}/></div>
+          <div><label style={LS}>Date</label><input value={date} onChange={e=>setDate(e.target.value)} type="date" style={IS}/></div>
+        </div>
+        <div><label style={LS}>Description</label><input value={d} onChange={e=>setD(e.target.value)} placeholder="Work performed" style={IS}/></div>
+        <button onClick={submit} disabled={saving||!woId||!h} style={{...BP,opacity:saving||!woId||!h?0.6:1}}>{saving?"Saving\u2026":"Log Time"}</button>
+      </div>
+    </Modal>}
+  </>);}
+
 function useHashTab(defaultTab,validTabs){
   const getHash=()=>{const h=window.location.hash;const m=h.match(/^#tab=([a-z_-]+)/i);return m&&validTabs.includes(m[1])?m[1]:defaultTab;};
   const[tab,setTabState]=useState(getHash);
@@ -135,7 +156,7 @@ function TechDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
         </div>
       </Modal>}
     </>}
-    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
+    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}} onUpdateWO={A.updateWO} canReschedule={user.role!=="technician"}/>}
     {tab==="orders"&&<WOList orders={my} {...wlp}/>}
     {tab==="time"&&<TimeLog timeEntries={myTime} wos={D.wos} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
     {tab==="projects"&&<Projects projects={(D.projects||[]).filter(p=>(p.assigned_techs||[]).includes(user.name)||p.status==="active")} users={D.users} customers={D.customers} userName={user.name} userRole={user.role} onAdd={A.addProject} onUpdate={A.updateProject} onDelete={A.deleteProject} allWOs={D.wos} onCreateWO={A.createWO} onUpdateWO={A.updateWO} onDeleteWO={A.deleteWO} allPOs={D.pos} onCreatePO={A.createPO} allTime={D.time} lineItems={D.lineItems||[]} photos={D.photos||[]} onAddTime={A.addTime} onUpdateTime={A.updateTime} onDeleteTime={A.deleteTime} onAddPhoto={A.addPhoto} equipment={D.equipment||[]} loadData={A.loadData} reloadTable={A.reloadTable}/>}
@@ -158,7 +179,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="overview"&&<><KPIDashboard D={D} A={A} userRole={user.role} userName={user.name} onOpenWO={(woId)=>{setTab("orders");setNavWOId(woId);}} onOpenInvoices={()=>setTab("invoices")}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:700,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<RepeatFailures wos={D.wos} pos={D.pos} equipment={D.equipment}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
+    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}} onUpdateWO={A.updateWO} canReschedule={user.role!=="technician"}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id} users={D.users} reloadTable={A.reloadTable}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="audit"&&<AuditDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
@@ -176,7 +197,7 @@ function MgrDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="equipment"&&<EquipmentDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
     {tab==="guide"&&<HelpGuide userRole={user.role} userName={user.name}/>}
-  </Shell>);
+  <QuickLogFAB wos={D.wos} userName={user.name} onAddTime={A.addTime}/></Shell>);
 }
 
 function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
@@ -189,7 +210,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="overview"&&<><KPIDashboard D={D} A={A} userRole={user.role} userName={user.name} onOpenWO={(woId)=>{setTab("orders");setNavWOId(woId);}} onOpenInvoices={()=>setTab("invoices")}/>{pendingDrafts>0&&<Card onClick={()=>setTab("inbox")} style={{padding:"14px 18px",marginBottom:12,borderLeft:"3px solid "+B.orange,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div><div style={{fontSize:14,fontWeight:700,color:B.text}}>Service Requests</div><div style={{fontSize:11,color:B.textMuted}}>{pendingDrafts} pending review</div></div></div><span style={{background:B.orange,color:B.bg,padding:"4px 10px",borderRadius:12,fontSize:13,fontWeight:700,fontFamily:M}}>{pendingDrafts}</span></div></Card>}<RepeatFailures wos={D.wos} pos={D.pos} equipment={D.equipment}/><WOOverview orders={D.wos} wlp={wlp} pos={D.pos} time={D.time}/><GlobalActivityFeed/></>}
     {tab==="inbox"&&<ServiceRequests drafts={D.woDrafts||[]} customers={D.customers} users={D.users} onApprove={A.approveDraft} onReject={A.rejectDraft} onRefresh={A.loadData}/>}
     {tab==="orders"&&<WOList orders={D.wos} {...wlp}/>}
-    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}}/>}
+    {tab==="planner"&&<DayPlanner wos={D.wos} templates={D.templates} users={D.users} userName={user.name} userRole={user.role} onOpenWO={(id)=>{setTab("orders");setNavWOId(id);}} onUpdateWO={A.updateWO} canReschedule={user.role!=="technician"}/>}
     {tab==="pos"&&<POMgmt pos={D.pos} onUpdatePO={A.updatePO} onDeletePO={A.deletePO} wos={D.wos} onCreatePO={A.createPO} tickets={D.poTickets||[]} userName={user.name} userId={user.id} users={D.users} reloadTable={A.reloadTable}/>}
     {tab==="rfqs"&&<RFQDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
     {tab==="audit"&&<AuditDashboard D={D} A={A} userRole={user.role} userName={user.name} userId={user.id}/>}
@@ -198,7 +219,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="invoices"&&<InvoiceDashboard invoices={D.invoices||[]} onUpdateInvoice={A.updateInvoice} onDeleteInvoice={A.deleteInvoice} onCreateInvoice={A.createInvoice} wos={D.wos} pos={D.pos} time={D.time} users={D.users} customers={D.customers} emailTemplates={D.emailTemplates} currentUser={user} lineItems={D.lineItems||[]} projects={D.projects||[]} reloadTable={A.reloadTable} loadData={A.loadData}/>}
     {tab==="parts"&&<PartsSales D={D} A={A} user={user}/>}
     {tab==="feedback"&&<FeedbackDashboard D={D}/>}
-    {tab==="proposals"&&<ProposalDashboard D={D} userName={user.name}/>}
+    {tab==="proposals"&&<ProposalDashboard D={D} A={A} userName={user.name}/>}
     {tab==="agreements"&&<AgreementDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
     {tab==="recurring"&&<RecurringPM templates={D.templates} onAdd={A.addTemplate} onUpdate={A.updateTemplate} onDelete={A.deleteTemplate} users={D.users}/>}
     {tab==="equipment"&&<EquipmentDashboard D={D} A={A} userRole={user.role} userName={user.name}/>}
@@ -209,7 +230,7 @@ function AdminDash({user,onLogout,D,A,syncing,offlineMode,offlineQueueCount}){
     {tab==="calendar"&&<CompanyCalendar userRole={user.role} wos={D.wos} userName={user.name} time={D.time}/>}
     {tab==="kb"&&<KnowledgeBase userName={user.name} userRole={user.role}/>}
     {tab==="guide"&&<HelpGuide userRole={user.role} userName={user.name}/>}
-  </Shell>);
+  <QuickLogFAB wos={D.wos} userName={user.name} onAddTime={A.addTime}/></Shell>);
 }
 
 export { TechDash, MgrDash, AdminDash };

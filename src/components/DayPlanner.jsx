@@ -5,7 +5,7 @@ import { Card, Badge, StatCard } from "./ui";
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const SHORT_DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
+function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,canReschedule}){
   const[openGroup,setOpenGroup]=useState(null);
   const go=(w)=>{if(onOpenWO&&w)onOpenWO(w.id);};
   const isManager=userRole==="admin"||userRole==="manager";
@@ -165,7 +165,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO}){
                     {w.assignee&&w.assignee!=="Unassigned"&&<span> · 👤 {w.assignee}</span>}
                   </div>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>{canReschedule&&onUpdateWO&&<input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(w.due_date||"")?w.due_date:""} onClick={e=>e.stopPropagation()} onChange={async e=>{if(e.target.value)await onUpdateWO({...w,due_date:e.target.value});}} title="Reschedule: change the due date right here" style={{background:B.bg,border:"1px solid "+B.border,borderRadius:4,color:B.textMuted,padding:"3px 5px",fontSize:10,fontFamily:M,width:112,cursor:"pointer"}}/>}
                   <Badge color={w.wo_type==="PM"?B.green:B.orange}>{w.wo_type||"CM"}</Badge>
                   <Badge color={w.status==="in_progress"?B.cyan:B.orange}>{w.status==="in_progress"?"Active":"Pending"}</Badge>
                 </div>

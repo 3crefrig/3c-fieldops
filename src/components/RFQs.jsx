@@ -189,6 +189,17 @@ function ItemPriceRow({it,msg}){
 
 // ── Dashboard ─────────────────────────────────────────────────
 function RFQDashboard({D,A,userRole,userName,userId}){
+  // Quoted RFQ -> PO: the vendor line items and prices used to be re-typed by hand.
+  const createPOFromQuote=async(rfq)=>{
+    try{
+      const{data:items}=await sb().from("rfq_items").select("*").eq("rfq_id",rfq.id).order("line_no");
+      const all=items||[];
+      const total=all.reduce((s2,i)=>s2+(parseFloat(i.qty)||1)*(parseFloat(i.unit_price)||0),0);
+      const desc=("Per "+rfq.rfq_ref+(rfq.vendor?" ("+rfq.vendor+")":"")+": "+all.slice(0,2).map(i=>i.description).filter(Boolean).join(", ")+(all.length>2?" +"+(all.length-2)+" more":"")).slice(0,500);
+      await A.createPO({description:desc,amount:total>0?total.toFixed(2):null,notes:("From RFQ "+rfq.rfq_ref).slice(0,200)});
+      alert("PO created from "+rfq.rfq_ref+(total>0?" for $"+total.toFixed(2):" (no vendor prices recorded yet, amount left blank)"));
+    }catch(e){console.error(e);alert("Failed to create PO: "+e.message);}
+  };
   const isMgr=userRole==="admin"||userRole==="manager";
   const rfqs=D.rfqs||[];const rfqItems=D.rfqItems||[];
   const[showCreate,setShowCreate]=useState(false);
@@ -238,6 +249,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
             <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
               {url&&<a href={url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"8px 12px",fontSize:11,minHeight:36,display:"inline-flex",alignItems:"center"}}>📄 Doc</a>}
               {canEditDraft&&<button onClick={()=>setEditing(rfq)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>}
+              {isMgr&&(rfq.status==="quoted"||rfq.status==="closed")&&<button onClick={()=>createPOFromQuote(rfq)} title="Create a purchase order pre-filled with this RFQ's items and vendor prices" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>→ PO</button>}
               {isMgr&&<button onClick={()=>openReview(rfq)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Review &amp; Send</button>}
               {(isMgr||canEditDraft)&&<button onClick={()=>setConfirmDelete(rfq)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>}
             </div>
