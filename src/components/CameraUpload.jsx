@@ -82,7 +82,7 @@ export function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickReje
     if(woMatch&&onNavigate){onNavigate(woMatch[0]);setOpen(false);return;}
     // Type-based deep links — PO/invoice/RFQ/vendor-bill alerts used to go nowhere.
     const t=n.type||"";
-    if(t.startsWith("po_")){openPO((n.message||"").split(" — ")[0].trim());setOpen(false);return;}
+    if(t.startsWith("po_")){openPO((n.message||"").trim().split(" ")[0]);setOpen(false);return;}
     if(t.startsWith("invoice_")||t==="wo_needs_invoice"){gotoTab("invoices");setOpen(false);return;}
     if(t.startsWith("rfq_")){gotoTab("rfqs");setOpen(false);return;}
     if(t.startsWith("vendor_bill")){gotoTab("audit");setOpen(false);return;}

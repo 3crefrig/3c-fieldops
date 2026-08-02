@@ -27,8 +27,10 @@ export const todayLocal=()=>localDateStr(new Date());
 // for "open-equipment" (selects the unit). useHashTab picks up the hash change.
 export const gotoTab=(t)=>{const h="#tab="+t;if(window.location.hash!==h)window.history.pushState(null,"",h);window.dispatchEvent(new PopStateEvent("popstate"));};
 export const openWO=(idOrWoId)=>{if(!idOrWoId)return;window.dispatchEvent(new CustomEvent("open-wo",{detail:idOrWoId}));};
-export const openPO=(poId)=>{if(!poId)return;gotoTab("pos");window.dispatchEvent(new CustomEvent("open-po",{detail:poId}));};
-export const openEquipment=(eqId)=>{if(!eqId)return;gotoTab("equipment");window.dispatchEvent(new CustomEvent("open-equipment",{detail:eqId}));};
+// The 150ms delay lets the target tab MOUNT its listener first — dispatching in the
+// same tick as the tab switch loses the event (the component isn't rendered yet).
+export const openPO=(poId)=>{if(!poId)return;gotoTab("pos");setTimeout(()=>window.dispatchEvent(new CustomEvent("open-po",{detail:poId})),150);};
+export const openEquipment=(eqId)=>{if(!eqId)return;gotoTab("equipment");setTimeout(()=>window.dispatchEvent(new CustomEvent("open-equipment",{detail:eqId})),150);};
 
 // Single source for invoice numbers (YYMM##). Three separate copies of this
 // max+1 logic used to live in Invoices.jsx, PartsSales.jsx, and tryAutoInvoice —
