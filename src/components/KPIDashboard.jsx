@@ -20,7 +20,7 @@ function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
 // ═══════════════════════════════════════════
 // KPI DASHBOARD — Replaces Overview tab
 // ═══════════════════════════════════════════
-function KPIDashboard({D,A,userRole,userName}){
+function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
   const isAdmin=userRole==="admin";const isMgr=userRole==="admin"||userRole==="manager";
   // Rolling 30-day default — calendar "This Month" renders a wall of zeros on the 1st.
   const[range,setRange]=useState("d30");const[drillDown,setDrillDown]=useState(null);
@@ -228,7 +228,7 @@ function KPIDashboard({D,A,userRole,userName}){
     {/* Drill-Down Modal */}
     {drillDown&&drillContent&&<Modal title={drillDown==="overdue"?"Overdue Invoices":drillDown==="outstanding"?"Outstanding Invoices":drillDown==="overduewos"?"Overdue Work Orders":"Completed Work Orders"} onClose={()=>setDrillDown(null)} wide>
       {drillDown==="overdue"||drillDown==="outstanding"?<div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {drillContent.map(inv=><Card key={inv.id} style={{padding:"12px 14px",borderLeft:"3px solid "+(drillDown==="overdue"?B.red:B.cyan)}}>
+        {drillContent.map(inv=><Card key={inv.id} onClick={onOpenInvoices?()=>{setDrillDown(null);onOpenInvoices();}:undefined} style={{padding:"12px 14px",borderLeft:"3px solid "+(drillDown==="overdue"?B.red:B.cyan),cursor:onOpenInvoices?"pointer":"default"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
               <span style={{fontFamily:M,fontWeight:700,fontSize:13,color:B.text}}>INV-{inv.invoice_num}</span>
@@ -242,7 +242,7 @@ function KPIDashboard({D,A,userRole,userName}){
         </Card>)}
         {drillContent.length===0&&<div style={{textAlign:"center",padding:20,color:B.textDim,fontSize:13}}>None</div>}
       </div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {drillContent.slice(0,20).map(wo=><Card key={wo.id} style={{padding:"10px 14px",borderLeft:"3px solid "+(drillDown==="overduewos"?B.red:B.green)}}>
+        {drillContent.slice(0,20).map(wo=><Card key={wo.id} onClick={onOpenWO?()=>{setDrillDown(null);onOpenWO(wo.wo_id||wo.id);}:undefined} style={{padding:"10px 14px",borderLeft:"3px solid "+(drillDown==="overduewos"?B.red:B.green),cursor:onOpenWO?"pointer":"default"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div><span style={{fontFamily:M,fontSize:11,color:B.textDim}}>{wo.wo_id}</span><span style={{fontSize:12,fontWeight:600,color:B.text,marginLeft:8}}>{wo.title}</span></div>
             <span style={{fontSize:10,color:drillDown==="overduewos"?B.red:B.textDim}}>{drillDown==="overduewos"?"Due "+wo.due_date+(wo.assignee?" · "+wo.assignee:""):wo.date_completed}</span>
