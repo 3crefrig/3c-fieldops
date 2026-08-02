@@ -171,6 +171,15 @@ export const visibleNotifs=(notifs,role)=>{if(!Array.isArray(notifs))return[];if
 
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
+/* ── Sharpness pass (2026-08-02) ─────────────────────────────────────────
+   Small global touches that make interactions feel crisp without changing
+   the design: every button gets hover/press feedback, keyboard focus gets a
+   visible ring, and numbers align in columns (tabular figures). */
+button{transition:filter .15s ease,transform .1s ease}
+button:hover:not(:disabled){filter:brightness(1.12)}
+button:active:not(:disabled){transform:scale(.97)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid ${B.cyan}66;outline-offset:1px;border-radius:4px}
+body{font-variant-numeric:tabular-nums}
 /* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
    wins where supported so the bottom of the app isn't hidden behind mobile/tablet
    browser toolbars — otherwise trailing buttons become unreachable when scrolling. */
