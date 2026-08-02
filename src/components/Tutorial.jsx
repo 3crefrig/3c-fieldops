@@ -289,7 +289,10 @@ function HotspotLayer({tab}){
     let deb=null;
     const mo=new MutationObserver(()=>{clearTimeout(deb);deb=setTimeout(scan,400);});
     mo.observe(document.body,{childList:true,subtree:true});
-    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(deb);mo.disconnect();window.removeEventListener("resize",on);window.removeEventListener("scroll",on,true);};
+    // Belt & braces: a slow interval guarantees dots converge even if a render
+    // path slips past the observer (the query is ~1ms on this DOM size).
+    const iv=setInterval(scan,1200);
+    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(deb);clearInterval(iv);mo.disconnect();window.removeEventListener("resize",on);window.removeEventListener("scroll",on,true);};
   },[tab,scan]);
   return(<>
     {/* Reminder pill — makes it obvious tips mode is on and how to leave it */}
