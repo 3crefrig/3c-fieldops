@@ -9,8 +9,17 @@ function TutorialControls({ userRole }) {
   const [invites, setInvites] = useState(tutorialPrefs.invitesOn());
   const [tips, setTips] = useState(tutorialPrefs.tipsOn());
   const [reset, setReset] = useState(false);
+  const [done, setDone] = useState(tutorialPrefs.doneMap());
+  React.useEffect(() => {
+    const h = () => setDone(tutorialPrefs.doneMap());
+    window.addEventListener("tut-done-changed", h);
+    window.addEventListener("tut-prefs-changed", h);
+    return () => { window.removeEventListener("tut-done-changed", h); window.removeEventListener("tut-prefs-changed", h); };
+  }, []);
   const roleOk = (t) => !t.roles || t.roles.includes(userRole);
-  const catalog = Object.entries(TOURS).filter(([, t]) => roleOk(t));
+  // "The Basics" leads; the rest in defined order. Completed tours get a ✓.
+  const catalog = Object.entries(TOURS).filter(([, t]) => roleOk(t)).sort(([a], [b]) => (a === "_welcome" ? -1 : b === "_welcome" ? 1 : 0));
+  const doneCount = catalog.filter(([k]) => done[k]).length;
   const toggle = (row) => ({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px", background: B.bg, border: "1px solid " + B.border, borderRadius: 8 });
   const Switch = ({ on, onChange }) => (
     <button onClick={() => onChange(!on)} aria-pressed={on} style={{ width: 42, height: 24, borderRadius: 12, border: "1px solid " + (on ? B.cyan : B.border), background: on ? B.cyan : B.surfaceActive, position: "relative", cursor: "pointer", flexShrink: 0, transition: "background .2s" }}>
@@ -33,10 +42,18 @@ function TutorialControls({ userRole }) {
           <Switch on={tips} onChange={(v) => { tutorialPrefs.setTips(v); setTips(v); window.dispatchEvent(new Event("tut-prefs-changed")); }} />
         </div>
       </div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: B.textDim, textTransform: "uppercase", letterSpacing: 0.5, margin: "14px 0 8px" }}>Take a tour</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "14px 0 8px" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: B.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>Take a tour</span>
+        <span style={{ fontSize: 10.5, fontFamily: M, color: doneCount === catalog.length ? B.green : B.textDim }}>{doneCount}/{catalog.length} completed{doneCount === catalog.length ? " 🎉" : ""}</span>
+      </div>
+      <div style={{ height: 4, borderRadius: 2, background: B.bg, overflow: "hidden", marginBottom: 10 }}>
+        <div style={{ width: (catalog.length ? (doneCount / catalog.length) * 100 : 0) + "%", height: "100%", background: B.green, borderRadius: 2, transition: "width .4s ease" }} />
+      </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {catalog.map(([key, t]) => (
-          <button key={key} onClick={() => startTour(key)} style={{ ...BS, padding: "7px 12px", fontSize: 11 }}>{t.title} ▸</button>
+          <button key={key} onClick={() => startTour(key)} style={{ ...BS, padding: "7px 12px", fontSize: 11, ...(done[key] ? { borderColor: B.green + "55", color: B.green } : {}), ...(key === "_welcome" && !done[key] ? { borderColor: B.cyan, color: B.cyan, fontWeight: 700 } : {}) }}>
+            {done[key] ? "✓ " : ""}{t.title}{done[key] ? "" : " ▸"}
+          </button>
         ))}
       </div>
       <button onClick={() => { tutorialPrefs.resetDone(); tutorialPrefs.setInvites(true); setInvites(true); setReset(true); setTimeout(() => setReset(false), 2000); }} style={{ background: "none", border: "none", color: B.cyan, fontSize: 11, cursor: "pointer", marginTop: 12, padding: 0, fontWeight: 600 }}>

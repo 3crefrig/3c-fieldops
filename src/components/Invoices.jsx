@@ -559,7 +559,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">Excel</button>
                 <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">PDF</button>
                 {inv.status==="draft"&&<button onClick={()=>setEditingInv(inv)} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Edit</button>}
-                {inv.status!=="paid"&&<button onClick={(e)=>{e.stopPropagation();openSend(inv);}} title="Email this invoice (marks it sent automatically)" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Send</button>}
+                {inv.status!=="paid"&&<button data-tip="Email this invoice — it marks itself Sent and the customer feedback request goes out automatically." onClick={(e)=>{e.stopPropagation();openSend(inv);}} title="Email this invoice (marks it sent automatically)" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Send</button>}
                 {inv.status==="draft"&&<button onClick={()=>markSent(inv)} title="Mark sent without emailing (sent outside the app)" style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}
                 <button onClick={()=>del(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>

@@ -249,7 +249,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
             <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
               {url&&<a href={url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"8px 12px",fontSize:11,minHeight:36,display:"inline-flex",alignItems:"center"}}>📄 Doc</a>}
               {canEditDraft&&<button onClick={()=>setEditing(rfq)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>}
-              {isMgr&&(rfq.status==="quoted"||rfq.status==="closed")&&<button onClick={()=>createPOFromQuote(rfq)} title="Create a purchase order pre-filled with this RFQ's items and vendor prices" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>→ PO</button>}
+              {isMgr&&(rfq.status==="quoted"||rfq.status==="closed")&&<button data-tip="Turns the vendor’s quote into a purchase order — items, prices, and vendor carried over automatically." onClick={()=>createPOFromQuote(rfq)} title="Create a purchase order pre-filled with this RFQ's items and vendor prices" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>→ PO</button>}
               {isMgr&&<button onClick={()=>openReview(rfq)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Review &amp; Send</button>}
               {(isMgr||canEditDraft)&&<button onClick={()=>setConfirmDelete(rfq)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>}
             </div>

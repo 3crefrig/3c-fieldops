@@ -423,14 +423,14 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
 
     {/* BIG ACTION BUTTONS — the main things a tech does */}
     {canEdit&&wo.status!=="completed"&&<div style={{display:"flex",gap:8,marginBottom:12,maxWidth:640}}>
-      <button onClick={()=>setShowTime(true)} style={{...BIG,background:B.cyan,color:B.bg}}>⏱ Log Time</button>
+      <button data-tip="Log hours on this job — logging time on a Pending job automatically flips it to Active." onClick={()=>setShowTime(true)} style={{...BIG,background:B.cyan,color:B.bg}}>⏱ Log Time</button>
       <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>📷 Photo</button>
-      <button onClick={openCompleteFlow} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
+      <button data-tip="Finish the job: confirm hours, add a summary, get the customer’s signature right on your screen." onClick={openCompleteFlow} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
     </div>}
 
     {/* AI Diagnose button — always available */}
     <div style={{maxWidth:640,marginBottom:12}}>
-      <button onClick={()=>setShowTroubleshoot(true)} style={{...SEC,width:"100%",color:B.cyan,borderColor:B.cyan+"44"}}>AI Diagnose</button>
+      <button data-tip="Describe the symptoms and the AI suggests likely causes and checks, using this unit’s history." onClick={()=>setShowTroubleshoot(true)} style={{...SEC,width:"100%",color:B.cyan,borderColor:B.cyan+"44"}}>AI Diagnose</button>
     </div>
 
     {/* Job Intelligence Card */}
@@ -603,7 +603,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
         {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const isEmpty=parseFloat(po.amount||0)===0;const canRemove=canEdit&&isEmpty;const canEditPO=canEdit;return<div key={po.id} onClick={canEditPO?()=>setEditingPO(po):undefined} title={canEditPO?"Click to edit PO details (description, amount, status, notes, surplus)":undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:canEditPO?"pointer":"default"}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span>{po.surplus_pool&&<span title={po.surplus_notes||"Available to bill on a future job"} style={{marginLeft:8,fontSize:9,padding:"2px 6px",borderRadius:10,background:B.orange+"22",color:B.orange,fontWeight:700}}>Surplus</span>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge>{canEditPO&&<button onClick={(e)=>{e.stopPropagation();setEditingPO(po);}} title="Edit PO" style={{background:"none",border:"1px solid "+B.border,color:B.textDim,fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>✎ Edit</button>}{canRemove&&<button onClick={async(e)=>{e.stopPropagation();if(!window.confirm("Remove empty PO "+po.po_id+" from this work order?\n\nThis PO has $0 charge and will be deleted."))return;const{error}=await sb().from("purchase_orders").delete().eq("id",po.id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");msg("PO "+po.po_id+" removed");}} title="Remove empty PO from this WO" style={{background:"none",border:"1px solid "+B.red+"55",color:B.red+"cc",fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>× Remove</button>}</div></div>})}
         {canEdit&&<div style={{display:"flex",gap:8,marginTop:10}}>
-          <button onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
+          <button data-tip="Need a part? Request a PO from right here — managers get pinged to approve it, and it stays attached to this job." onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
           <button onClick={()=>setShowReceipt(true)} style={{...BS,flex:1,padding:12}}>Scan Receipt</button>
         </div>}
       </Card>}
@@ -910,8 +910,8 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
-      {canEdit&&<button data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
-      {canEdit&&<button onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim}}>{bulkMode?"Cancel":"☑ Bulk"}</button>}
+      {canEdit&&<button data-tip="Create a new work order. It shows up on the assigned tech’s My Day immediately, with a push alert." data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
+      {canEdit&&<button data-tip="Bulk mode: select several jobs, then set them Active or Pending in one go." onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim}}>{bulkMode?"Cancel":"☑ Bulk"}</button>}
     </div>
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
       <span style={{fontSize:11,fontWeight:700,color:B.cyan}}>{bulkSel.length} selected</span>
@@ -920,7 +920,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
       <button onClick={()=>setBulkSel(flt.map(o=>o.id))} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginLeft:"auto"}}>Select All</button>
     </div>}
     <div style={{display:"flex",gap:6,marginBottom:14}}>
-      <input data-tour="wo-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
+      <input data-tip="Search by job number, title, customer, location, assignee, or the customer’s own WO number." data-tour="wo-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
       {custList.length>1&&<select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,width:"auto",padding:"8px 10px",fontSize:11,cursor:"pointer"}}><option value="">All Customers</option>{custList.map(c=><option key={c} value={c}>{c}</option>)}</select>}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>

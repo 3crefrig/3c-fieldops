@@ -13,7 +13,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
   return(<div><Toast msg={toast}/>
     <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Customers</h3>
-    <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ Add Customer</button>
+    <button data-tip="Add a customer once — rates, markup, and payment terms saved here flow into every invoice automatically." onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ Add Customer</button>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {(customers||[]).length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No customers yet</div>}
       {(customers||[]).map(c=>{const st=getCustStats(c.name);return<Card key={c.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.cyan}}>
