@@ -134,7 +134,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
 
   return(<div>
     {/* Date Range Pills */}
-    <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
+    <div data-tour="kpi-ranges" style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
       {ranges.map(([k,l])=><button key={k} onClick={()=>setRange(k)} style={{
         padding:"8px 18px",borderRadius:20,
         border:"1px solid "+(range===k?B.cyan:B.border),
@@ -146,7 +146,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
     </div>
 
     {/* ── Bento Grid: KPI Tiles ── */}
-    <div style={{
+    <div data-tour="kpi-tiles" style={{
       display:"grid",
       gridTemplateColumns:isMobile?"repeat(2, 1fr)":"repeat(4, 1fr)",
       gap:10,

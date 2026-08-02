@@ -5,6 +5,7 @@ import { Logo, Badge, GlobalSearch, Icon, Spinner } from "./ui";
 // Mobile bottom-bar icons (SVG, themed via currentColor) — desktop tabs are text-only.
 const TAB_ICON={today:"home",overview:"activity",inbox:"inbox",orders:"clipboard",planner:"calendar",calendar:"calendar",time:"clock",kb:"book",equipment:"wrench"};
 import { NotifBell } from "./CameraUpload";
+import { TutorialLayer } from "./Tutorial";
 import { registerPush, pushSupported, pushPermission } from "../push";
 
 let _ROLES = ROLES;
@@ -47,12 +48,12 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     <GlobalStyles/>
     <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
       <Logo onClick={()=>setTab(tabs[0]?.key)}/>
-      {searchData&&<GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/>}
+      {searchData&&<div data-tour="global-search" data-tip="Search jumps straight to any work order, PO, customer, or piece of equipment. Ctrl+K opens it from anywhere." style={{display:"contents"}}><GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/></div>}
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <button onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
         {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline{offlineQueueCount>0?" ("+offlineQueueCount+" queued)":""}</span>}
         {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600}}>syncing{offlineQueueCount>0?" ("+offlineQueueCount+")":""}...</span>}
-        <NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/>
+        <div data-tip="Alerts live here — assignments, approvals, overdue jobs. Tapping most alerts jumps to the thing itself. POs can be approved right from the list."><NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/></div>
         {!isMobile&&<Badge color={_ROLES[user.role]?_ROLES[user.role].color:B.textDim}>{user.role}</Badge>}
         {!isMobile&&<span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>}
         <button onClick={onLogout} style={{...BS,padding:"5px 12px",fontSize:11,borderRadius:8,transition:"background .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=B.surfaceActive;}} onMouseLeave={e=>{e.currentTarget.style.background=B.bg;}}>Sign Out</button>
@@ -101,6 +102,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       <button onClick={dismissPush} aria-label="Dismiss" style={{background:"none",border:"none",color:B.textDim,fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
     </div>}
     <div ref={contentRef} className="tab-content" key={tab+theme} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?"calc(74px + env(safe-area-inset-bottom))":20,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box",minHeight:0}}><React.Suspense fallback={<Spinner/>}>{children}</React.Suspense></div>
+    <TutorialLayer tab={tab} role={user.role}/>
     {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"4px 0",paddingBottom:"max(4px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,cursor:"pointer",padding:"6px 12px",minHeight:48,transition:"color .15s"}}><Icon name={TAB_ICON[t.key]||"dot"} size={20}/><span style={{fontSize:10,fontWeight:tab===t.key?700:500,fontFamily:F}}>{t.label}</span></button>)}<button onClick={()=>setShowMoreTabs(!showMoreTabs)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:showMoreTabs?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48}}><span>•••</span><span style={{fontSize:10,fontWeight:500,fontFamily:F}}>More</span></button></div>}
     {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:10,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.label}</button>)}</div>}
   </div>);

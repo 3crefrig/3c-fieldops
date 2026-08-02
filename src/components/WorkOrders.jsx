@@ -910,7 +910,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
-      {canEdit&&<button onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
+      {canEdit&&<button data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
       {canEdit&&<button onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim}}>{bulkMode?"Cancel":"☑ Bulk"}</button>}
     </div>
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
@@ -920,7 +920,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
       <button onClick={()=>setBulkSel(flt.map(o=>o.id))} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginLeft:"auto"}}>Select All</button>
     </div>}
     <div style={{display:"flex",gap:6,marginBottom:14}}>
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
+      <input data-tour="wo-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
       {custList.length>1&&<select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,width:"auto",padding:"8px 10px",fontSize:11,cursor:"pointer"}}><option value="">All Customers</option>{custList.map(c=><option key={c} value={c}>{c}</option>)}</select>}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -1062,7 +1062,7 @@ function WOOverview({orders,wlp,pos,time}){
       <div style={{fontSize:14,fontWeight:700,color:B.text}}>This Week <span style={{fontWeight:400,fontSize:12,color:B.textDim,marginLeft:6}}>{weekLabel}</span></div>
       <span style={{fontFamily:M,fontSize:12,color:B.cyan}}>{thisWeek.length} orders</span>
     </div>
-    <div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["active","Active"],["done","Done"],["tms","TMS Needed"],["stale","Stale 30d+"]].map(([k,l])=>{const accent=k==="tms"?B.orange:k==="stale"?B.red:B.cyan;return<button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+(filter===k?accent:B.border),background:filter===k?accent+"22":"transparent",color:filter===k?accent:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="tms"&&tmsPending>0?" ("+tmsPending+")":""}{k==="stale"&&staleWOs.length>0?" ("+staleWOs.length+")":""}</button>})}</div>
+    <div data-tour="wo-filters" style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["active","Active"],["done","Done"],["tms","TMS Needed"],["stale","Stale 30d+"]].map(([k,l])=>{const accent=k==="tms"?B.orange:k==="stale"?B.red:B.cyan;return<button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+(filter===k?accent:B.border),background:filter===k?accent+"22":"transparent",color:filter===k?accent:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="tms"&&tmsPending>0?" ("+tmsPending+")":""}{k==="stale"&&staleWOs.length>0?" ("+staleWOs.length+")":""}</button>})}</div>
     {filter==="tms"?<TMSQueue orders={orders.filter(o=>!o.tms_entered)} wlp={wlp}/>:(filteredWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>No work orders</div></Card>:<WOList orders={filteredWeek} {...wlp}/>)}
     {past.length>0&&<div style={{marginTop:20}}>
       <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>

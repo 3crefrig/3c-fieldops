@@ -187,6 +187,7 @@ body{font-variant-numeric:tabular-nums}
    browser toolbars — otherwise trailing buttons become unreachable when scrolling. */
 .app-root{height:100vh;height:100dvh}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes tutPulse{0%,100%{box-shadow:0 0 0 0 ${B.cyan}66}50%{box-shadow:0 0 0 7px ${B.cyan}00}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}

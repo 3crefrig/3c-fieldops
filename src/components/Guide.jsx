@@ -1,6 +1,50 @@
 import React, { useState } from "react";
-import { B, F, M, IS } from "../shared";
+import { B, F, M, IS, BS } from "../shared";
 import { Card } from "./ui";
+import { TOURS, tutorialPrefs, startTour } from "./Tutorial";
+
+// Interactive-tutorial controls: hosted here (every role can reach the Guide tab)
+// rather than Settings (admin-only). Preferences are per device.
+function TutorialControls({ userRole }) {
+  const [invites, setInvites] = useState(tutorialPrefs.invitesOn());
+  const [tips, setTips] = useState(tutorialPrefs.tipsOn());
+  const [reset, setReset] = useState(false);
+  const roleOk = (t) => !t.roles || t.roles.includes(userRole);
+  const catalog = Object.entries(TOURS).filter(([, t]) => roleOk(t));
+  const toggle = (row) => ({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px", background: B.bg, border: "1px solid " + B.border, borderRadius: 8 });
+  const Switch = ({ on, onChange }) => (
+    <button onClick={() => onChange(!on)} aria-pressed={on} style={{ width: 42, height: 24, borderRadius: 12, border: "1px solid " + (on ? B.cyan : B.border), background: on ? B.cyan : B.surfaceActive, position: "relative", cursor: "pointer", flexShrink: 0, transition: "background .2s" }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: "50%", background: on ? B.bg : B.textDim, transition: "left .2s" }} />
+    </button>
+  );
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 14, borderLeft: "3px solid " + B.green }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: B.text }}>🎓 Interactive Tutorial</div>
+      <div style={{ fontSize: 12, color: B.textMuted, margin: "4px 0 12px", lineHeight: 1.5 }}>
+        Guided tours walk you through each page step by step. Tips mode adds tappable ⦿ dots that explain individual controls. Settings apply to this device.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={toggle()}>
+          <div><div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>Offer tours on new pages</div><div style={{ fontSize: 10.5, color: B.textDim }}>A small "Quick tour?" chip appears the first time you visit a page</div></div>
+          <Switch on={invites} onChange={(v) => { tutorialPrefs.setInvites(v); setInvites(v); }} />
+        </div>
+        <div style={toggle()}>
+          <div><div style={{ fontSize: 12, fontWeight: 700, color: B.text }}>Help tips mode</div><div style={{ fontSize: 10.5, color: B.textDim }}>Pulsing dots on key controls — tap one for an explanation</div></div>
+          <Switch on={tips} onChange={(v) => { tutorialPrefs.setTips(v); setTips(v); window.dispatchEvent(new Event("tut-prefs-changed")); }} />
+        </div>
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: B.textDim, textTransform: "uppercase", letterSpacing: 0.5, margin: "14px 0 8px" }}>Take a tour</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {catalog.map(([key, t]) => (
+          <button key={key} onClick={() => startTour(key)} style={{ ...BS, padding: "7px 12px", fontSize: 11 }}>{t.title} ▸</button>
+        ))}
+      </div>
+      <button onClick={() => { tutorialPrefs.resetDone(); tutorialPrefs.setInvites(true); setInvites(true); setReset(true); setTimeout(() => setReset(false), 2000); }} style={{ background: "none", border: "none", color: B.cyan, fontSize: 11, cursor: "pointer", marginTop: 12, padding: 0, fontWeight: 600 }}>
+        {reset ? "✓ Tours reset — they'll offer themselves again" : "Restart the tutorial (reset all tours)"}
+      </button>
+    </Card>
+  );
+}
 
 // ── Guide content ─────────────────────────────────────────────
 // audience controls who sees a section: technicians see 'all'+'technician';
@@ -178,6 +222,7 @@ function HelpGuide({ userRole, userName }) {
           A quick how-to for everything you’ll use, tailored to your <strong style={{ color: B.cyan }}>{roleLabel}</strong> access. Tap a section to expand. New here? Start with <em>Getting Started</em>.
         </div>
       </Card>
+      <TutorialControls userRole={userRole} />
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the guide…" style={{ ...IS, marginBottom: 12, padding: "9px 12px", fontSize: 13 }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {visible.length === 0 && <div style={{ textAlign: "center", padding: 30, color: B.textDim, fontSize: 12 }}>No guide topics match “{q}”.</div>}
