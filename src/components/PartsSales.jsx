@@ -381,7 +381,7 @@ function PartsSales({D,A,user}){
       </div>
     </Card>}
 
-    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);resetForm();setView("list");}} msg={msg} emailTemplates={D.emailTemplates} currentUser={user}/>}
+    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);resetForm();setView("list");}} msg={msg} emailTemplates={D.emailTemplates} currentUser={user} feedbackOnSend={false} onReconciled={()=>{if(A.reloadTable)A.reloadTable("invoices");}}/>}
   </div>);
 }
 

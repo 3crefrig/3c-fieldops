@@ -240,6 +240,17 @@ serve(async (req: Request) => {
           .update({ status: "sent", sent_at: new Date().toISOString() })
           .eq("id", email.id);
 
+        // Reconcile the invoice itself: a scheduled invoice email used to go out
+        // while the invoice row stayed "draft" forever (no invoice_id was stored).
+        if (email.invoice_id) {
+          const { error: invErr } = await sb
+            .from("invoices")
+            .update({ status: "sent", date_sent: new Date().toISOString().slice(0, 10) })
+            .eq("id", email.invoice_id)
+            .eq("status", "draft");
+          if (invErr) console.error("Invoice status flip failed", email.invoice_id, invErr.message);
+        }
+
         sentCount++;
       } catch (sendErr: unknown) {
         const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);

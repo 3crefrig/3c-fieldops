@@ -239,7 +239,9 @@ function App(){
       // The number changed, so tell the user to re-export any PDF they already downloaded.
       if(error&&error.code==="23505"){const n2=await nextInvoiceNumDB();({error}=await sb().from("invoices").insert({...inv,invoice_num:n2}));if(!error)alert("Invoice number "+inv.invoice_num+" was just taken by another invoice — saved as "+n2+" instead. Re-download the PDF so it shows the right number.");}
       if(error){alert("Failed to create invoice.");throw error;}}),
-    updateInvoice:withTableSync("invoices",async(inv)=>{const{id,...rest}=inv;const{error}=await sb().from("invoices").update(rest).eq("id",id);if(error){alert("Failed to update invoice.");throw error;}}),
+    updateInvoice:withTableSync("invoices",async(inv)=>{const{id,...rest}=inv;const old=data.invoices?.find(i=>i.id===id);const{error}=await sb().from("invoices").update(rest).eq("id",id);if(error){alert("Failed to update invoice.");throw error;}
+      // Workflow trigger: invoice_sent was advertised in the builder but never emitted.
+      if(rest.status==="sent"&&old?.status!=="sent")evaluateTriggers("invoice_sent",{...old,...rest});}),
     deleteInvoice:withTableSync("invoices",async(inv)=>{if(inv.wo_ids&&inv.wo_ids.length>0){const woUUIDs=data.wos.filter(w=>inv.wo_ids.includes(w.wo_id)||inv.wo_ids.includes(w.id)).map(w=>w.id);if(woUUIDs.length>0)await sb().from("work_orders").update({invoiced:false}).in("id",woUUIDs);}const{error}=await sb().from("invoices").delete().eq("id",inv.id);if(error){alert("Failed to delete invoice.");throw error;}}),
     addTime:withTableSync("time_entries",async(te)=>{
       if(te.description)te.description=autoCorrect(te.description);
