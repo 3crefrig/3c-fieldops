@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, nextInvoiceNumDB} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
@@ -756,7 +756,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     setPoNum(filteredWOs.length>0?"":(customer?.vendor_number||""));
   },[cust,selWOKey,selProject]);
   // Auto-generate invoice number
-  useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
+  useEffect(()=>{if(!invoiceNum){(async()=>{setInvoiceNum(await nextInvoiceNumDB());})();}},[]);
 
   const buildInvoiceData=()=>{
     const notes=mode==="lineonly"?lineDesc.trim():(includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"");

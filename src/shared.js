@@ -21,6 +21,17 @@ export const USER_COLS="id,name,email,role,active,created_at,title,phone,availab
 export const localDateStr=(d)=>{const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 export const todayLocal=()=>localDateStr(new Date());
 
+// Single source for invoice numbers (YYMM##). Three separate copies of this
+// max+1 logic used to live in Invoices.jsx, PartsSales.jsx, and tryAutoInvoice —
+// two invoices created near-simultaneously could collide. A unique index on
+// invoices.invoice_num now backstops the race; callers retry once on 23505.
+export async function nextInvoiceNumDB(){
+  const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");
+  const{data}=await sb().from("invoices").select("invoice_num");
+  const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4),10);return s>m?s:m;},0);
+  return pfx+String(mx+1).padStart(2,"0");
+}
+
 // AGR-YYMM-## sequence. Lives here (not ServiceAgreements.jsx) so App's
 // addAgreement action doesn't drag the whole 600-line module into the main bundle.
 export function genAgreementNum(existing){const n=new Date(),pfx="AGR-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(a=>a.agreement_num&&a.agreement_num.startsWith(pfx)).reduce((m,a)=>{const s=parseInt(a.agreement_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
