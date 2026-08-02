@@ -479,17 +479,18 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
   const today=new Date();
   const daysOut=(d)=>{if(!d)return 0;return Math.floor((today-new Date(d))/86400000);};
-  const agingColor=(days)=>days>30?B.red:days>15?B.orange:B.green;
+  const overdueDays=parseFloat(getAppSetting("invoice_reminder_days",30))||30;
+  const agingColor=(days)=>days>overdueDays?B.red:days>overdueDays/2?B.orange:B.green;
   const outstanding=invoices.filter(i=>i.status==="sent"||i.status==="draft");
-  const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>30);
+  const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>overdueDays);
   const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===todayLocal().slice(0,7));
   const totalOutstanding=outstanding.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const totalPaidMonth=paidThisMonth.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
   const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as sent");
-    // Auto-send feedback request
-    try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
+    // Auto-send feedback request (respects the Settings toggle)
+    if(getAppSetting("feedback_enabled",true)!==false)try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
     if(toEmail){const token=crypto.randomUUID();
       await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:inv.customer,sent_to:toEmail,token});
       const feedbackUrl=window.location.origin+"/#/feedback/"+token;
@@ -1259,7 +1260,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
           // "draft" until someone remembered Mark Sent on the tracker.)
           if(invRow&&invRow.status==="draft"){
             await sb().from("invoices").update({status:"sent",date_sent:todayLocal()}).eq("id",invRow.id);
-            if(feedbackOnSend){
+            if(feedbackOnSend&&getAppSetting("feedback_enabled",true)!==false){
               try{const token=crypto.randomUUID();
                 await sb().from("feedback_requests").insert({invoice_id:invRow.id,invoice_num:d.invoiceNum,customer_name:invRow.customer||d.customerDisplayName||"",sent_to:emailTo.split(",")[0].trim(),token});
                 const feedbackUrl=window.location.origin+"/#/feedback/"+token;

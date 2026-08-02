@@ -137,14 +137,23 @@ export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString(
 // invoice isn't silently wrong. (Previously these numbers were re-hardcoded in
 // Invoices, Reports, Proposals, and tryAutoInvoice and drifted: 25/30/35 markup,
 // $120/$135 tiers scattered.)
+// App settings cache — loaded once per loadData() from the app_settings table so the
+// Settings screens actually DO something (rates, terms, thresholds were write-only
+// before: saved to the DB and read by nothing).
+let _appSettings={};
+export const setAppSettingsCache=(rows)=>{_appSettings=rows||{};};
+export const getAppSetting=(key,dflt)=>{const v=_appSettings.app_settings?_appSettings.app_settings[key]:undefined;return v===undefined||v===null||v===""?dflt:v;};
+export const getCompanyProfile=()=>_appSettings.company_profile||{};
+
 export const DEFAULT_LABOR_TIERS=[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
 export const DEFAULT_PARTS_MARKUP=35;
 export const getCustomerTiers=(customer)=>{
   if(customer&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0)
     return customer.labor_tiers.map(t=>({name:t.name,rate:parseFloat(t.rate)||0}));
-  return DEFAULT_LABOR_TIERS.map(t=>({...t}));
+  const p=getCompanyProfile();
+  return [{name:"Senior Technician",rate:parseFloat(p.default_senior_rate)||120},{name:"Licensed Technician",rate:parseFloat(p.default_licensed_rate)||135}];
 };
-export const getPartsMarkup=(customer)=>customer&&customer.parts_markup!=null&&customer.parts_markup!==""?parseFloat(customer.parts_markup):DEFAULT_PARTS_MARKUP;
+export const getPartsMarkup=(customer)=>customer&&customer.parts_markup!=null&&customer.parts_markup!==""?parseFloat(customer.parts_markup):(parseFloat(getCompanyProfile().default_parts_markup)||DEFAULT_PARTS_MARKUP);
 
 // --- Role-tailored alerts / notifications ---
 // Customers whose completed WOs are NOT invoiced per-order (they close as projects /
