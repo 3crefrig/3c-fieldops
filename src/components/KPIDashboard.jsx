@@ -36,7 +36,6 @@ function KPIDashboard({D,A,userRole,userName}){
   },[]);
 
   const getRangeStart=()=>{const d=new Date(now);if(range==="d30"){d.setDate(d.getDate()-30);d.setHours(0,0,0,0);}else if(range==="week"){d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);}else if(range==="month"){d.setDate(1);d.setHours(0,0,0,0);}else if(range==="quarter"){d.setMonth(d.getMonth()-3);d.setHours(0,0,0,0);}else if(range==="year"){d.setMonth(0,1);d.setHours(0,0,0,0);}else{d.setFullYear(2000);}return d;};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const rangeStart=useMemo(getRangeStart,[range]);
   const inRange=(dateStr)=>{if(!dateStr)return false;return new Date(dateStr)>=rangeStart;};
 
@@ -46,7 +45,6 @@ function KPIDashboard({D,A,userRole,userName}){
 
   // Overdue WOs (replaces the old First-Time Fix tile: with one dominant customer,
   // "any newer open WO at the same site = failed fix" made FTF read 0% forever).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const overdueWOs=useMemo(()=>D.wos.filter(w=>woOverdue(w,todayLocal())),[D.wos]);
 
   // Prior-period comparison for the activity tiles (equal-length window before rangeStart).
@@ -88,7 +86,6 @@ function KPIDashboard({D,A,userRole,userName}){
   const totalHours=D.time.filter(t=>inRange(t.logged_date)).reduce((s,t)=>s+parseFloat(t.hours||0),0);
 
   // Weekly sparkline data (8 weeks)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const sparkWeeks=useMemo(()=>{const weeks=[];for(let i=7;i>=0;i--){const ws=new Date(now);ws.setDate(now.getDate()-now.getDay()-(i*7));ws.setHours(0,0,0,0);const we=new Date(ws);we.setDate(ws.getDate()+6);we.setHours(23,59,59,999);
     const hrs=D.time.filter(t=>{const d=new Date(t.logged_date);return d>=ws&&d<=we;}).reduce((s,t)=>s+parseFloat(t.hours||0),0);
     const comp=D.wos.filter(o=>o.status==="completed"&&o.date_completed&&new Date(o.date_completed)>=ws&&new Date(o.date_completed)<=we).length;
@@ -96,7 +93,6 @@ function KPIDashboard({D,A,userRole,userName}){
     weeks.push({hrs,comp,rev});}return weeks;},[D.time,D.wos,D.invoices]);
 
   // Top customers by WO count
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const custStats=useMemo(()=>{const map={};D.wos.filter(o=>inRange(o.created_at)).forEach(o=>{const c=o.customer||"Unknown";if(!map[c])map[c]={total:0,done:0,hours:0};map[c].total++;if(o.status==="completed")map[c].done++;});
     D.time.filter(t=>inRange(t.logged_date)).forEach(t=>{const wo=D.wos.find(w=>w.id===t.wo_id);if(wo){const c=wo.customer||"Unknown";if(map[c])map[c].hours+=parseFloat(t.hours||0);}});
     return Object.entries(map).sort((a,b)=>b[1].total-a[1].total).slice(0,6);},[D.wos,D.time,rangeStart]);

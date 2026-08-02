@@ -1009,7 +1009,6 @@ function WOOverview({orders,wlp,pos,time}){
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
   const getWODate=(wo)=>{const d=wo.date_completed||wo.created_at||wo.due_date;return d?new Date(d):new Date();};
   // Partitions memoized — parsing dates on all ~450 WOs three times per render adds up.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const{active,completedThisWeek,thisWeek,past}=useMemo(()=>{
     const active=orders.filter(o=>o.status!=="completed");
     const completedThisWeek=orders.filter(o=>o.status==="completed"&&getWODate(o)>=weekStart);
