@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic , todayLocal, localDateStr} from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic, todayLocal, localDateStr, nextInvoiceNumDB} from "../shared";
 import { Card, Badge, StatCard, Toast, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal, rebuildInvoiceData } from "./Invoices";
 
@@ -142,12 +142,7 @@ function PartsSales({D,A,user}){
   };
 
   // ── Invoice generation (reuses the standard invoice pipeline) ──
-  const nextInvoiceNum=async()=>{
-    const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");
-    const{data}=await sb().from("invoices").select("invoice_num");
-    const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4),10);return s>m?s:m;},0);
-    return pfx+String(mx+1).padStart(2,"0");
-  };
+  const nextInvoiceNum=nextInvoiceNumDB; // shared generator — see shared.js (invoice-number race fix)
   const buildData=(invoiceNum)=>{
     const terms=customer?.payment_terms||"Net 30";
     const netDays=parseInt((terms.match(/\d+/)||[])[0],10)||30;
@@ -386,7 +381,7 @@ function PartsSales({D,A,user}){
       </div>
     </Card>}
 
-    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);resetForm();setView("list");}} msg={msg} emailTemplates={D.emailTemplates} currentUser={user}/>}
+    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);resetForm();setView("list");}} msg={msg} emailTemplates={D.emailTemplates} currentUser={user} feedbackOnSend={false} onReconciled={()=>{if(A.reloadTable)A.reloadTable("invoices");}}/>}
   </div>);
 }
 

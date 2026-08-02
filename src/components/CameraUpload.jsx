@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch } from "../shared";
+import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch , openPO, gotoTab} from "../shared";
 
 // Read B at call time so stage colors follow the active (dark/light) theme.
 const getPhotoStages=()=>[{key:"before",label:"Before",icon:"📸",color:B.orange},{key:"during",label:"During",icon:"🔧",color:B.cyan},{key:"after",label:"After",icon:"✅",color:B.green},{key:"general",label:"General",icon:"📷",color:B.textDim}];
@@ -77,7 +77,16 @@ export function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickReje
   useEffect(()=>{if(!open)return;const handler=(e)=>{if(bellRef.current&&!bellRef.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",handler);return()=>document.removeEventListener("mousedown",handler);},[open]);
   const unread=notifications.filter(n=>!n.read).length;
   const isManager=userRole==="admin"||userRole==="manager";
-  const tapNotif=(n)=>{const woMatch=n.message?.match(/WO-\d+/);if(woMatch&&onNavigate){onNavigate(woMatch[0]);setOpen(false);}};
+  const tapNotif=(n)=>{
+    const woMatch=n.message?.match(/WO-\d+/);
+    if(woMatch&&onNavigate){onNavigate(woMatch[0]);setOpen(false);return;}
+    // Type-based deep links — PO/invoice/RFQ/vendor-bill alerts used to go nowhere.
+    const t=n.type||"";
+    if(t.startsWith("po_")){openPO((n.message||"").split(" — ")[0].trim());setOpen(false);return;}
+    if(t.startsWith("invoice_")||t==="wo_needs_invoice"){gotoTab("invoices");setOpen(false);return;}
+    if(t.startsWith("rfq_")){gotoTab("rfqs");setOpen(false);return;}
+    if(t.startsWith("vendor_bill")){gotoTab("audit");setOpen(false);return;}
+  };
   return(<div ref={bellRef} style={{position:"relative"}}>
     <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",position:"relative"}}>🔔{unread>0&&<span style={{position:"absolute",top:-4,right:-4,background:B.red,color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread}</span>}</button>
     {open&&<div style={{position:"absolute",right:0,top:30,width:300,background:B.surface,border:"1px solid "+B.border,borderRadius:8,zIndex:999,maxHeight:350,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>

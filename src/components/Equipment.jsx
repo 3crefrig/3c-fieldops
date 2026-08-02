@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours , todayLocal, localDateStr} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours, todayLocal, localDateStr, openWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { CameraUpload } from "./CameraUpload";
 // html5-qrcode (~46KB gz) loads on demand when the scanner actually opens —
@@ -259,7 +259,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
         {linkedWOs.slice(0,20).map(w=>{
           const hrs=timeEntries.filter(t=>t.wo_id===w.id).reduce((s,t)=>s+parseFloat(t.hours||0),0);
           const woPOs=pos.filter(p=>p.wo_id===w.id);
-          return(<div key={w.id} style={{padding:"10px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,borderLeft:"3px solid "+(w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange)}}>
+          return(<div key={w.id} onClick={()=>openWO(w.wo_id||w.id)} title="Open this work order" style={{padding:"10px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,borderLeft:"3px solid "+(w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange),cursor:"pointer"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:12}}>{w.wo_id}</span>
@@ -297,6 +297,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
   const canEdit=userRole==="admin"||userRole==="manager";
   const[search,setSearch]=useState("");const[filter,setFilter]=useState("all");const[typeFilter,setTypeFilter]=useState("all");
   const[creating,setCreating]=useState(false);const[selected,setSelected]=useState(null);
+  useEffect(()=>{const h=(e)=>{const eq=(D.equipment||[]).find(x=>x.id===e.detail);if(eq)setSelected(eq.id||eq);};window.addEventListener("open-equipment",h);return()=>window.removeEventListener("open-equipment",h);},[D.equipment]);
   const[toast,setToast]=useState("");const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const[scanning,setScanning]=useState(false);
 

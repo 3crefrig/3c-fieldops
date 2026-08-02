@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic, fnFetch } from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic, fnFetch , openWO} from "../shared";
 import { Toast, Card, Badge, Modal, Spinner } from "./ui";
 
 // ── Scan Inbox Button with 2hr cooldown ──────────────────────
@@ -188,7 +188,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
         <div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <Badge color={d.status==="approved"?B.green:B.red}>{d.status}</Badge>
-            {d.created_wo_id&&<span style={{fontFamily:M,fontSize:10,color:B.green}}>{d.created_wo_id}</span>}
+            {d.created_wo_id&&<button onClick={()=>openWO(d.created_wo_id)} title="Open the created work order" style={{fontFamily:M,fontSize:10,color:B.green,background:"none",border:"1px solid "+B.green+"44",borderRadius:4,padding:"1px 6px",cursor:"pointer"}}>{d.created_wo_id} →</button>}
           </div>
           <div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:2}}>{d.title||d.email_subject}</div>
         </div>
@@ -226,7 +226,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       {/* Actions */}
       <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",flexWrap:"wrap"}}>
         <button onClick={()=>{setRejectId(sel.id);}} style={{...BS,color:B.red,borderColor:B.red+"40"}}>Reject</button>
-        <button onClick={()=>{onApprove(sel,edits);closeDraft();haptic(50);notice("Approved — work order created");}} style={{...BP,background:B.green}}>Approve & Create WO</button>
+        <button onClick={async()=>{const newId=await onApprove(sel,edits);closeDraft();haptic(50);notice("Approved — work order created");if(newId)openWO(newId);}} style={{...BP,background:B.green}}>Approve & Create WO</button>
       </div>
     </Modal>}
 

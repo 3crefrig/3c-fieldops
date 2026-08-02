@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime , fnFetch, loadWOSignature , todayLocal, localDateStr} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -217,7 +217,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   </Card>);
 }
 
-function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
+function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,pos,onCreatePO,timeEntries,onAddTime,onUpdateTime,onDeleteTime,photos,onAddPhoto,users,userName,userRole,loadData,reloadTable,equipment,lineItems,customers,invoices,projects,emailTemplates,onCreateInvoice,currentUser,startComplete,onStartCompleteHandled}){
   const reloadWOs=()=>reloadTable?reloadTable("work_orders"):loadData();
   const D_equipment=equipment||[];
   const[showBill,setShowBill]=useState(false);
@@ -226,6 +226,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
   const[localCustWO,setLocalCustWO]=useState(wo.customer_wo||"");
   const[showFollowUp,setShowFollowUp]=useState(false),[fuNotes,setFuNotes]=useState("");
+  const[cmpCustWO,setCmpCustWO]=useState("");
   // `signature` is excluded from WO_COLS (it's a ~6KB base64 PNG and would bloat every
   // list fetch), so the detail view loads it on demand. Every signed WO has a
   // date_completed, so that's a safe gate to avoid a pointless query on open WOs.
@@ -235,6 +236,9 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
     loadWOSignature(wo.id).then(s=>{if(!cancelled)setSigData(s);});
     return()=>{cancelled=true;};
   },[wo.id,wo.date_completed]);
+  // Swipe-to-complete routes here: open the Review & Sign flow on arrival.
+  // (openCompleteFlow is a const defined below — initialized by the time effects run.)
+  useEffect(()=>{if(startComplete){if(wo.status!=="completed")openCompleteFlow();if(onStartCompleteHandled)onStartCompleteHandled();}},[startComplete]);
   const[poPrefill,setPoPrefill]=useState(null); // scanned-receipt data carried into the PO form
   // Receipt scan accepts a File from the picker OR a pasted screen capture.
   usePasteImage(showReceipt&&!receiptData,(f)=>runReceiptScan(f));
@@ -275,7 +279,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("⚠️ Failed to log refrigerant");}setSavingRef(false);};
   const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("⚠️ Failed to delete");}};
   const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("⚠️ Failed to stamp");}};
-  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("⚠️ Failed to save NTE");}};
+  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v,nte_approved_by:v===null?null:userName,nte_approved_at:v===null?null:new Date().toISOString()}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("⚠️ Failed to save NTE");}};
   const[liDesc,setLiDesc]=useState(""),[liAmt,setLiAmt]=useState(""),[addingLI,setAddingLI]=useState(false),[savingLI,setSavingLI]=useState(false);
   const isProjectWO=!!wo.project_id;
   const woLineItems=(lineItems||[]).filter(li=>li.wo_id===wo.id);
@@ -287,7 +291,11 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   const woPOs=pos.filter(p=>p.wo_id===wo.id);const woTime=timeEntries.filter(t=>t.wo_id===wo.id);const woPhotos=photos.filter(p=>p.wo_id===wo.id);
   const poApprovedTotal=woPOs.filter(p=>p.status==="approved").reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const woSpend=poApprovedTotal+lineItemsTotal;
+  // NTE burn = materials + LABOR. It used to count parts/line-items only, so a
+  // $1,500-cap job could absorb unlimited hours and still show a green bar.
+  const nteLaborRate=(getCustomerTiers(customers?.find(c=>c.name===wo.customer))[0]||{}).rate||120;
+  const nteLaborCost=woTime.reduce((s,t)=>s+parseFloat(t.hours||0),0)*nteLaborRate;
+  const woSpend=poApprovedTotal+lineItemsTotal+nteLaborCost;
   const ntePct=wo.nte&&wo.nte>0?Math.min(999,(woSpend/parseFloat(wo.nte))*100):0;
   const nteColor=ntePct>=100?B.red:ntePct>=75?B.orange:B.green;
   const refNet=refLog.reduce((s,r)=>s+(r.action==="added"?parseFloat(r.pounds||0):r.action==="recovered"?-parseFloat(r.pounds||0):0),0);
@@ -311,12 +319,16 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const getAutoWorkPerformed=()=>{const descs=woTime.map(t=>t.description).filter(Boolean);const unique=[...new Set(descs)];return wo.work_performed||unique.join(". ")||"";};
   // Earliest logged time-charge date. logged_date values are YYYY-MM-DD strings, which sort chronologically (and are timezone-safe). `extra` folds in a date being logged right now, before woTime has reloaded.
   const firstChargeDate=(extra)=>{const ds=woTime.map(t=>t.logged_date).filter(Boolean);if(extra)ds.push(extra);ds.sort();return ds[0]||"";};
-  const openCompleteFlow=()=>{setSigErr("");setCmpH("");setCmpD("");setCmpDate(todayLocal());setCompDate(firstChargeDate()||todayLocal());setWorkPerformed(getAutoWorkPerformed());
+  const openCompleteFlow=()=>{setSigErr("");setCmpCustWO(wo.customer_wo||"");setCmpH("");setCmpD("");setCmpDate(todayLocal());setCompDate(firstChargeDate()||todayLocal());setWorkPerformed(getAutoWorkPerformed());
     // Project WOs with line items can skip time entry — go straight to review & sign
     const hasLineItems=isProjectWO&&woLineItems.length>0;
     setCompleteStep((woTime.length>0||hasLineItems)?2:1);setShowComplete(true);};
   const logTimeAndContinue=async()=>{const h=parseFloat(cmpH);if(!h||h<=0||!cmpD.trim()){setSigErr("Enter hours and description first.");return;}if(cleanText(cmpD,"Description")===null)return;setSigErr("");setSaving(true);try{await onAddTime({wo_id:wo.id,hours:h,description:cmpD.trim(),logged_date:cmpDate});setSaving(false);setCompDate(firstChargeDate(cmpDate)||cmpDate);if(!workPerformed)setWorkPerformed(cmpD.trim());setCompleteStep(2);msg("Time logged");}catch(e){console.error(e);setSaving(false);setSigErr("Error logging time.");}};
-  const markComplete=async()=>{if(saving)return;if(!compDate){setSigErr("Completion date required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required.");return;}if(workPerformed&&cleanText(workPerformed,"Work Performed")===null)return;setSigErr("");setSaving(true);try{const updates={status:"completed",date_completed:compDate,signature:sigCanvas._getData(),work_performed:workPerformed.trim()||null};await sb().from("work_orders").update(updates).eq("id",wo.id);reloadWOs();setSaving(false);setShowComplete(false);setShowFollowUp(true);msg("Completed & Signed");onUpdateWO({...wo,...updates});}catch(e){console.error("Complete error:",e);setSaving(false);setSigErr("Error saving — please try again.");}};
+  const markComplete=async()=>{if(saving)return;if(!compDate){setSigErr("Completion date required.");return;}if(!sigCanvas||!sigCanvas._getData||!sigCanvas._getData()){setSigErr("Signature required.");return;}if(workPerformed&&cleanText(workPerformed,"Work Performed")===null)return;setSigErr("");setSaving(true);try{const updates={status:"completed",date_completed:compDate,signature:sigCanvas._getData(),work_performed:workPerformed.trim()||null};if(cmpCustWO.trim()&&cmpCustWO.trim()!==(wo.customer_wo||""))updates.customer_wo=cmpCustWO.trim();
+      // Single write path: onUpdateWO persists AND fires activity/notify/auto-invoice.
+      // (Previously a raw update ran first, then onUpdateWO wrote the same row — including
+      // the ~6KB signature — a second time.)
+      await onUpdateWO({...wo,...updates});reloadWOs();setSaving(false);setShowComplete(false);setShowFollowUp(true);msg("Completed & Signed");}catch(e){console.error("Complete error:",e);setSaving(false);setSigErr("Error saving — please try again.");}};
   const createFollowUp=async()=>{if(saving)return;if(cleanText(fuNotes,"Follow-up Notes")===null)return;setSaving(true);try{const r=await onCreateWO({title:"Follow-up: "+wo.title,priority:wo.priority,assignee:wo.assignee,due_date:"TBD",notes:"Follow-up from "+wo.wo_id+".\n"+fuNotes.trim(),location:wo.location||"",wo_type:"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);setShowFollowUp(false);setFuNotes("");msg((r?.wo_id||"Follow-up WO")+" created — opening it");if(r?.wo_id&&onOpenWO)onOpenWO(r.wo_id);}catch(e){console.error("Follow-up error:",e);setSaving(false);}};
   const tryDelete=async()=>{const msg2=hasData?"This work order has data. Are you SURE you want to delete "+wo.wo_id+"? This cannot be undone.":"Delete "+wo.wo_id+"? This cannot be undone.";if(!window.confirm(msg2))return;setSaving(true);const{error}=await sb().from("work_orders").delete().eq("id",wo.id);if(error){console.error("delete error:",error);setSaving(false);alert("Failed to delete work order: "+(error.message||"unknown error")+". It may have linked time entries, POs, or invoices that must be removed first.");return;}await reloadWOs();setSaving(false);onBack();};
 
@@ -351,7 +363,8 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           signature attestation from Review & Sign before anything gets billed. */}
       {isManager&&(()=>{
         const billedInv=(invoices||[]).find(i=>(i.wo_ids||[]).includes(wo.wo_id)||(i.wo_ids||[]).includes(wo.id));
-        const blocked=wo.status!=="completed"?"Complete and sign this work order before billing."
+        const blocked=!onCreateInvoice?"Billing isn't available from this view."
+          :wo.status!=="completed"?"Complete and sign this work order before billing."
           :!wo.customer?"Assign a customer to this work order before billing."
           :(woHrs<=0&&woLineItems.length===0)?"No time logged on this work order."
           :(!billedInv&&wo.invoiced)?"This work order is already marked invoiced."
@@ -713,6 +726,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           <div style={{display:"flex",justifyContent:"flex-end",paddingTop:6,fontSize:13,fontWeight:700,color:B.green,fontFamily:M}}>Total: ${lineItemsTotal.toLocaleString(undefined,{minimumFractionDigits:2})}</div>
         </div>}
         <div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><label style={LS}>Work Summary <span style={{color:B.textDim,fontWeight:400}}>(edit as needed)</span></label>{woTime.length>=3&&<button onClick={async()=>{if(summarizing)return;setSummarizing(true);try{const payload={title:wo.title};if(wo.notes&&wo.notes!=="No details.")payload.notes=wo.notes;if(wo.field_notes)payload.field_notes=wo.field_notes;if(wo.customer)payload.customer=wo.customer;if(wo.location)payload.location=wo.location+(wo.building?" Bldg "+wo.building:"");payload.time_entries=woTime.map(t=>({description:t.description,hours:t.hours})).filter(t=>t.description);const r=await fnFetch("summarize-work",payload);const d=await r.json();if(d.success&&d.result?.summary)setWorkPerformed(d.result.summary);}catch(e){console.error(e);}setSummarizing(false);}} disabled={summarizing} style={{background:"none",border:"1px solid "+B.cyan+"44",color:B.cyan,fontSize:10,fontWeight:600,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:F,opacity:summarizing?.5:1}}>{summarizing?"Summarizing...":"Summarize with AI"}</button>}</div><div style={{display:"flex",gap:6,alignItems:"flex-start"}}><textarea value={workPerformed} onChange={e=>setWorkPerformed(e.target.value)} rows={2} placeholder="Work summary for customer record..." style={{...IS,flex:1,resize:"vertical",lineHeight:1.5,fontSize:13,padding:12}}/><VoiceInput onResult={t=>setWorkPerformed(prev=>prev?(prev+" "+t):t)} style={{minHeight:44}}/></div></div>
+        {!wo.customer_wo&&<div><label style={LS}>Customer WO# <span style={{color:B.textDim,fontWeight:400,textTransform:"none",letterSpacing:0}}>(from their TMS \u2014 saves a trip to the TMS queue later)</span></label><input value={cmpCustWO} onChange={e=>setCmpCustWO(e.target.value)} placeholder="e.g. 1537566" style={{...IS,padding:14,fontSize:14,fontFamily:M}}/></div>}
         <div><label style={LS}>Completion Date {woTime.length>0&&<span style={{color:B.textDim,fontWeight:400,textTransform:"none",letterSpacing:0}}>(defaults to first time charge)</span>}</label><input type="date" value={compDate} onChange={e=>setCompDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div>
         <div><span style={LS}>Technician Signature <span style={{color:B.red}}>*</span></span><div style={{marginTop:4}}><SignaturePad onSign={setSigCanvas}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}><div style={{fontSize:11,color:B.textDim}}>Draw your signature above</div><button onClick={()=>{if(sigCanvas&&sigCanvas._clear)sigCanvas._clear();setSigErr("");}} style={{background:"none",border:"none",color:B.orange,fontSize:12,cursor:"pointer",fontFamily:F}}>Clear</button></div></div>
         {sigErr&&<div style={{color:B.red,fontSize:13,fontWeight:600,padding:"8px 12px",background:B.red+"11",borderRadius:6}}>{sigErr}</div>}
@@ -866,12 +880,16 @@ function SwipeCard({wo,onStatusChange,children}){
 function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,reloadTable,navWOId,clearNavWO,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
   const PAGE_SIZE=50;
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
+  const[startComplete,setStartComplete]=useState(false);
   useEffect(()=>{if(navWOId){const wo=orders.find(o=>o.wo_id===navWOId||o.id===navWOId);if(wo){setSel(wo);if(clearNavWO)clearNavWO();}}},[navWOId]);
   // Open a WO that was just created (duplicate/follow-up) once it lands in orders.
   const[pendingOpen,setPendingOpen]=useState(null);
   useEffect(()=>{if(pendingOpen){const wo=orders.find(o=>o.wo_id===pendingOpen||o.id===pendingOpen);if(wo){setSel(wo);setPendingOpen(null);}}},[orders,pendingOpen]);
   const toggleBulk=(id)=>setBulkSel(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
-  const bulkAction=async(action)=>{for(const id of bulkSel){const wo=orders.find(o=>o.id===id);if(!wo)continue;if(action==="complete")await onUpdateWO({...wo,status:"completed",date_completed:todayLocal()});else if(action==="active")await onUpdateWO({...wo,status:"in_progress"});else if(action==="pending")await onUpdateWO({...wo,status:"pending"});}setBulkSel([]);setBulkMode(false);};
+  // Bulk "complete" was removed on purpose: it skipped the signature/summary gate that
+  // WODetail enforces AND fired tryAutoInvoice — one stray tap could ship a $0 draft
+  // invoice. Completion always goes through the Review & Sign flow now.
+  const bulkAction=async(action)=>{for(const id of bulkSel){const wo=orders.find(o=>o.id===id);if(!wo)continue;if(action==="active")await onUpdateWO({...wo,status:"in_progress"});else if(action==="pending")await onUpdateWO({...wo,status:"pending"});}setBulkSel([]);setBulkMode(false);};
   const custList=[...new Set(orders.map(o=>o.customer).filter(Boolean))].sort();
   const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
@@ -887,7 +905,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     return{poByWO,phByWO,hrsByWO,liWOSet};
   },[pos,photos,timeEntries,lineItems]);
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders} equipment={equipment} reloadTable={reloadTable}/>;
-  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers} invoices={invoices} projects={projects} emailTemplates={emailTemplates} onCreateInvoice={onCreateInvoice} currentUser={currentUser}/>;}
+  if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers} invoices={invoices} projects={projects} emailTemplates={emailTemplates} onCreateInvoice={onCreateInvoice} currentUser={currentUser} startComplete={startComplete} onStartCompleteHandled={()=>setStartComplete(false)}/>;}
   const today=todayLocal();
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -898,7 +916,6 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
       <span style={{fontSize:11,fontWeight:700,color:B.cyan}}>{bulkSel.length} selected</span>
       <button onClick={()=>bulkAction("active")} style={{...BS,padding:"4px 10px",fontSize:10}}>→ Active</button>
-      <button onClick={()=>bulkAction("complete")} style={{...BS,padding:"4px 10px",fontSize:10,borderColor:B.green,color:B.green}}>✓ Complete</button>
       <button onClick={()=>bulkAction("pending")} style={{...BS,padding:"4px 10px",fontSize:10}}>→ Pending</button>
       <button onClick={()=>setBulkSel(flt.map(o=>o.id))} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginLeft:"auto"}}>Select All</button>
     </div>}
@@ -909,7 +926,11 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
       {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
-        <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{const upd={...wo,status:st};if(st==="completed")upd.date_completed=todayLocal();await onUpdateWO(upd);}}><Card style={{padding:"14px 16px",marginBottom:6}}>
+        <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{
+          // Swiping to "completed" opens the Review & Sign flow instead of raw-completing —
+          // the old direct write skipped the signature and could fire an accidental auto-invoice.
+          if(st==="completed"){setSel(wo);setStartComplete(true);return;}
+          await onUpdateWO({...wo,status:st});}}><Card style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
             <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>

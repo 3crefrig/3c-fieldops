@@ -21,6 +21,26 @@ export const USER_COLS="id,name,email,role,active,created_at,title,phone,availab
 export const localDateStr=(d)=>{const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 export const todayLocal=()=>localDateStr(new Date());
 
+// Global deep-link helpers — any component can open a WO or jump to a tab without
+// prop-drilling. The three dashboards listen for "open-wo" (sets tab + navWOId);
+// POMgmt listens for "open-po" (prefills its search); EquipmentDashboard listens
+// for "open-equipment" (selects the unit). useHashTab picks up the hash change.
+export const gotoTab=(t)=>{const h="#tab="+t;if(window.location.hash!==h)window.history.pushState(null,"",h);window.dispatchEvent(new PopStateEvent("popstate"));};
+export const openWO=(idOrWoId)=>{if(!idOrWoId)return;window.dispatchEvent(new CustomEvent("open-wo",{detail:idOrWoId}));};
+export const openPO=(poId)=>{if(!poId)return;gotoTab("pos");window.dispatchEvent(new CustomEvent("open-po",{detail:poId}));};
+export const openEquipment=(eqId)=>{if(!eqId)return;gotoTab("equipment");window.dispatchEvent(new CustomEvent("open-equipment",{detail:eqId}));};
+
+// Single source for invoice numbers (YYMM##). Three separate copies of this
+// max+1 logic used to live in Invoices.jsx, PartsSales.jsx, and tryAutoInvoice —
+// two invoices created near-simultaneously could collide. A unique index on
+// invoices.invoice_num now backstops the race; callers retry once on 23505.
+export async function nextInvoiceNumDB(){
+  const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");
+  const{data}=await sb().from("invoices").select("invoice_num");
+  const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4),10);return s>m?s:m;},0);
+  return pfx+String(mx+1).padStart(2,"0");
+}
+
 // AGR-YYMM-## sequence. Lives here (not ServiceAgreements.jsx) so App's
 // addAgreement action doesn't drag the whole 600-line module into the main bundle.
 export function genAgreementNum(existing){const n=new Date(),pfx="AGR-"+String(n.getFullYear()).slice(2)+String(n.getMonth()+1).padStart(2,"0")+"-";const mx=(existing||[]).filter(a=>a.agreement_num&&a.agreement_num.startsWith(pfx)).reduce((m,a)=>{const s=parseInt(a.agreement_num.slice(pfx.length));return s>m?s:m;},0);return pfx+String(mx+1).padStart(2,"0");}
@@ -117,14 +137,23 @@ export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString(
 // invoice isn't silently wrong. (Previously these numbers were re-hardcoded in
 // Invoices, Reports, Proposals, and tryAutoInvoice and drifted: 25/30/35 markup,
 // $120/$135 tiers scattered.)
+// App settings cache — loaded once per loadData() from the app_settings table so the
+// Settings screens actually DO something (rates, terms, thresholds were write-only
+// before: saved to the DB and read by nothing).
+let _appSettings={};
+export const setAppSettingsCache=(rows)=>{_appSettings=rows||{};};
+export const getAppSetting=(key,dflt)=>{const v=_appSettings.app_settings?_appSettings.app_settings[key]:undefined;return v===undefined||v===null||v===""?dflt:v;};
+export const getCompanyProfile=()=>_appSettings.company_profile||{};
+
 export const DEFAULT_LABOR_TIERS=[{name:"Senior Technician",rate:120},{name:"Licensed Technician",rate:135}];
 export const DEFAULT_PARTS_MARKUP=35;
 export const getCustomerTiers=(customer)=>{
   if(customer&&Array.isArray(customer.labor_tiers)&&customer.labor_tiers.length>0)
     return customer.labor_tiers.map(t=>({name:t.name,rate:parseFloat(t.rate)||0}));
-  return DEFAULT_LABOR_TIERS.map(t=>({...t}));
+  const p=getCompanyProfile();
+  return [{name:"Senior Technician",rate:parseFloat(p.default_senior_rate)||120},{name:"Licensed Technician",rate:parseFloat(p.default_licensed_rate)||135}];
 };
-export const getPartsMarkup=(customer)=>customer&&customer.parts_markup!=null&&customer.parts_markup!==""?parseFloat(customer.parts_markup):DEFAULT_PARTS_MARKUP;
+export const getPartsMarkup=(customer)=>customer&&customer.parts_markup!=null&&customer.parts_markup!==""?parseFloat(customer.parts_markup):(parseFloat(getCompanyProfile().default_parts_markup)||DEFAULT_PARTS_MARKUP);
 
 // --- Role-tailored alerts / notifications ---
 // Customers whose completed WOs are NOT invoiced per-order (they close as projects /
@@ -142,6 +171,15 @@ export const visibleNotifs=(notifs,role)=>{if(!Array.isArray(notifs))return[];if
 
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
+/* ── Sharpness pass (2026-08-02) ─────────────────────────────────────────
+   Small global touches that make interactions feel crisp without changing
+   the design: every button gets hover/press feedback, keyboard focus gets a
+   visible ring, and numbers align in columns (tabular figures). */
+button{transition:filter .15s ease,transform .1s ease}
+button:hover:not(:disabled){filter:brightness(1.12)}
+button:active:not(:disabled){transform:scale(.97)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid ${B.cyan}66;outline-offset:1px;border-radius:4px}
+body{font-variant-numeric:tabular-nums}
 /* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
    wins where supported so the bottom of the app isn't hidden behind mobile/tablet
    browser toolbars — otherwise trailing buttons become unreachable when scrolling. */

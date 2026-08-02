@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, B, F, M, IS, LS, BP, BS } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS , openWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect } from "./ui";
 
 function ActivityLog({woId}){
@@ -34,7 +34,7 @@ function GlobalActivityFeed(){
     {show&&<div style={{marginTop:12,maxHeight:300,overflowY:"auto"}}>
       {loading&&<div style={{textAlign:"center",padding:12,color:B.textDim,fontSize:11}}>Loading...</div>}
       {!loading&&feed.length===0&&<div style={{textAlign:"center",padding:12,color:B.textDim,fontSize:11}}>No activity yet</div>}
-      {feed.map(a=><div key={a.id} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:"1px solid "+B.border}}>
+      {feed.map(a=><div key={a.id} onClick={()=>a.wo_id&&openWO(a.wo_id)} title={a.wo_id?"Open this work order":undefined} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:a.wo_id?"pointer":"default"}}>
         <span style={{fontSize:14,flexShrink:0,marginTop:2}}>{actionIcon(a.action)}</span>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:11,color:B.text}}>{a.details||a.action}</div>

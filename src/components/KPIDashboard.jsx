@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { B, F, M, IS, LS, fmtHours, woOverdue, todayLocal } from "../shared";
+import { B, F, M, IS, LS, fmtHours, woOverdue, todayLocal, getAppSetting } from "../shared";
 import { Card, Badge, StatCard, Modal } from "./ui";
 
 function Sparkline({data=[],color=B.cyan,width=120,height=36,showDots=false}){
@@ -76,7 +76,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
   const totalAR=outstandingInv.reduce((s,i)=>s+parseFloat(i.amount||0),0);
 
   // Overdue Invoices
-  const overdueInv=(D.invoices||[]).filter(i=>{if(i.status!=="sent")return false;const days=Math.floor((now-new Date(i.date_issued))/86400000);return days>30;});
+  const overdueInv=(D.invoices||[]).filter(i=>{if(i.status!=="sent")return false;const days=Math.floor((now-new Date(i.date_issued))/86400000);return days>(parseFloat(getAppSetting("invoice_reminder_days",30))||30);});
   const overdueAmt=overdueInv.reduce((s,i)=>s+parseFloat(i.amount||0),0);
 
   // Completion Rate

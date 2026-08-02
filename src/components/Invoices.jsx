@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup , todayLocal, localDateStr} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, nextInvoiceNumDB, openWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
@@ -479,17 +479,18 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[invoices.length]);
   const today=new Date();
   const daysOut=(d)=>{if(!d)return 0;return Math.floor((today-new Date(d))/86400000);};
-  const agingColor=(days)=>days>30?B.red:days>15?B.orange:B.green;
+  const overdueDays=parseFloat(getAppSetting("invoice_reminder_days",30))||30;
+  const agingColor=(days)=>days>overdueDays?B.red:days>overdueDays/2?B.orange:B.green;
   const outstanding=invoices.filter(i=>i.status==="sent"||i.status==="draft");
-  const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>30);
+  const overdue=invoices.filter(i=>i.status==="sent"&&daysOut(i.date_issued)>overdueDays);
   const paidThisMonth=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_paid.slice(0,7)===todayLocal().slice(0,7));
   const totalOutstanding=outstanding.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const totalPaidMonth=paidThisMonth.reduce((s,i)=>s+parseFloat(i.amount||0),0);
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
   const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as sent");
-    // Auto-send feedback request
-    try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
+    // Auto-send feedback request (respects the Settings toggle)
+    if(getAppSetting("feedback_enabled",true)!==false)try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
     if(toEmail){const token=crypto.randomUUID();
       await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:inv.customer,sent_to:toEmail,token});
       const feedbackUrl=window.location.origin+"/#/feedback/"+token;
@@ -498,6 +499,16 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
     }}catch(e){console.error("Feedback request error:",e);}
   };
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as paid");};
+  // Email any invoice straight from the tracker (drafts had NO send path before —
+  // the only way out was downloading the PDF into Gmail by hand).
+  const[sendData,setSendData]=useState(null);
+  const openSend=async(inv)=>{try{
+    msg("Preparing email…");
+    const d=rebuildData(inv);
+    const doc=await buildInvoicePDF(d);
+    const pdfB64=doc.output("datauristring").split(",")[1];
+    setSendData({...d,pdfB64,pdfName:"INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf",driveFileId:null});
+  }catch(e){msg("Error: "+e.message);console.error(e);}};
   const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>rebuildInvoiceData(inv,{customers,pos,wos});
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
@@ -548,7 +559,8 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">Excel</button>
                 <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">PDF</button>
                 {inv.status==="draft"&&<button onClick={()=>setEditingInv(inv)} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Edit</button>}
-                {inv.status==="draft"&&<button onClick={()=>markSent(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
+                {inv.status!=="paid"&&<button onClick={(e)=>{e.stopPropagation();openSend(inv);}} title="Email this invoice (marks it sent automatically)" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Send</button>}
+                {inv.status==="draft"&&<button onClick={()=>markSent(inv)} title="Mark sent without emailing (sent outside the app)" style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}
                 <button onClick={()=>del(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
               </div>
@@ -556,7 +568,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
             {expandedId===inv.id&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+B.border,display:"flex",flexDirection:"column",gap:10}}>
               {inv.job_desc&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Job</span><div style={{color:B.textMuted,marginTop:2}}>{inv.job_desc}</div></div>}
               {inv.po_number&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Customer PO</span><div style={{color:B.textMuted,marginTop:2,fontFamily:M}}>{inv.po_number}</div></div>}
-              {inv.wo_ids&&inv.wo_ids.length>0&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Linked Work Orders ({inv.wo_ids.length})</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.wo_ids.map(wid=>{const w=wos.find(x=>x.wo_id===wid||x.id===wid);return(<div key={wid} style={{color:B.text,paddingLeft:8}}>• <span style={{fontFamily:M,fontWeight:700}}>{w?.wo_id||wid}</span>{w?.title&&<span style={{color:B.textMuted}}> — {w.title}</span>}{!w&&<span style={{color:B.textDim,fontStyle:"italic"}}> (not found)</span>}</div>);})}</div></div>}
+              {inv.wo_ids&&inv.wo_ids.length>0&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Linked Work Orders ({inv.wo_ids.length})</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.wo_ids.map(wid=>{const w=wos.find(x=>x.wo_id===wid||x.id===wid);return(<div key={wid} onClick={()=>w&&openWO(w.wo_id||w.id)} title={w?"Open this work order":undefined} style={{color:B.text,paddingLeft:8,cursor:w?"pointer":"default"}}>• <span style={{fontFamily:M,fontWeight:700}}>{w?.wo_id||wid}</span>{w?.title&&<span style={{color:B.textMuted}}> — {w.title}</span>}{!w&&<span style={{color:B.textDim,fontStyle:"italic"}}> (not found)</span>}</div>);})}</div></div>}
               {inv.notes&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Work Performed</span><div style={{color:B.textMuted,marginTop:4,whiteSpace:"pre-wrap",lineHeight:1.5,paddingLeft:8}}>{inv.notes}</div></div>}
               {inv.tier_data&&inv.tier_data.length>0&&inv.tier_data.some(t=>(t.hours||0)>0)&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Labor</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.tier_data.filter(t=>(t.hours||0)>0).map((t,i)=>(<div key={i} style={{color:B.text,paddingLeft:8}}>• {t.name}: <span style={{fontFamily:M,color:B.textMuted}}>{(t.hours||0).toFixed(2)}h × ${(t.rate||0).toFixed(2)}</span> = <span style={{fontFamily:M,fontWeight:700}}>${((t.hours||0)*(t.rate||0)).toFixed(2)}</span></div>))}</div></div>}
               {inv.custom_items&&inv.custom_items.length>0&&<div style={{fontSize:11}}><span style={{fontWeight:700,color:B.cyan,textTransform:"uppercase",letterSpacing:0.5,fontSize:10}}>Other Charges</span><div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>{inv.custom_items.map((it,i)=>(<div key={i} style={{color:B.text,paddingLeft:8}}>• {it.description}: <span style={{fontFamily:M,fontWeight:700}}>${parseFloat(it.amount||0).toFixed(2)}</span></div>))}</div></div>}
@@ -565,6 +577,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
           </Card>);})}
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
+      {sendData&&<SendInvoiceModal data={sendData} onClose={()=>setSendData(null)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser} onReconciled={()=>{if(reloadTable)reloadTable("invoices");}}/>}
     </div>}
     {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData}/>}
     {editingInv&&<Modal title={"Edit INV-"+editingInv.invoice_num} onClose={()=>setEditingInv(null)} wide>
@@ -756,7 +769,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     setPoNum(filteredWOs.length>0?"":(customer?.vendor_number||""));
   },[cust,selWOKey,selProject]);
   // Auto-generate invoice number
-  useEffect(()=>{if(!invoiceNum){(async()=>{const now=new Date();const pfx=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,"0");const{data}=await sb().from("invoices").select("invoice_num");const mx=(data||[]).filter(i=>i.invoice_num&&i.invoice_num.startsWith(pfx)).reduce((m,i)=>{const s=parseInt(i.invoice_num.slice(4));return s>m?s:m;},0);setInvoiceNum(pfx+String(mx+1).padStart(2,"0"));})();}},[]);
+  useEffect(()=>{if(!invoiceNum){(async()=>{setInvoiceNum(await nextInvoiceNumDB());})();}},[]);
 
   const buildInvoiceData=()=>{
     const notes=mode==="lineonly"?lineDesc.trim():(includeNotes?filteredWOs.map(w=>((w.customer_wo?"["+w.customer_wo+"] ":"")+w.title+" — "+(w.work_performed||w.notes||"")).trim()).filter(Boolean).join("\n"):"");
@@ -1095,7 +1108,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         </div>
       </div>
     </Card>}
-    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);if(onDone)onDone("Invoice "+invoiceNum+" created");}} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser}/>}
+    {showSendModal&&lastInvoiceData&&<SendInvoiceModal data={lastInvoiceData} onClose={()=>{setShowSendModal(false);if(onDone)onDone("Invoice "+invoiceNum+" created");}} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser} onReconciled={()=>{if(reloadTable)reloadTable("invoices");}}/>}
   </div>);
 }
 
@@ -1183,7 +1196,12 @@ function buildInvoiceEmailHTML(d,variant,driveLink){
 </div>`;
 }
 
-function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
+// After a successful send this modal reconciles the invoice itself (flips draft→sent,
+// fires the feedback request) so "send" and "mark sent" are one action everywhere —
+// wizard, tracker, and Parts Sales all get it without wiring. Scheduled sends store
+// invoice_id; the send-scheduled-emails edge function does the same flip at send time.
+// feedbackOnSend=false skips the "How was our service?" email (parts dropship).
+function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackOnSend=true,onReconciled}){
   const d=data;
   const[emailTo,setEmailTo]=useState(d.customerEmail||""),[emailCC,setEmailCC]=useState((d.ccEmails||[]).join(", "));
   const dateRange=d.dateFrom&&d.dateTo?(d.dateFrom.replace(/-/g,"/").replace(/^20/,"")+" - "+d.dateTo.replace(/-/g,"/").replace(/^20/,"")):"";
@@ -1213,29 +1231,46 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser}){
     try{
       // Build signature
       const u=currentUser||{};
-      const sigHTML='<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;font-family:Calibri,sans-serif;font-size:13px;color:#333;"><strong>'+(u.name||"Alex Clapp")+'</strong><br/>Manager<br/>(336) 264-0935<br/><img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style="width:120px;height:auto;margin-top:6px;display:block;"/></div>';
+      const sigHTML='<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;font-family:Calibri,sans-serif;font-size:13px;color:#333;"><strong>'+(u.name||"Alex Clapp")+'</strong><br/>'+(u.title||"Manager")+'<br/>'+(u.phone||"(336) 264-0935")+'<br/><img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style="width:120px;height:auto;margin-top:6px;display:block;"/></div>';
       const fullBody='<div style="font-family:Calibri,sans-serif;">'+emailHTML+sigHTML+'</div>';
 
       // Save contacts
       emailTo.split(",").map(e=>e.trim()).filter(Boolean).forEach(em=>saveContact(em));
       if(emailCC)emailCC.split(",").map(e=>e.trim()).filter(Boolean).forEach(em=>saveContact(em));
 
+      // Look up the invoice row this email belongs to (may not exist for legacy data).
+      const{data:invRow}=await sb().from("invoices").select("id,status,customer").eq("invoice_num",d.invoiceNum).limit(1).maybeSingle();
       if(scheduleEnabled){
-        // Save to scheduled_emails table
         const sendAt=new Date(scheduleDate+"T"+scheduleTime+":00");
         await sb().from("scheduled_emails").insert({
           to_emails:emailTo.trim(),cc_emails:emailCC.trim()||null,subject,body:fullBody,
           attachment_name:d.pdfName||null,attachment_base64:d.pdfB64||null,
-          drive_file_id:d.driveFileId||null,send_at:sendAt.toISOString(),status:"pending"
+          drive_file_id:d.driveFileId||null,send_at:sendAt.toISOString(),status:"pending",
+          invoice_id:invRow?.id||null
         });
         msg("Invoice scheduled for "+sendAt.toLocaleString()+"!");
       }else{
-        // Send immediately
         const payload={to:emailTo.trim(),cc:emailCC.trim()||undefined,subject,body:fullBody};
         if(d.pdfB64&&d.pdfName)payload.attachment={name:d.pdfName,content:d.pdfB64,type:"application/pdf"};
         const resp=await fnFetch("send-email",payload);
         const result=await resp.json();
-        if(result.success)msg("Invoice sent!");else msg("Error: "+(result.error||"Failed"));
+        if(result.success){
+          msg("Invoice sent!");
+          // Reconcile: sending IS marking sent. (Previously the invoice stayed
+          // "draft" until someone remembered Mark Sent on the tracker.)
+          if(invRow&&invRow.status==="draft"){
+            await sb().from("invoices").update({status:"sent",date_sent:todayLocal()}).eq("id",invRow.id);
+            if(feedbackOnSend&&getAppSetting("feedback_enabled",true)!==false){
+              try{const token=crypto.randomUUID();
+                await sb().from("feedback_requests").insert({invoice_id:invRow.id,invoice_num:d.invoiceNum,customer_name:invRow.customer||d.customerDisplayName||"",sent_to:emailTo.split(",")[0].trim(),token});
+                const feedbackUrl=window.location.origin+"/#/feedback/"+token;
+                const fbBody="<div style='font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px'><p>Hi,</p><p>Thank you for choosing 3C Refrigeration. We recently completed work for you — we'd love to hear how we did.</p><p><a href='"+feedbackUrl+"' style='display:inline-block;background:#0891B2;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:bold'>Leave Feedback</a></p><p>— 3C Refrigeration</p></div>";
+                await fnFetch("send-email",{to:emailTo.split(",")[0].trim(),subject:"How was our service? — 3C Refrigeration",body:fbBody});
+              }catch(fe){console.error("Feedback request error:",fe);}
+            }
+            if(onReconciled)onReconciled();
+          }
+        }else msg("Error: "+(result.error||"Failed"));
       }
       onClose();
     }catch(e){msg("Error: "+e.message);console.error(e);}
