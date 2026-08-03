@@ -86,6 +86,36 @@ Deno.serve(async (req) => {
     const { data: ag } = await db.from("service_agreements").select("id,agreement_num,customer_name,end_date").eq("status", "active").eq("renewal_reminder_sent", false).gte("end_date", today).lte("end_date", plusDate(30));
     for (const a of ag || []) { await db.from("notifications").insert({ type: "agreement_expiring", title: "Agreement Expiring", message: `${a.agreement_num} for ${a.customer_name} expires ${a.end_date}`, for_role: "manager" }); await db.from("service_agreements").update({ renewal_reminder_sent: true }).eq("id", a.id); counts["agreement_expiring"] = (counts["agreement_expiring"] || 0) + 1; }
 
+    // 10) Payment reminders — invoices sent past the overdue threshold, for
+    // customers who opted in (customers.payment_reminders). At most one reminder
+    // per invoice per 7 days; each send stamps last_reminder_at and tells admins.
+    try {
+      const { data: settingsRow } = await db.from("app_settings").select("value").eq("key", "app_settings").maybeSingle();
+      const overdueDays = parseFloat(settingsRow?.value?.invoice_reminder_days) || 30;
+      const { data: optIn } = await db.from("customers").select("name,email,contact_name").eq("payment_reminders", true);
+      const custByName: Record<string, { email: string; contact_name: string }> = {};
+      for (const c of optIn || []) if (c.email) custByName[c.name] = c;
+      if (Object.keys(custByName).length) {
+        const { data: open } = await db.from("invoices").select("id,invoice_num,customer,amount,date_issued,last_reminder_at").eq("status", "sent");
+        for (const inv of open || []) {
+          const cust = custByName[inv.customer]; if (!cust) continue;
+          const age = Math.floor((Date.now() - new Date(inv.date_issued).getTime()) / 86400000);
+          if (age < overdueDays) continue;
+          if (inv.last_reminder_at && Date.now() - new Date(inv.last_reminder_at).getTime() < 7 * 86400000) continue;
+          const amt = parseFloat(inv.amount || 0).toFixed(2);
+          const body = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:20px"><p>Hi${cust.contact_name ? " " + cust.contact_name : ""},</p><p>This is a friendly reminder that invoice <strong>${inv.invoice_num}</strong> for <strong>$${amt}</strong>, issued ${inv.date_issued}, is now ${age} days outstanding.</p><p>If payment is already on its way, please disregard this note. If you need another copy of the invoice or have any questions, just reply to this email.</p><p>Thank you,<br/>3C Refrigeration<br/>(336) 264-0935</p></div>`;
+          const resp = await fetch(SB_URL + "/functions/v1/send-email", {
+            method: "POST", headers: { Authorization: "Bearer " + SVC, "Content-Type": "application/json" },
+            body: JSON.stringify({ to: cust.email, subject: `Payment reminder — Invoice ${inv.invoice_num} ($${amt})`, body }),
+          });
+          if (resp.ok) {
+            await db.from("invoices").update({ last_reminder_at: new Date().toISOString() }).eq("id", inv.id);
+            await notif("invoice_reminder_sent", "Payment Reminder Sent", `${inv.invoice_num} — $${amt} to ${inv.customer} (${age}d outstanding)`, "admin");
+          } else console.error("reminder send failed", inv.invoice_num, await resp.text());
+        }
+      }
+    } catch (re) { console.error("payment reminders block failed:", re); }
+
     return new Response(JSON.stringify({ success: true, ran: today, counts }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });

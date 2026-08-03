@@ -502,6 +502,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   // Email any invoice straight from the tracker (drafts had NO send path before —
   // the only way out was downloading the PDF into Gmail by hand).
   const[sendData,setSendData]=useState(null);
+  const[stmtOpen,setStmtOpen]=useState(false);
   const openSend=async(inv)=>{try{
     msg("Preparing email…");
     const d=rebuildData(inv);
@@ -509,6 +510,21 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
     const pdfB64=doc.output("datauristring").split(",")[1];
     setSendData({...d,pdfB64,pdfName:"INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".pdf",driveFileId:null});
   }catch(e){msg("Error: "+e.message);console.error(e);}};
+  // Manual payment nudge — same email the nightly sweep sends, on demand.
+  const remind=async(inv)=>{
+    const cust=customers.find(c=>c.name===inv.customer);
+    const toEmail=cust?.email;
+    if(!toEmail){msg("No email on file for "+(inv.customer||"this customer"));return;}
+    const age=daysOut(inv.date_issued);
+    const amt=parseFloat(inv.amount||0).toFixed(2);
+    if(!window.confirm("Send a payment reminder for INV-"+inv.invoice_num+" ($"+amt+", "+age+"d outstanding) to "+toEmail+"?"))return;
+    try{
+      const body='<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:20px"><p>Hi'+(cust?.contact_name?" "+cust.contact_name:"")+',</p><p>This is a friendly reminder that invoice <strong>'+inv.invoice_num+'</strong> for <strong>$'+amt+'</strong>, issued '+inv.date_issued+', is now '+age+' days outstanding.</p><p>If payment is already on its way, please disregard this note. If you need another copy of the invoice, just reply to this email.</p><p>Thank you,<br/>3C Refrigeration<br/>(336) 264-0935</p></div>';
+      const resp=await fnFetch("send-email",{to:toEmail,subject:"Payment reminder \u2014 Invoice "+inv.invoice_num+" ($"+amt+")",body});
+      const r=await resp.json();
+      if(r.success){await onUpdateInvoice({id:inv.id,last_reminder_at:new Date().toISOString()});msg("Reminder sent to "+toEmail);}
+      else msg("Error: "+(r.error||"send failed"));
+    }catch(e){msg("Error: "+e.message);console.error(e);}};
   const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>rebuildInvoiceData(inv,{customers,pos,wos});
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
@@ -529,6 +545,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
     <div style={{display:"flex",gap:6,marginBottom:16}}>
       <button onClick={()=>setView("tracker")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="tracker"?B.cyan:B.border),background:view==="tracker"?B.cyanGlow:"transparent",color:view==="tracker"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Invoice Tracker</button>
       <button onClick={()=>setView("create")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ Create Invoice</button>
+      <button onClick={()=>setStmtOpen(true)} title="Per-customer statement of open invoices with aging" style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+B.border,background:"transparent",color:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Statements</button>
     </div>
     {view==="tracker"&&<div>
       {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📝</div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
@@ -559,6 +576,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">Excel</button>
                 <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">PDF</button>
                 {inv.status==="draft"&&<button onClick={()=>setEditingInv(inv)} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Edit</button>}
+                {inv.status==="sent"&&<button onClick={(e)=>{e.stopPropagation();remind(inv);}} title={inv.last_reminder_at?("Last reminded "+daysOut(inv.last_reminder_at)+"d ago"):"Email a payment reminder"} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36,color:B.orange,borderColor:B.orange+"55"}}>Remind</button>}
                 {inv.status!=="paid"&&<button data-tip="Email this invoice — it marks itself Sent and the customer feedback request goes out automatically." onClick={(e)=>{e.stopPropagation();openSend(inv);}} title="Email this invoice (marks it sent automatically)" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Send</button>}
                 {inv.status==="draft"&&<button onClick={()=>markSent(inv)} title="Mark sent without emailing (sent outside the app)" style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}
@@ -577,6 +595,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
           </Card>);})}
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
+      {stmtOpen&&<StatementsModal invoices={invoices} customers={customers} msg={msg} onClose={()=>setStmtOpen(false)}/>}
       {sendData&&<SendInvoiceModal data={sendData} onClose={()=>setSendData(null)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser} onReconciled={()=>{if(reloadTable)reloadTable("invoices");}}/>}
     </div>}
     {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData}/>}
@@ -1338,5 +1357,92 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
     </div>
   </Modal>);
 }
+
+
+// ── Statement of account (internal tool: WE generate and WE send — no customer accounts) ──
+async function buildStatementPDF(custName,invs,cust){
+  const{jsPDF}=await import("jspdf");
+  const doc=new jsPDF({unit:"mm",format:"letter"});
+  const pw=215.9,lm=18,rm=18;
+  const cyan=[0,160,200],dark=[30,34,40],mid=[100,112,130],light=[245,247,252];
+  const logo=await fetchLogoBase64();
+  let y=14;
+  if(logo)doc.addImage(logo,"PNG",lm,y,44,16);
+  doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(...dark);
+  doc.text("STATEMENT",pw-rm,y+8,{align:"right"});
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
+  doc.text("As of "+new Date().toLocaleDateString(),pw-rm,y+15,{align:"right"});
+  y+=26;
+  doc.setFontSize(8.5);
+  ["3065 Gwyn Rd., Elon, N.C. 27244","service@3crefrigeration.com \u00b7 336-264-0935"].forEach((t,i)=>doc.text(t,lm,y+i*4.2));
+  y+=12;
+  doc.setFillColor(...light);doc.rect(lm,y,90,18,"F");
+  doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);doc.text("STATEMENT FOR",lm+4,y+5);
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...dark);doc.text(custName,lm+4,y+12);
+  y+=26;
+  doc.setFillColor(...dark);doc.rect(lm,y,pw-lm-rm,7,"F");
+  doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(255,255,255);
+  doc.text("INVOICE",lm+3,y+5);doc.text("ISSUED",lm+45,y+5);doc.text("DAYS",lm+85,y+5);doc.text("STATUS",lm+105,y+5);doc.text("AMOUNT",pw-rm-2,y+5,{align:"right"});
+  y+=10;
+  const buckets={current:0,d31:0,d61:0,d90:0};let total=0;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  invs.forEach((inv,i)=>{
+    const age=Math.floor((Date.now()-new Date(inv.date_issued).getTime())/86400000);
+    const amt=parseFloat(inv.amount||0);total+=amt;
+    if(age<=30)buckets.current+=amt;else if(age<=60)buckets.d31+=amt;else if(age<=90)buckets.d61+=amt;else buckets.d90+=amt;
+    if(i%2)doc.setFillColor(...light),doc.rect(lm,y-4,pw-lm-rm,7,"F");
+    doc.setTextColor(...dark);
+    doc.text(String(inv.invoice_num||""),lm+3,y);doc.text(String(inv.date_issued||""),lm+45,y);
+    doc.setTextColor(...(age>60?[200,60,50]:age>30?[190,120,20]:mid));doc.text(String(age),lm+85,y);
+    doc.setTextColor(...mid);doc.text(inv.status==="draft"?"Draft":"Sent",lm+105,y);
+    doc.setTextColor(...dark);doc.text("$"+amt.toFixed(2),pw-rm-2,y,{align:"right"});
+    y+=7;if(y>250){doc.addPage();y=20;}
+  });
+  y+=4;doc.setDrawColor(...cyan);doc.setLineWidth(0.6);doc.line(lm,y,pw-rm,y);y+=8;
+  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...mid);
+  doc.text("Current: $"+buckets.current.toFixed(2)+"    31-60d: $"+buckets.d31.toFixed(2)+"    61-90d: $"+buckets.d61.toFixed(2)+"    90d+: $"+buckets.d90.toFixed(2),lm,y);
+  y+=9;doc.setFontSize(13);doc.setTextColor(...dark);
+  doc.text("TOTAL DUE: $"+total.toFixed(2),pw-rm,y,{align:"right"});
+  return{doc,total};
+}
+
+function StatementsModal({invoices,customers,msg,onClose}){
+  const[busy,setBusy]=useState(null);
+  const open=invoices.filter(i=>i.status==="sent");
+  const byCust={};open.forEach(i=>{(byCust[i.customer]=byCust[i.customer]||[]).push(i);});
+  const rows=Object.entries(byCust).map(([name,invs])=>({name,invs,total:invs.reduce((s,i)=>s+parseFloat(i.amount||0),0)})).sort((a,b)=>b.total-a.total);
+  const download=async(r)=>{setBusy(r.name+"-pdf");try{const{doc}=await buildStatementPDF(r.name,r.invs,customers.find(c=>c.name===r.name));doc.save("Statement_"+r.name.replace(/[^a-zA-Z0-9]/g,"_")+"_"+todayLocal()+".pdf");msg("Statement downloaded");}catch(e){msg("Error: "+e.message);}setBusy(null);};
+  const email=async(r)=>{
+    const cust=customers.find(c=>c.name===r.name);
+    if(!cust?.email){msg("No email on file for "+r.name);return;}
+    if(!window.confirm("Email this statement ("+r.invs.length+" open invoices, $"+r.total.toFixed(2)+") to "+cust.email+"?"))return;
+    setBusy(r.name+"-mail");
+    try{
+      const{doc,total}=await buildStatementPDF(r.name,r.invs,cust);
+      const b64=doc.output("datauristring").split(",")[1];
+      const body='<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:20px"><p>Hi'+(cust.contact_name?" "+cust.contact_name:"")+',</p><p>Attached is your current statement of account with 3C Refrigeration \u2014 '+r.invs.length+' open invoice'+(r.invs.length!==1?"s":"")+' totaling <strong>$'+total.toFixed(2)+'</strong>.</p><p>If anything looks off or payment is already on its way, just reply to this email.</p><p>Thank you,<br/>3C Refrigeration<br/>(336) 264-0935</p></div>';
+      const resp=await fnFetch("send-email",{to:cust.email,subject:"Statement of Account \u2014 3C Refrigeration",body,attachment:{name:"Statement_"+r.name.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",content:b64,type:"application/pdf"}});
+      const res=await resp.json();
+      msg(res.success?"Statement emailed to "+cust.email:"Error: "+(res.error||"send failed"));
+    }catch(e){msg("Error: "+e.message);}
+    setBusy(null);
+  };
+  return(<Modal title="Customer Statements" onClose={onClose} wide>
+    <div style={{fontSize:12,color:B.textMuted,marginBottom:12}}>Every customer with open (sent) invoices. The PDF lists each invoice with its age plus 30/60/90 aging buckets.</div>
+    {rows.length===0&&<div style={{textAlign:"center",padding:24,color:B.textDim,fontSize:12}}>No open invoices \u2014 nothing to state. \ud83c\udf89</div>}
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {rows.map(r=><div key={r.name} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:B.bg,border:"1px solid "+B.border,borderRadius:10}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:650,color:B.text}}>{r.name}</div>
+          <div style={{fontSize:11,color:B.textDim}}>{r.invs.length} open invoice{r.invs.length!==1?"s":""} \u00b7 oldest {Math.max(...r.invs.map(i=>daysOutStatic(i.date_issued)))}d</div>
+        </div>
+        <span style={{fontFamily:M,fontSize:14,fontWeight:700,color:B.text}}>${r.total.toFixed(2)}</span>
+        <button onClick={()=>download(r)} disabled={!!busy} style={{...BS,padding:"7px 12px",fontSize:11,opacity:busy===r.name+"-pdf"?.6:1}}>{busy===r.name+"-pdf"?"\u2026":"PDF"}</button>
+        <button onClick={()=>email(r)} disabled={!!busy} style={{...BP,padding:"7px 14px",fontSize:11,opacity:busy===r.name+"-mail"?.6:1}}>{busy===r.name+"-mail"?"Sending\u2026":"Email"}</button>
+      </div>)}
+    </div>
+  </Modal>);
+}
+const daysOutStatic=(d)=>{if(!d)return 0;return Math.floor((Date.now()-new Date(d).getTime())/86400000);};
 
 export { InvoiceDashboard, InvoiceGenerator, buildInvoiceExcel, buildInvoicePDF, uploadInvoiceToDrive, rebuildInvoiceData, openInvoicePDF, invoicePreviewSource, PdfPreviewModal, SendInvoiceModal };
