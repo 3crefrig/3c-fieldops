@@ -102,13 +102,13 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
 
   const ranges=[["d30","Last 30 Days"],["week","This Week"],["month","This Month"],["quarter","Quarter"],["year","This Year"],["all","All Time"]];
 
-  // ── KPI tile style helper (flat card look; hover shadow via .card-hover CSS) ──
+  // ── KPI tile (Shopify treatment: neutral card, no colored rail — the value/delta
+  //    carries any urgency color) ──
   const bentoTile=(color,idx,extra={})=>({
     background:B.surface,
     border:"1px solid "+B.border,
-    borderRadius:10,
-    borderLeft:"3px solid "+color,
-    boxShadow:"0 1px 3px rgba(0,0,0,0.08)",
+    borderRadius:12,
+    boxShadow:"0 1px 0 rgba(26,26,26,.05)",
     padding:"16px 18px",
     ...extra,
   });
@@ -116,7 +116,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
   // Build KPI tile data
   let tileIdx=0;
   const kpiTiles=[
-    {key:"od",label:"Overdue WOs",value:overdueWOs.length,icon:"⚠",color:overdueWOs.length>0?B.red:B.green,click:overdueWOs.length>0?()=>setDrillDown("overduewos"):null},
+    {key:"od",label:"Overdue WOs",value:overdueWOs.length,icon:"⚠",color:overdueWOs.length>0?B.red:B.green,valueColor:overdueWOs.length>0?B.red:undefined,click:overdueWOs.length>0?()=>setDrillDown("overduewos"):null},
     {key:"util",label:"Tech Utilization",value:techUtil+"%",icon:"⚡",color:techUtil>=80?B.green:techUtil>=60?B.orange:B.red},
     {key:"comp",label:"WOs Completed",value:completedWOs.length,icon:"✓",color:B.green,delta:pctDelta(completedWOs.length,prevCompletedCount),click:()=>setDrillDown("completed")},
     {key:"hrs",label:"Hours Logged",value:fmtHours(totalHours),icon:"⏱",color:B.cyan,delta:pctDelta(totalHours,prevHrs)},
@@ -163,7 +163,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4,marginBottom:6}}>{t.label}</div>
-                <div style={{fontFamily:M,fontSize:22,fontWeight:700,color:B.text,letterSpacing:-0.5}}>{t.value}</div>
+                <div style={{fontFamily:M,fontSize:22,fontWeight:700,color:t.valueColor||B.text,letterSpacing:-0.5}}>{t.value}</div>
                 {t.delta!=null&&<div style={{fontSize:10,fontWeight:700,fontFamily:M,marginTop:5,color:t.delta>=0?B.green:B.red}}>{t.delta>=0?"↑":"↓"}{Math.abs(t.delta)}% <span style={{color:B.textDim,fontWeight:400,fontFamily:F}}>vs prior</span></div>}
               </div>
             </div>

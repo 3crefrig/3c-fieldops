@@ -66,14 +66,19 @@ export async function loadWOSignature(woId){
   return data?.signature||null;
 }
 
-export const DARK={bg:"#101214",surface:"#1A1D21",surfaceActive:"#2A2F35",border:"#2E3338",text:"#E8EAED",textMuted:"#8B929A",textDim:"#5E656E",cyan:"#00D4F5",cyanDark:"#00A5C0",cyanGlow:"rgba(0,212,245,0.12)",red:"#FF4757",orange:"#FFA040",green:"#26D9A2",purple:"#A78BFA",greenGlow:"rgba(38,217,162,0.15)",orangeGlow:"rgba(255,160,64,0.15)"};
-export const LIGHT={bg:"#F5F6F8",surface:"#FFFFFF",surfaceActive:"#E8EAED",border:"#D1D5DB",text:"#1A1D21",textMuted:"#4B5563",textDim:"#9CA3AF",cyan:"#0891B2",cyanDark:"#0E7490",cyanGlow:"rgba(8,145,178,0.1)",red:"#DC2626",orange:"#D97706",green:"#059669",purple:"#7C3AED",greenGlow:"rgba(5,150,105,0.1)",orangeGlow:"rgba(217,119,6,0.1)"};
+// Shopify-style palettes (2026-08-03, Alex's pick): soft neutral page, sections one
+// step off the page with a hairline edge, color only where it MEANS something.
+// btnPrimary is the near-black/white primary button — the "expensive" Shopify move.
+// Cyan stays the brand/accent (matches the real logo); green/red/orange keep their
+// approval/alert/pending semantics app-wide.
+export const DARK={bg:"#111214",surface:"#1B1D20",surfaceActive:"#24262A",border:"#2C2F33",text:"#F4F5F5",textMuted:"#9A9FA6",textDim:"#6B7178",cyan:"#4DD6F0",cyanDark:"#2AB8D6",cyanGlow:"rgba(77,214,240,0.12)",red:"#FF6B66",orange:"#F5A623",green:"#5AD48A",purple:"#A78BFA",greenGlow:"rgba(90,212,138,0.14)",orangeGlow:"rgba(245,166,35,0.14)",btnPrimary:"#F4F5F5",btnPrimaryText:"#111214"};
+export const LIGHT={bg:"#F6F6F7",surface:"#FFFFFF",surfaceActive:"#F1F2F3",border:"#E1E3E5",text:"#1A1A1A",textMuted:"#616A75",textDim:"#8A9097",cyan:"#0B7F9E",cyanDark:"#096B85",cyanGlow:"rgba(11,127,158,0.10)",red:"#B42318",orange:"#B54708",green:"#0A7A3D",purple:"#7C3AED",greenGlow:"rgba(10,122,61,0.10)",orangeGlow:"rgba(181,71,8,0.10)",btnPrimary:"#1A1A1A",btnPrimaryText:"#FFFFFF"};
 let _theme=localStorage.getItem("fieldops-theme")||"dark";
 export let B=_theme==="light"?{...LIGHT}:{...DARK};
 export function setTheme(t){_theme=t;localStorage.setItem("fieldops-theme",t);Object.assign(B,t==="light"?LIGHT:DARK);}
 export function getTheme(){return _theme;}
 export function haptic(ms){try{navigator.vibrate&&navigator.vibrate(ms||30);}catch(e){}}
-export const F="'Barlow',sans-serif",M="'JetBrains Mono',monospace";
+export const F="'Inter','Barlow',sans-serif",M="'JetBrains Mono',monospace";
 export const getRoles=()=>({admin:{label:"Admin",color:B.red},manager:{label:"Manager",color:B.green},technician:{label:"Technician",color:B.cyan}});
 export let ROLES=getRoles();
 export function refreshRoles(){ROLES=getRoles();}
@@ -107,8 +112,8 @@ export const PSL={pending:"Pending",approved:"Approved",rejected:"Rejected",revi
 // Radius scale: 6 chips/inset panels · 10 inputs/buttons/cards · 14 modals · 999 pills
 const _IS=()=>({width:"100%",padding:"11px 14px",borderRadius:10,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"});
 const _LS=()=>({fontSize:11,color:B.textDim,fontWeight:600,letterSpacing:0.4,textTransform:"uppercase",marginBottom:5,display:"block"});
-const _BP=()=>({padding:"12px 20px",borderRadius:10,border:"none",background:B.cyan,color:B.bg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",minHeight:44});
-const _BS=()=>({padding:"12px 20px",borderRadius:10,border:"1px solid "+B.border,background:"transparent",color:B.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s",minHeight:44});
+const _BP=()=>({padding:"12px 20px",borderRadius:10,border:"none",background:B.btnPrimary||B.cyan,color:B.btnPrimaryText||B.bg,fontSize:13,fontWeight:650,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",minHeight:44,boxShadow:"0 1px 0 rgba(0,0,0,.12)"});
+const _BS=()=>({padding:"12px 20px",borderRadius:10,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s",minHeight:44,boxShadow:"0 1px 0 rgba(26,26,26,.04)"});
 export const IS=new Proxy({},{get:(_,p)=>_IS()[p],ownKeys:()=>Object.keys(_IS()),getOwnPropertyDescriptor:(_,p)=>({value:_IS()[p],enumerable:true,configurable:true})});
 export const LS=new Proxy({},{get:(_,p)=>_LS()[p],ownKeys:()=>Object.keys(_LS()),getOwnPropertyDescriptor:(_,p)=>({value:_LS()[p],enumerable:true,configurable:true})});
 export const BP=new Proxy({},{get:(_,p)=>_BP()[p],ownKeys:()=>Object.keys(_BP()),getOwnPropertyDescriptor:(_,p)=>({value:_BP()[p],enumerable:true,configurable:true})});
