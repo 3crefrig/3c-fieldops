@@ -4,6 +4,8 @@ import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyStat
 
 function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser}){
   const[toast,setToast]=useState(""),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[custFilter,setCustFilter]=useState("");
+  // Preload the spreadsheet library so the first timesheet export doesn't pay its chunk download.
+  useEffect(()=>{import("exceljs").catch(()=>{});},[]);
   const[showEmail,setShowEmail]=useState(false),[emailTo,setEmailTo]=useState(""),[emailCC,setEmailCC]=useState(""),[sending,setSending]=useState(false);
   const[emailSubject,setEmailSubject]=useState("3C Refrigeration \u2014 Timesheet"),[emailBody,setEmailBody]=useState("<p>Hi,</p><p>Please find attached the timesheet.</p><p>If you have any questions, please reply to this email.</p>");
   const[contacts,setContacts]=useState([]),[suggestions,setSuggestions]=useState([]),[showSugTo,setShowSugTo]=useState(false),[showSugCC,setShowSugCC]=useState(false);

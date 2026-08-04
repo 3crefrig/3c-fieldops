@@ -200,6 +200,8 @@ function StandalonePOModal({onCreatePO,onClose}){
 function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userId,users,reloadTable}){
   const PAGE_SIZE=50;
   const[filter,setFilter]=useState("all"),[editing,setEditing]=useState(null),[toast,setToast]=useState(""),[search,setSearch]=useState(""),[confirmDelete,setConfirmDelete]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[showCreate,setShowCreate]=useState(false),[ticketFor,setTicketFor]=useState(null);
+  // Preload the PDF library so the first PO PDF doesn't pay its chunk download.
+  useEffect(()=>{import("jspdf").catch(()=>{});},[]);
   const[pdfPreview,setPdfPreview]=useState(null);
   // Tie technicians to a PO — same chip + "+ Add" control the WO crew uses.
   const setPOTechs=async(po,techs)=>{

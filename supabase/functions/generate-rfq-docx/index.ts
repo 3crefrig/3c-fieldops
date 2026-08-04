@@ -46,6 +46,9 @@ const FONT = "Times New Roman";
 
 const DEFAULT_LOGO_URL =
   "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
+// Per-instance logo cache (see the fetch site) — keyed by URL so RFQ_LOGO_URL swaps still take effect.
+let _logoCache: Uint8Array | null = null;
+let _logoCacheUrl = "";
 
 // Default signer (used unless a per-RFQ override is supplied).
 const SIGNER = {
@@ -169,13 +172,20 @@ serve(async (req) => {
       ? rfq.notes.filter((n: unknown) => typeof n === "string" && n.trim())
       : [];
 
-    // ── Logo (fail loudly if unreachable) ────────────────────
+
+    // ── Logo (fail loudly if unreachable; cached per instance — it was
+    //    re-downloaded on every single docx render) ─────────────
     let logoBytes: Uint8Array;
     try {
-      const logoResp = await fetch(LOGO_URL);
-      if (!logoResp.ok) throw new Error("HTTP " + logoResp.status);
-      logoBytes = new Uint8Array(await logoResp.arrayBuffer());
-      if (logoBytes.length === 0) throw new Error("empty logo");
+      if (_logoCache && _logoCacheUrl === LOGO_URL) {
+        logoBytes = _logoCache;
+      } else {
+        const logoResp = await fetch(LOGO_URL);
+        if (!logoResp.ok) throw new Error("HTTP " + logoResp.status);
+        logoBytes = new Uint8Array(await logoResp.arrayBuffer());
+        if (logoBytes.length === 0) throw new Error("empty logo");
+        _logoCache = logoBytes; _logoCacheUrl = LOGO_URL;
+      }
     } catch (e) {
       return new Response(
         JSON.stringify({
