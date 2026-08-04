@@ -89,8 +89,12 @@ if(req.method==="OPTIONS")return new Response("ok",{headers:C});
 try{
 const{to,cc,subject,body,attachment}=await req.json();
 if(!to||!subject)return new Response(JSON.stringify({error:"Missing to/subject"}),{status:400,headers:{...C,"Content-Type":"application/json"}});
+// Plain-text bodies (no HTML tags — e.g. workflow emails, hand-typed notes) were
+// rendering as one jumbled paragraph because newlines mean nothing in HTML.
+// Escape them and turn line breaks into <br/>; real HTML passes through untouched.
+const bodyHtml=(body&&!/<[a-z][^>]*>/i.test(body))?String(body).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br/>"):(body||"");
 const t=await gat();
-const raw=be(to,cc||"",subject,body||"",attachment||null);
+const raw=be(to,cc||"",subject,bodyHtml,attachment||null);
 const g=await fetch("https://gmail.googleapis.com/gmail/v1/users/"+IE+"/messages/send",{method:"POST",headers:{Authorization:"Bearer "+t,"Content-Type":"application/json"},body:JSON.stringify({raw})});
 const res=await g.json();
 if(res.error)return new Response(JSON.stringify({error:res.error.message}),{status:400,headers:{...C,"Content-Type":"application/json"}});
