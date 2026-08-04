@@ -5,10 +5,13 @@ import { Card, Badge, StatCard, Spinner } from "./ui";
 function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
 function CustomerPortal({customerSlug}){
+  // customerSlug is now a per-customer TOKEN (security fix 2026-08-04) — the old
+  // name-based links resolve to nothing server-side and land on the message below.
   const[data,setData]=useState(null),[loading,setLoading]=useState(true);
-  useEffect(()=>{const load=async()=>{const name=decodeURIComponent(customerSlug);const{data:pd}=await sb().rpc("portal_customer_data",{cust:name});setData({wos:pd?.wos||[],time:pd?.time||[],name});setLoading(false);};load();},[customerSlug]);
+  useEffect(()=>{const load=async()=>{const tok=decodeURIComponent(customerSlug).split("?")[0];const{data:pd}=await sb().rpc("portal_data_by_token",{tok});if(!pd){setData(null);setLoading(false);return;}setData({wos:pd?.wos||[],time:pd?.time||[],name:pd?.name||""});setLoading(false);};load();},[customerSlug]);
   if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
-  if(!data||data.wos.length===0)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text}}><Logo/><div style={{marginTop:20,fontSize:14,color:B.textDim}}>No work orders found for this customer.</div></div>;
+  if(!data)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>This portal link is no longer valid.</div><div style={{marginTop:8,fontSize:13,color:B.textDim,maxWidth:400}}>We recently updated our portal links for security. Please contact 3C Refrigeration at service@3crefrigeration.com or (336) 264-0935 for your new link.</div></div>;
+  if(data.wos.length===0)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text}}><Logo/><div style={{marginTop:20,fontSize:14,color:B.textDim}}>No work orders found for this customer.</div></div>;
   const active=data.wos.filter(o=>o.status!=="completed");const done=data.wos.filter(o=>o.status==="completed");
   const totalHrs=data.wos.reduce((s,wo)=>s+data.time.filter(t=>t.wo_id===wo.id).reduce((ss,t)=>ss+parseFloat(t.hours||0),0),0);
   return(<div style={{minHeight:"100vh",background:B.bg,fontFamily:F,color:B.text}}>
