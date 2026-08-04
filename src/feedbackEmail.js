@@ -1,9 +1,9 @@
 // Branded "how did we do?" review-request email. Returns {subject, body} for the
-// send-email edge function. Inline styles only (email-client safe) — same visual
-// system as onboardingEmail.js (navy header, cyan stripe, white card).
-const LOGO = "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
+// send-email edge function. Inline styles only (email-client safe).
+// Brand palette from the R1 banner logo: black frame, cyan #00B7E8, white.
+const LOGO = "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/rfq-docs/assets/logo.png";
 const CYAN = "#00B7E8";
-const NAVY = "#1B3A5C";
+const INK = "#111111";
 
 const GOLD = "#F5A623";
 
@@ -20,14 +20,14 @@ export function buildFeedbackEmail({ customerName, invoiceNum, feedbackUrl }) {
   <div style="background:#f5f6f8;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
     <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e6ea;">
       <tr>
-        <td style="background:${NAVY};padding:22px 28px;text-align:center;">
-          <img src="${LOGO}" alt="3C Refrigeration" style="height:34px;max-width:260px;display:inline-block;"/>
+        <td style="background:#ffffff;padding:26px 28px 18px;text-align:center;">
+          <img src="${LOGO}" alt="3C Refrigeration" width="340" style="width:340px;max-width:100%;height:auto;display:inline-block;"/>
         </td>
       </tr>
-      <tr><td style="height:4px;background:${CYAN};"></td></tr>
+      <tr><td style="height:3px;background:${CYAN};"></td></tr>
       <tr>
-        <td style="padding:30px 28px 6px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:${NAVY};">How did we do?</div>
+        <td style="padding:26px 28px 6px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:${INK};">How did we do?</div>
           <div style="font-size:14px;color:#444;line-height:1.6;margin-top:10px;text-align:left;">
             Thanks for having us out${customerName ? `, <strong>${customerName}</strong>` : ""}.
             If you have 30 seconds, let us know how the job went${invoiceNum ? ` (Invoice ${invoiceNum})` : ""}. It goes straight to our team.
