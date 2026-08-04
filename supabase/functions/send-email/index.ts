@@ -5,14 +5,20 @@ const C={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"autho
 const SE=Deno.env.get("GOOGLE_SERVICE_EMAIL")||"";
 const PK=(Deno.env.get("GOOGLE_PRIVATE_KEY")||"").replace(/\\n/g,"\n");
 const IE=Deno.env.get("GOOGLE_IMPERSONATE_EMAIL")||"service@3crefrigeration.com";
+// Google token cache: edge instances are reused between invocations, so paying
+// the key-import + OAuth roundtrip on every email adds ~300-600ms for nothing.
+// Tokens are valid 60 min; refresh after 50.
+let _gtok="";let _gtokExp=0;
 async function gat(){
+if(_gtok&&Date.now()<_gtokExp)return _gtok;
 const p=PK.replace("-----BEGIN PRIVATE KEY-----","").replace("-----END PRIVATE KEY-----","").replace(/\s/g,"");
 const k=await crypto.subtle.importKey("pkcs8",b64d(p),{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["sign"]);
 const j=await create({alg:"RS256",typ:"JWT"},{iss:SE,sub:IE,scope:"https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file",aud:"https://oauth2.googleapis.com/token",iat:getNumericDate(0),exp:getNumericDate(3600)},k);
 const r=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion="+j});
 const d=await r.json();
 if(d.error)throw new Error(d.error_description);
-return d.access_token;
+_gtok=d.access_token;_gtokExp=Date.now()+50*60*1000;
+return _gtok;
 }
 // Header values are interpolated into the raw RFC-822 message — strip CR/LF so a
 // crafted subject/recipient/filename can't inject extra headers (e.g. a hidden Bcc).
@@ -57,6 +63,11 @@ async function __guard(req: Request, allowUser=true): Promise<Response|null>{
   if(claims.role!=="authenticated")return deny(401,"invalid token");
   const email=String(claims.email||"").toLowerCase();
   if(!email)return deny(401,"invalid token");
+  // Short-lived pass cache: the users-table role lookup costs a REST roundtrip on
+  // EVERY email. The JWT signature was already gateway-verified; re-checking the
+  // role every 5 min (instead of every call) is plenty.
+  const hit=__okCache.get(token);
+  if(hit&&Date.now()<hit)return null;
   try{
     const base=Deno.env.get("SUPABASE_URL")||"";
     const q=await fetch(base+"/rest/v1/users?select=role&active=not.is.false&email=ilike."+encodeURIComponent(email),{headers:{apikey:svc,Authorization:"Bearer "+svc}});
@@ -65,9 +76,12 @@ async function __guard(req: Request, allowUser=true): Promise<Response|null>{
     // Sending mail as the company is a manager-level action (2026-07-27 hardening):
     // every legitimate caller is a manager/admin flow or an internal service call.
     if(!["manager","admin"].includes(String(rows[0].role||"")))return deny(403,"manager or admin required");
+    if(__okCache.size>200)__okCache.clear();
+    __okCache.set(token,Date.now()+5*60*1000);
     return null;
   }catch(_e){return deny(401,"auth check failed");}
 }
+const __okCache=new Map<string,number>();
 
 serve(async(req)=>{
   const __d=await __guard(req, true); if(__d) return __d;
