@@ -35,26 +35,26 @@ function FeedbackForm({token:rawToken}){
   const bg=B.bg,sf=B.surface;
   if(loading)return<div style={{minHeight:"100vh",background:bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
-  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>🙏</div><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>Thank you!</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>Your feedback helps us improve our service. We truly appreciate your time.</p><div style={{marginTop:24}}><Logo/></div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>Thank you.</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>We appreciate you taking the time.</p><div style={{marginTop:24}}><Logo/></div></div>;
 
   return(<div style={{minHeight:"100vh",background:bg,fontFamily:F,color:B.text}}>
     <div style={{background:sf,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Feedback</div></div>
     <div style={{maxWidth:500,margin:"0 auto",padding:24}}>
       <h2 style={{fontSize:18,fontWeight:700,marginBottom:4}}>How did we do?</h2>
-      <p style={{fontSize:13,color:B.textMuted,marginBottom:24}}>We'd love to hear about your experience with 3C Refrigeration.</p>
+      <p style={{fontSize:13,color:B.textMuted,marginBottom:24}}>Tell us how the job went.</p>
 
       {/* Step 1: Star Rating */}
       {step>=1&&<Card style={{padding:20,marginBottom:16,textAlign:"center"}}>
         <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Rate Our Service</div>
-        <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"center",gap:4,marginBottom:8}}>
           {[1,2,3,4,5].map(s=><button key={s} onClick={()=>{setStars(s);if(step===1)setTimeout(()=>setStep(2),300);}}
             onMouseEnter={()=>setHoverStar(s)} onMouseLeave={()=>setHoverStar(0)}
-            style={{background:"none",border:"none",fontSize:40,cursor:"pointer",transform:(hoverStar>=s||stars>=s)?"scale(1.15)":"scale(1)",transition:"transform .15s",filter:(hoverStar>=s||stars>=s)?"none":"grayscale(0.8) opacity(0.4)"}}>
-            {(hoverStar>=s||stars>=s)?"⭐":"☆"}
+            style={{background:"none",border:"none",fontSize:42,lineHeight:1,padding:"2px 4px",cursor:"pointer",color:(hoverStar>=s||stars>=s)?"#F5A623":B.border,transform:(hoverStar>=s||stars>=s)?"scale(1.08)":"scale(1)",transition:"transform .15s, color .15s"}}>
+            ★
           </button>)}
         </div>
         {stars>0&&<div style={{fontSize:12,fontWeight:600,color:stars>=4?B.green:stars>=3?B.orange:B.red}}>
-          {stars===5?"Excellent!":stars===4?"Great!":stars===3?"Good":stars===2?"Could be better":stars===1?"We're sorry to hear that":""}
+          {stars===5?"Excellent":stars===4?"Great":stars===3?"Good":stars===2?"Could be better":stars===1?"We're sorry to hear that":""}
         </div>}
       </Card>}
 
@@ -70,9 +70,9 @@ function FeedbackForm({token:rawToken}){
         </>}
         {(!request.isKeyAccount||npsScore!==null)&&<>
           {stars>=4?<>
-            <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>Would you share a testimonial?</div>
-            <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>Your words help other organizations choose the right service partner.</p>
-            <textarea value={testimonial} onChange={e=>setTestimonial(e.target.value)} placeholder="Tell us what stood out about our service..." rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
+            <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>Share a few words</div>
+            <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>If you're happy with the work, a short review helps a lot. With your OK below, we may feature it on our website.</p>
+            <textarea value={testimonial} onChange={e=>setTestimonial(e.target.value)} placeholder="How did the job go? What stood out?" rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
           </>:<>
             <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>What could we improve?</div>
             <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>This feedback goes directly to our management team.</p>
