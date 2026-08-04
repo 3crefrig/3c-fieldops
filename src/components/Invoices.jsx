@@ -528,6 +528,14 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   // the only way out was downloading the PDF into Gmail by hand).
   const[sendData,setSendData]=useState(null);
   const[stmtOpen,setStmtOpen]=useState(false);
+  const[schedOpen,setSchedOpen]=useState(false);
+  const[schedPending,setSchedPending]=useState(0);
+  // Light count-only query (no bodies/attachments — those columns are huge).
+  const loadSchedCount=async()=>{const{count}=await sb().from("scheduled_emails").select("id",{count:"exact",head:true}).eq("status","pending");setSchedPending(count||0);};
+  useEffect(()=>{loadSchedCount();
+    // Preload the PDF library so the first Preview/Send doesn't pay its download.
+    import("jspdf").catch(()=>{});
+  },[]);
   const openSend=async(inv)=>{try{
     msg("Preparing email…");
     const d=rebuildData(inv);
@@ -571,6 +579,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       <button onClick={()=>setView("tracker")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="tracker"?B.cyan:B.border),background:view==="tracker"?B.cyanGlow:"transparent",color:view==="tracker"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Invoice Tracker</button>
       <button onClick={()=>setView("create")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ Create Invoice</button>
       <button onClick={()=>setStmtOpen(true)} title="Per-customer statement of open invoices with aging" style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+B.border,background:"transparent",color:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Statements</button>
+      <button onClick={()=>setSchedOpen(true)} title="Emails queued for later — review, send now, or cancel" style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(schedPending>0?B.orange+"66":B.border),background:"transparent",color:schedPending>0?B.orange:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Scheduled{schedPending>0?" ("+schedPending+")":""}</button>
     </div>
     {view==="tracker"&&<div>
       {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📝</div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
@@ -622,6 +631,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
         {visibleCount<invoices.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {invoices.length})</button>}
       </div>
       {stmtOpen&&<StatementsModal invoices={invoices} customers={customers} msg={msg} onClose={()=>setStmtOpen(false)}/>}
+      {schedOpen&&<ScheduledEmailsModal invoices={invoices} msg={msg} onClose={()=>{setSchedOpen(false);loadSchedCount();}}/>}
       {sendData&&<SendInvoiceModal data={sendData} onClose={()=>setSendData(null)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser} onReconciled={()=>{if(reloadTable)reloadTable("invoices");}}/>}
     </div>}
     {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData}/>}
@@ -904,14 +914,22 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       const doc=await buildInvoicePDF(d);
       const pdfB64=doc.output("datauristring").split(",")[1];
       const pdfName="INV_"+invoiceNum+"_"+safeName+".pdf";
-      // Upload to Drive first to get preview link
-      let driveFileId=null,driveWebViewLink=null;
-      if(saveToDrive){const r=await uploadInvoiceToDrive(pdfB64,pdfName,"application/pdf");if(r){if(r.webViewLink)driveWebViewLink=r.webViewLink;if(r.fileId)driveFileId=r.fileId;else if(r.webViewLink){const m=r.webViewLink.match(/\/d\/([^/]+)/);if(m)driveFileId=m[1];}}}
       await saveInvoiceRecord(d);
-      if(driveWebViewLink)await backfillDriveUrl(driveWebViewLink);
-      setLastInvoiceData({...d,pdfB64,pdfName,driveFileId});
+      // Open the send window IMMEDIATELY — the Drive upload used to block here
+      // for several seconds. It now runs in the background and patches the
+      // preview link into the open modal when it lands (state-driven re-render).
+      setLastInvoiceData({...d,pdfB64,pdfName,driveFileId:null});
       setShowSendModal(true);
       msg("Invoice ready to send!");
+      if(saveToDrive){
+        uploadInvoiceToDrive(pdfB64,pdfName,"application/pdf").then(r=>{
+          if(!r)return;
+          const link=r.webViewLink||null;
+          const fid=r.fileId||(link&&(link.match(/\/d\/([^/]+)/)||[])[1])||null;
+          if(link)backfillDriveUrl(link);
+          setLastInvoiceData(prev=>prev?{...prev,driveFileId:fid}:prev);
+        }).catch(e=>console.warn("Background Drive upload failed:",e));
+      }
     }catch(e){msg("Error: "+e.message);console.error(e);}
     setGenerating(false);
   };
@@ -1275,7 +1293,11 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
 
   const variant=EMAIL_VARIANTS[variantIdx];
   const driveLink=d.driveFileId?"https://drive.google.com/file/d/"+d.driveFileId+"/preview":null;
-  const emailHTML=useCustom?customBody:buildInvoiceEmailHTML(d,variant,driveLink);
+  // Custom messages are typed as plain text — preserve line breaks (they were
+  // being collapsed into one paragraph when dropped into the HTML email). If the
+  // user pastes actual HTML (has tags), use it as-is.
+  const customAsHtml=/<[a-z][^>]*>/i.test(customBody)?customBody:String(customBody||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br/>");
+  const emailHTML=useCustom?customAsHtml:buildInvoiceEmailHTML(d,variant,driveLink);
 
   const saveContact=async(email)=>{if(!email)return;const existing=contacts.find(c=>c.email.toLowerCase()===email.toLowerCase());if(existing){await sb().from("email_contacts").update({last_used:new Date().toISOString()}).eq("id",existing.id);setContacts(prev=>prev.map(c=>c.id===existing.id?{...c,last_used:new Date().toISOString()}:c));}else{const{data}=await sb().from("email_contacts").insert({email:email.toLowerCase()}).select().single();if(data)setContacts(prev=>[data,...prev]);}};
 
@@ -1284,7 +1306,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
     try{
       // Build signature
       const u=currentUser||{};
-      const sigHTML='<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;font-family:Calibri,sans-serif;font-size:13px;color:#333;"><strong>'+(u.name||"Alex Clapp")+'</strong><br/>'+(u.title||"Manager")+'<br/>'+(u.phone||"(336) 264-0935")+'<br/><img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style="width:120px;height:auto;margin-top:6px;display:block;"/></div>';
+      const sigHTML='<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;font-family:Calibri,sans-serif;font-size:13px;color:#333;"><strong>'+(u.name||"Alex Clapp")+'</strong><br/>'+(u.title||"Manager")+'<br/>'+(u.phone||"(336) 264-0935")+'<br/><img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/rfq-docs/assets/logo.png" alt="3C Refrigeration" width="200" style="width:200px;height:auto;margin-top:8px;display:block;"/></div>';
       const fullBody='<div style="font-family:Calibri,sans-serif;">'+emailHTML+sigHTML+'</div>';
 
       // Save contacts
@@ -1412,6 +1434,71 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
   </Modal>);
 }
 
+
+// ── Scheduled emails (the queue behind "Schedule Send" — review, send now, cancel) ──
+// Gmail's own Scheduled folder can't be used: the Gmail API has no schedule-send,
+// so these live in our scheduled_emails table until the 5-minute dispatcher sends them.
+function ScheduledEmailsModal({invoices,msg,onClose}){
+  const[rows,setRows]=useState(null);
+  const[previewId,setPreviewId]=useState(null);
+  const[previewBody,setPreviewBody]=useState("");
+  const load=async()=>{
+    // Never select body/attachment_base64 in the list — they're megabytes of egress.
+    const{data}=await sb().from("scheduled_emails").select("id,to_emails,cc_emails,subject,send_at,sent_at,status,invoice_id,error_msg,attachment_name").order("send_at",{ascending:false}).limit(50);
+    setRows(data||[]);
+  };
+  useEffect(()=>{load();},[]);
+  const invNum=(id)=>{const inv=(invoices||[]).find(i=>i.id===id);return inv?inv.invoice_num:null;};
+  const preview=async(r)=>{
+    if(previewId===r.id){setPreviewId(null);setPreviewBody("");return;}
+    const{data}=await sb().from("scheduled_emails").select("body").eq("id",r.id).single();
+    setPreviewBody(data?.body||"<i>No body stored</i>");setPreviewId(r.id);
+  };
+  const sendNow=async(r)=>{
+    await sb().from("scheduled_emails").update({send_at:new Date().toISOString()}).eq("id",r.id);
+    msg("Queued — goes out on the next dispatch (within ~5 min)");await load();
+  };
+  const cancel=async(r)=>{
+    if(!window.confirm("Cancel this scheduled email? It will not be sent."))return;
+    await sb().from("scheduled_emails").delete().eq("id",r.id);
+    msg("Scheduled email cancelled");await load();
+  };
+  const stColor={pending:B.orange,sent:B.green,failed:B.red};
+  const pending=(rows||[]).filter(r=>r.status==="pending").sort((a,b)=>a.send_at<b.send_at?-1:1);
+  const others=(rows||[]).filter(r=>r.status!=="pending");
+  const Row=(r)=>(<Card key={r.id} style={{padding:"12px 14px",marginBottom:8,borderLeft:"3px solid "+(stColor[r.status]||B.border)}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+      <div style={{flex:1,minWidth:200}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <Badge color={stColor[r.status]||B.textDim}>{r.status}</Badge>
+          {invNum(r.invoice_id)&&<span style={{fontFamily:M,fontSize:11,color:B.cyan}}>INV-{invNum(r.invoice_id)}</span>}
+          {r.attachment_name&&<span style={{fontSize:10,color:B.textDim}}>📎 {r.attachment_name}</span>}
+        </div>
+        <div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:4}}>{r.subject}</div>
+        <div style={{fontSize:11,color:B.textDim,marginTop:2}}>To: {r.to_emails}{r.cc_emails?" · CC: "+r.cc_emails:""}</div>
+        <div style={{fontSize:11,color:r.status==="pending"?B.orange:B.textDim,marginTop:2}}>
+          {r.status==="pending"?"Sends "+new Date(r.send_at).toLocaleString():r.status==="sent"?"Sent "+new Date(r.sent_at||r.send_at).toLocaleString():"Failed: "+(r.error_msg||"unknown error")}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:6,flexShrink:0}}>
+        <button onClick={()=>preview(r)} style={{...BS,padding:"6px 12px",fontSize:11,minHeight:32}}>{previewId===r.id?"Hide":"Preview"}</button>
+        {r.status==="pending"&&<button onClick={()=>sendNow(r)} style={{...BS,padding:"6px 12px",fontSize:11,minHeight:32,color:B.cyan,borderColor:B.cyan+"55"}}>Send Now</button>}
+        {r.status==="pending"&&<button onClick={()=>cancel(r)} style={{...BS,padding:"6px 12px",fontSize:11,minHeight:32,color:B.red,borderColor:B.red+"40"}}>Cancel</button>}
+      </div>
+    </div>
+    {previewId===r.id&&<div style={{marginTop:10,background:"#fff",borderRadius:8,border:"1px solid "+B.border,overflow:"hidden"}}>
+      <iframe title="email preview" sandbox="" srcDoc={previewBody} style={{width:"100%",height:320,border:"none",display:"block",background:"#fff"}}/>
+    </div>}
+  </Card>);
+  return(<Modal title="Scheduled Emails" onClose={onClose} wide>
+    {rows===null&&<div style={{textAlign:"center",padding:30}}><Spinner/></div>}
+    {rows!==null&&rows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>📭</div><div style={{fontSize:13}}>Nothing scheduled. Invoices you Schedule Send will appear here for review.</div></Card>}
+    {pending.length>0&&<div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Waiting to send ({pending.length})</div>}
+    {pending.map(Row)}
+    {others.length>0&&<div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,margin:"14px 0 8px"}}>Recent</div>}
+    {others.map(Row)}
+  </Modal>);
+}
 
 // ── Statement of account (internal tool: WE generate and WE send — no customer accounts) ──
 async function buildStatementPDF(custName,invs,cust){
