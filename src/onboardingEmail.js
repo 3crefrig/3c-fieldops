@@ -1,8 +1,9 @@
 // Branded onboarding email for new technicians. Returns an HTML string suitable
 // for the send-email edge function. Inline styles only (email-client safe).
-const LOGO = "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
+// Brand palette from the R1 banner logo: black frame, cyan #00B7E8, white.
+const LOGO = "https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/rfq-docs/assets/logo.png";
 const CYAN = "#00B7E8";
-const NAVY = "#1B3A5C";
+const NAVY = "#111111"; // ink — kept the constant name to avoid touching every usage
 
 export function buildOnboardingEmail(user, appUrl) {
   const first = (user?.name || "").trim().split(/\s+/)[0] || "there";
@@ -28,12 +29,12 @@ export function buildOnboardingEmail(user, appUrl) {
   <div style="background:#f5f6f8;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
     <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e6ea;">
       <tr>
-        <td style="background:${NAVY};padding:22px 28px;text-align:center;">
-          <img src="${LOGO}" alt="3C Refrigeration" style="height:34px;max-width:260px;display:inline-block;"/>
+        <td style="background:#ffffff;padding:26px 28px 18px;text-align:center;">
+          <img src="${LOGO}" alt="3C Refrigeration" width="340" style="width:340px;max-width:100%;height:auto;display:inline-block;"/>
         </td>
       </tr>
       <tr>
-        <td style="height:4px;background:${CYAN};"></td>
+        <td style="height:3px;background:${CYAN};"></td>
       </tr>
       <tr>
         <td style="padding:28px 28px 8px;">
