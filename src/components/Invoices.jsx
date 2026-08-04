@@ -1264,6 +1264,14 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
   const[sending,setSending]=useState(false);
   const[contacts,setContacts]=useState([]);
   useEffect(()=>{sb().from("email_contacts").select("*").order("last_used",{ascending:false}).then(({data:c})=>{if(c)setContacts(c);});},[]);
+  // Review-ask checkbox: unchecked by default, pre-checks itself only for
+  // customers we've never asked before (their first feedback request).
+  const[askReview,setAskReview]=useState(false);
+  useEffect(()=>{if(!feedbackOnSend)return;(async()=>{
+    const cn=d.customerDisplayName||"";if(!cn)return;
+    const{data:prior}=await sb().from("feedback_requests").select("id").eq("customer_name",cn).limit(1);
+    if(!prior||prior.length===0)setAskReview(true);
+  })();},[]);
 
   const variant=EMAIL_VARIANTS[variantIdx];
   const driveLink=d.driveFileId?"https://drive.google.com/file/d/"+d.driveFileId+"/preview":null;
@@ -1293,6 +1301,20 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
           drive_file_id:d.driveFileId||null,send_at:sendAt.toISOString(),status:"pending",
           invoice_id:invRow?.id||null
         });
+        // Review ask (checkbox): queue the review email 2h after the invoice lands,
+        // through the same scheduled_emails dispatcher. Token row is created now;
+        // if it fails, nothing is queued (no dead links).
+        if(feedbackOnSend&&askReview){
+          try{
+            const custName=invRow?.customer||d.customerDisplayName||"";
+            const toFb=emailTo.split(",")[0].trim();
+            const fbToken=crypto.randomUUID();
+            const{error:reqErr}=await sb().from("feedback_requests").insert({invoice_id:invRow?.id||null,invoice_num:d.invoiceNum,customer_name:custName,sent_to:toFb,token:fbToken});
+            if(reqErr)throw new Error(reqErr.message);
+            const{subject:fbSubject,body:fbBody}=buildFeedbackEmail({customerName:custName,invoiceNum:d.invoiceNum,feedbackUrl:window.location.origin+"/#/feedback/"+fbToken});
+            await sb().from("scheduled_emails").insert({to_emails:toFb,subject:fbSubject,body:fbBody,send_at:new Date(sendAt.getTime()+2*3600*1000).toISOString(),status:"pending"});
+          }catch(fe){console.error("Review-ask scheduling error:",fe);msg("Invoice scheduled, but the review email could not be queued");}
+        }
         msg("Invoice scheduled for "+sendAt.toLocaleString()+"!");
       }else{
         const payload={to:emailTo.trim(),cc:emailCC.trim()||undefined,subject,body:fullBody};
@@ -1301,15 +1323,16 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
         const result=await resp.json();
         if(result.success){
           msg("Invoice sent!");
+          // Review ask (checkbox): explicit user choice, so force past the
+          // first-customer gate.
+          if(feedbackOnSend&&askReview){
+            try{await sendFeedbackRequest({...(invRow||{}),invoice_num:d.invoiceNum,customer:invRow?.customer||d.customerDisplayName||""},null,{force:true,toOverride:emailTo.split(",")[0].trim()});}
+            catch(fe){console.error("Feedback request error:",fe);}
+          }
           // Reconcile: sending IS marking sent. (Previously the invoice stayed
           // "draft" until someone remembered Mark Sent on the tracker.)
           if(invRow&&invRow.status==="draft"){
             await sb().from("invoices").update({status:"sent",date_sent:todayLocal()}).eq("id",invRow.id);
-            if(feedbackOnSend){
-              // Auto review-ask: first-time customers only
-              try{await sendFeedbackRequest({...invRow,invoice_num:d.invoiceNum,customer:invRow.customer||d.customerDisplayName||""},null,{toOverride:emailTo.split(",")[0].trim()});}
-              catch(fe){console.error("Feedback request error:",fe);}
-            }
             if(onReconciled)onReconciled();
           }
         }else msg("Error: "+(result.error||"Failed"));
@@ -1372,6 +1395,14 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
           <div style={{gridColumn:"1/-1",fontSize:10,color:B.textDim}}>Default: random time between 5:30-7:00 AM tomorrow. Adjust as needed.</div>
         </div>}
       </div>
+
+      {feedbackOnSend&&<div style={{background:B.bg,borderRadius:8,padding:14,border:"1px solid "+B.border}}>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setAskReview(!askReview)}>
+          <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(askReview?B.cyan:B.border),background:askReview?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{askReview&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
+          <span style={{fontSize:12,color:B.text,fontWeight:600}}>Ask for a review{scheduleEnabled?" (sends 2h after the invoice)":""}</span>
+        </label>
+        <div style={{fontSize:10,color:B.textDim,marginTop:6,marginLeft:28}}>Emails the customer a 30-second review link. Pre-checks itself the first time we invoice a customer.</div>
+      </div>}
 
       <div style={{display:"flex",gap:8}}>
         <button onClick={onClose} style={{...BS,flex:1}}>Cancel</button>
