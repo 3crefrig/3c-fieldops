@@ -215,6 +215,10 @@ body{font-variant-numeric:tabular-nums}
 input[type="date"],input[type="time"]{cursor:pointer;position:relative}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;opacity:0;cursor:pointer}
 select{cursor:pointer}
+/* iOS Safari/WebKit paints appearance:auto selects as white native controls,
+   ignoring dark-theme backgrounds. Strip native chrome and draw the standard
+   chevron on any select that doesn't already ship its own inline. */
+select:not([style*="background-image"]){-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:26px!important}
 `}</style>;
 
 // Authenticated edge-function call: sends the signed-in user's access token
