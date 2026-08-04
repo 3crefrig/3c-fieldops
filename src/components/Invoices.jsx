@@ -2,6 +2,29 @@ import React, { useState, useEffect, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, nextInvoiceNumDB, openWO, getAppSetting} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
+import { buildFeedbackEmail } from "../feedbackEmail";
+
+// Send the "how did we do?" review email for an invoice. Auto mode (force=false)
+// only fires for a customer's FIRST feedback request — repeat customers aren't
+// nagged after every job. force=true is the manual "Ask for review" path.
+// Returns "sent" | "skipped" | "no-email".
+export async function sendFeedbackRequest(inv,customers,{force=false,toOverride=null}={}){
+  if(getAppSetting("feedback_enabled",true)===false)return "skipped";
+  const custName=inv.customer||"";
+  const cust=(customers||[]).find(c=>c.name===custName);
+  const toEmail=toOverride||cust?.feedback_email||cust?.email;
+  if(!toEmail)return "no-email";
+  if(!force&&custName){
+    const{data:prior}=await sb().from("feedback_requests").select("id").eq("customer_name",custName).limit(1);
+    if(prior&&prior.length)return "skipped";
+  }
+  const token=crypto.randomUUID();
+  await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:custName,sent_to:toEmail,token});
+  const feedbackUrl=window.location.origin+"/#/feedback/"+token;
+  const{subject,body}=buildFeedbackEmail({customerName:custName,invoiceNum:inv.invoice_num,feedbackUrl});
+  await fnFetch("send-email",{to:toEmail,subject,body});
+  return "sent";
+}
 
 async function buildInvoiceExcel(d){
   const ExcelJS=await import("exceljs");
@@ -489,14 +512,13 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
   const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as sent");
-    // Auto-send feedback request (respects the Settings toggle)
-    if(getAppSetting("feedback_enabled",true)!==false)try{const cust=customers.find(c=>c.name===inv.customer);const toEmail=cust?.feedback_email||cust?.email;
-    if(toEmail){const token=crypto.randomUUID();
-      await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:inv.customer,sent_to:toEmail,token});
-      const feedbackUrl=window.location.origin+"/#/feedback/"+token;
-      const body="<div style='font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px'><p>Hi,</p><p>Thank you for choosing 3C Refrigeration. We recently completed work on your behalf (Invoice "+inv.invoice_num+") and would love to hear how we did.</p><p style='text-align:center;margin:24px 0'><a href='"+feedbackUrl+"' style='display:inline-block;padding:14px 28px;background:#00D4F5;color:#101214;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px'>Share Your Feedback</a></p><p style='color:#666;font-size:13px'>It only takes 30 seconds and helps us improve our service.</p><p>Best regards,<br/>3C Refrigeration Team</p></div>";
-      await fnFetch("send-email",{to:toEmail,subject:"How was our service? — 3C Refrigeration",body});
-    }}catch(e){console.error("Feedback request error:",e);}
+    // Auto review-ask: first-time customers only (manual "☆ Review" covers the rest)
+    try{await sendFeedbackRequest(inv,customers);}catch(e){console.error("Feedback request error:",e);}
+  };
+  const askReview=async(inv)=>{if(!window.confirm("Email a review request to "+(inv.customer||"this customer")+" now?"))return;
+    try{const r=await sendFeedbackRequest(inv,customers,{force:true});
+      msg(r==="sent"?"Review request sent":r==="no-email"?"No customer email on file":"Feedback requests are disabled in Settings");
+    }catch(e){console.error(e);msg("⚠️ Failed to send review request");}
   };
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as paid");};
   // Email any invoice straight from the tracker (drafts had NO send path before —
@@ -577,7 +599,8 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">PDF</button>
                 {inv.status==="draft"&&<button onClick={()=>setEditingInv(inv)} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Edit</button>}
                 {inv.status==="sent"&&<button onClick={(e)=>{e.stopPropagation();remind(inv);}} title={inv.last_reminder_at?("Last reminded "+daysOut(inv.last_reminder_at)+"d ago"):"Email a payment reminder"} style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36,color:B.orange,borderColor:B.orange+"55"}}>Remind</button>}
-                {inv.status!=="paid"&&<button data-tip="Email this invoice — it marks itself Sent and the customer feedback request goes out automatically." onClick={(e)=>{e.stopPropagation();openSend(inv);}} title="Email this invoice (marks it sent automatically)" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Send</button>}
+                {inv.status!=="draft"&&<button onClick={(e)=>{e.stopPropagation();askReview(inv);}} title="Email a review request to this customer" style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36,color:B.cyan,borderColor:B.cyan+"55"}}>☆ Review</button>}
+                {inv.status!=="paid"&&<button data-tip="Email this invoice — it marks itself Sent. First-time customers also get a review request automatically." onClick={(e)=>{e.stopPropagation();openSend(inv);}} title="Email this invoice (marks it sent automatically)" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Send</button>}
                 {inv.status==="draft"&&<button onClick={()=>markSent(inv)} title="Mark sent without emailing (sent outside the app)" style={{...BS,padding:"8px 14px",fontSize:11,minHeight:36}}>Mark Sent</button>}
                 {(inv.status==="sent"||st==="overdue")&&<button onClick={()=>markPaid(inv)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Mark Paid</button>}
                 <button onClick={()=>del(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
@@ -1279,13 +1302,10 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
           // "draft" until someone remembered Mark Sent on the tracker.)
           if(invRow&&invRow.status==="draft"){
             await sb().from("invoices").update({status:"sent",date_sent:todayLocal()}).eq("id",invRow.id);
-            if(feedbackOnSend&&getAppSetting("feedback_enabled",true)!==false){
-              try{const token=crypto.randomUUID();
-                await sb().from("feedback_requests").insert({invoice_id:invRow.id,invoice_num:d.invoiceNum,customer_name:invRow.customer||d.customerDisplayName||"",sent_to:emailTo.split(",")[0].trim(),token});
-                const feedbackUrl=window.location.origin+"/#/feedback/"+token;
-                const fbBody="<div style='font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px'><p>Hi,</p><p>Thank you for choosing 3C Refrigeration. We recently completed work for you — we'd love to hear how we did.</p><p><a href='"+feedbackUrl+"' style='display:inline-block;background:#0891B2;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:bold'>Leave Feedback</a></p><p>— 3C Refrigeration</p></div>";
-                await fnFetch("send-email",{to:emailTo.split(",")[0].trim(),subject:"How was our service? — 3C Refrigeration",body:fbBody});
-              }catch(fe){console.error("Feedback request error:",fe);}
+            if(feedbackOnSend){
+              // Auto review-ask: first-time customers only
+              try{await sendFeedbackRequest({...invRow,invoice_num:d.invoiceNum,customer:invRow.customer||d.customerDisplayName||""},null,{toOverride:emailTo.split(",")[0].trim()});}
+              catch(fe){console.error("Feedback request error:",fe);}
             }
             if(onReconciled)onReconciled();
           }

@@ -17,11 +17,14 @@ return d.access_token;
 // Header values are interpolated into the raw RFC-822 message — strip CR/LF so a
 // crafted subject/recipient/filename can't inject extra headers (e.g. a hidden Bcc).
 const hs=(s:string)=>String(s||"").replace(/[\r\n]+/g," ").trim();
+// RFC 2047-encode non-ASCII header text — subjects with em-dashes etc. were going
+// out as raw UTF-8 bytes and rendering as mojibake ("Ã¢Â€Â") in mail clients.
+const eh=(s:string)=>{const v=hs(s);return /^[\x20-\x7E]*$/.test(v)?v:"=?UTF-8?B?"+btoa(unescape(encodeURIComponent(v)))+"?=";};
 function be(to,cc,subj,body,att){
 const bn="b_"+Date.now();
 let e="From: "+IE+"\r\nTo: "+hs(to)+"\r\n";
 if(cc)e+="Cc: "+hs(cc)+"\r\n";
-e+="Subject: "+hs(subj)+"\r\nMIME-Version: 1.0\r\n";
+e+="Subject: "+eh(subj)+"\r\nMIME-Version: 1.0\r\n";
 if(att){
 const an=hs(att.name).replace(/"/g,"'");
 e+='Content-Type: multipart/mixed; boundary="'+bn+'"\r\n\r\n';
