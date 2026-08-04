@@ -19,7 +19,10 @@ export async function sendFeedbackRequest(inv,customers,{force=false,toOverride=
     if(prior&&prior.length)return "skipped";
   }
   const token=crypto.randomUUID();
-  await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:custName,sent_to:toEmail,token});
+  // If the token row doesn't save, the emailed link is dead — fail loudly instead
+  // of sending it (this exact failure silently killed every feedback link before).
+  const{error:reqErr}=await sb().from("feedback_requests").insert({invoice_id:inv.id,invoice_num:inv.invoice_num,customer_name:custName,sent_to:toEmail,token});
+  if(reqErr)throw new Error("Could not create feedback link: "+reqErr.message);
   const feedbackUrl=window.location.origin+"/#/feedback/"+token;
   const{subject,body}=buildFeedbackEmail({customerName:custName,invoiceNum:inv.invoice_num,feedbackUrl});
   await fnFetch("send-email",{to:toEmail,subject,body});
