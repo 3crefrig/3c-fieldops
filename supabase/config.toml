@@ -1,0 +1,46 @@
+# Pins verify_jwt per function so CLI deploys can't silently change gateway auth
+# (security sweep item #11, closed 2026-08-04). The gateway signature check is the
+# real defense for guards that decode-but-don't-verify JWT claims (send-email
+# pattern). Only submit-feedback is public — it validates its own one-time token.
+project_id = "gwwijjkahwieschfdfbq"
+
+[functions.ai-troubleshoot]
+verify_jwt = true
+[functions.customer-health]
+verify_jwt = true
+[functions.daily-sweeps]
+verify_jwt = true
+[functions.drive-upload]
+verify_jwt = true
+[functions.email-to-proposal]
+verify_jwt = true
+[functions.generate-proposal]
+verify_jwt = true
+[functions.generate-rfq-docx]
+verify_jwt = true
+[functions.job-intelligence]
+verify_jwt = true
+[functions.nightly-backup]
+verify_jwt = true
+[functions.predict-parts]
+verify_jwt = true
+[functions.process-inbox]
+verify_jwt = true
+[functions.process-workflows]
+verify_jwt = true
+[functions.scan-document]
+verify_jwt = true
+[functions.scan-receipt]
+verify_jwt = true
+[functions.send-email]
+verify_jwt = true
+[functions.send-push]
+verify_jwt = true
+[functions.send-rfq]
+verify_jwt = true
+[functions.send-scheduled-emails]
+verify_jwt = true
+[functions.submit-feedback]
+verify_jwt = false
+[functions.summarize-work]
+verify_jwt = true
