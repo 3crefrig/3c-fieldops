@@ -2,24 +2,15 @@ import React, { useState, useEffect, useCallback } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours, fmtHours, visibleNotifs , todayLocal, localDateStr} from "../shared";
 import { Card, Badge, StatCard, Modal, EmptyState, Toast, Icon } from "./ui";
 import { KPIDashboard, DashAnalytics } from "./KPIDashboard";
-import { CustomerMgmt } from "./Customers";
-import { UserMgmt } from "./Users";
-import { CompanyCalendar } from "./Calendar";
-import { RecurringPM } from "./RecurringPM";
-import { ServiceRequests } from "./ServiceRequests";
-import { Projects } from "./Projects";
 import { WOList, WOOverview } from "./WorkOrders";
 import { Shell } from "./Shell";
 import { TimeLog } from "./TimeTracking";
-import { BillingExport } from "./Billing";
-import { InvoiceDashboard } from "./Invoices";
-import { POMgmt } from "./PurchaseOrders";
 import { GlobalActivityFeed } from "./ActivityLog";
-import { EquipmentDashboard } from "./Equipment";
-import { DayPlanner } from "./DayPlanner";
 // Heavier, less-frequently-opened tabs are code-split so the first load (especially
 // a tech's phone on LTE) doesn't pay for manager/admin screens. React.lazy needs a
 // default export, so each named export is wrapped. Suspense fallback lives in Shell.
+// KEPT STATIC (tech's instant landing/core flow — no spinner): KPIDashboard,
+// WOList/WOOverview, TimeLog, GlobalActivityFeed.
 const lazyNamed=(loader,name)=>React.lazy(()=>loader().then(m=>({default:m[name]})));
 const Reports=lazyNamed(()=>import("./Reports"),"Reports");
 const Settings=lazyNamed(()=>import("./Settings"),"Settings");
@@ -31,6 +22,18 @@ const RFQDashboard=lazyNamed(()=>import("./RFQs"),"RFQDashboard");
 const AuditDashboard=lazyNamed(()=>import("./VendorAudit"),"AuditDashboard");
 const HelpGuide=lazyNamed(()=>import("./Guide"),"HelpGuide");
 const AgreementDashboard=lazyNamed(()=>import("./ServiceAgreements"),"AgreementDashboard");
+// Newly split (2026-08-04): heavy tab-only screens, none on the default landing.
+const InvoiceDashboard=lazyNamed(()=>import("./Invoices"),"InvoiceDashboard");
+const POMgmt=lazyNamed(()=>import("./PurchaseOrders"),"POMgmt");
+const Projects=lazyNamed(()=>import("./Projects"),"Projects");
+const EquipmentDashboard=lazyNamed(()=>import("./Equipment"),"EquipmentDashboard");
+const CompanyCalendar=lazyNamed(()=>import("./Calendar"),"CompanyCalendar");
+const CustomerMgmt=lazyNamed(()=>import("./Customers"),"CustomerMgmt");
+const UserMgmt=lazyNamed(()=>import("./Users"),"UserMgmt");
+const ServiceRequests=lazyNamed(()=>import("./ServiceRequests"),"ServiceRequests");
+const DayPlanner=lazyNamed(()=>import("./DayPlanner"),"DayPlanner");
+const BillingExport=lazyNamed(()=>import("./Billing"),"BillingExport");
+const RecurringPM=lazyNamed(()=>import("./RecurringPM"),"RecurringPM");
 
 function RepeatFailures({wos,pos,equipment}){
   const cutoff=localDateStr(new Date(Date.now()-90*86400000));
