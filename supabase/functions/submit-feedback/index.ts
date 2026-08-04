@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { token, star_rating, nps_score, nps_feedback, testimonial_text, private_feedback, respondent_name, respondent_email } = await req.json();
+    const { token, star_rating, nps_score, nps_feedback, testimonial_text, private_feedback, respondent_name, respondent_email, respondent_company, respondent_position, consent_website } = await req.json();
 
     if (!token) {
       return new Response(JSON.stringify({ error: "Token required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -56,6 +56,9 @@ serve(async (req) => {
       customer_name: request.customer_name,
       respondent_name: respondent_name || null,
       respondent_email: respondent_email || null,
+      respondent_company: respondent_company || null,
+      respondent_position: respondent_position || null,
+      consent_website: consent_website === true,
       star_rating,
       nps_score: nps_score || null,
       nps_feedback: nps_feedback || null,

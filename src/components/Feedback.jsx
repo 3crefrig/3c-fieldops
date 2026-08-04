@@ -4,12 +4,18 @@ import { Card, Badge, StatCard, Modal, Toast, Spinner } from "./ui";
 
 function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
-function FeedbackForm({token}){
+function FeedbackForm({token:rawToken}){
+  // Email star links append ?s=N to the hash route — split it off the token and
+  // use it to preselect the rating so the form opens one tap from done.
+  const token=(rawToken||"").split("?")[0];
+  const preStars=(()=>{const m=(rawToken||"").match(/[?&]s=([1-5])/);return m?parseInt(m[1],10):0;})();
   const[loading,setLoading]=useState(true);const[request,setRequest]=useState(null);const[error,setError]=useState(null);
-  const[step,setStep]=useState(1);const[stars,setStars]=useState(0);const[hoverStar,setHoverStar]=useState(0);
+  const[step,setStep]=useState(preStars?2:1);const[stars,setStars]=useState(preStars);const[hoverStar,setHoverStar]=useState(0);
   const[npsScore,setNpsScore]=useState(null);const[npsFeedback,setNpsFeedback]=useState("");
   const[testimonial,setTestimonial]=useState("");const[privateFb,setPrivateFb]=useState("");
   const[name,setName]=useState("");const[email,setEmail]=useState("");
+  const[company,setCompany]=useState("");const[position,setPosition]=useState("");const[consent,setConsent]=useState(false);
+  const[localErr,setLocalErr]=useState("");
   const[submitting,setSubmitting]=useState(false);const[done,setDone]=useState(false);
 
   useEffect(()=>{(async()=>{const{data,error:e}=await sb().rpc("feedback_request_by_token",{tok:token});
@@ -18,9 +24,11 @@ function FeedbackForm({token}){
     setRequest({...data,isKeyAccount:data.is_key_account||false});setLoading(false);
   })();},[token]);
 
-  const submit=async()=>{if(!stars||submitting)return;setSubmitting(true);
+  const submit=async()=>{if(!stars||submitting)return;
+    if(consent&&!name.trim()){setLocalErr("Please add your name so we can credit your review.");return;}
+    setLocalErr("");setSubmitting(true);
     try{const resp=await fetch(SUPABASE_URL+"/functions/v1/submit-feedback",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token,star_rating:stars,nps_score:npsScore,nps_feedback:npsFeedback||null,testimonial_text:testimonial||null,private_feedback:privateFb||null,respondent_name:name||null,respondent_email:email||null})});
+      body:JSON.stringify({token,star_rating:stars,nps_score:npsScore,nps_feedback:npsFeedback||null,testimonial_text:testimonial||null,private_feedback:privateFb||null,respondent_name:name||null,respondent_email:email||null,respondent_company:company||null,respondent_position:position||null,consent_website:consent})});
       const result=await resp.json();if(result.success)setDone(true);else setError(result.error||"Failed to submit");
     }catch(e){setError("Network error. Please try again.");}setSubmitting(false);};
 
@@ -74,13 +82,20 @@ function FeedbackForm({token}){
         </>}
       </Card>}
 
-      {/* Step 3: Contact info + Submit */}
+      {/* Step 3: Contact info + consent + Submit */}
       {step>=3&&<Card style={{padding:20,marginBottom:16,animation:"slideUp .25s ease-out"}}>
-        <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Your Information (Optional)</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-          <div><label style={LS}>Name</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={IS}/></div>
+        <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Your Information {consent?"":"(Optional)"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div><label style={LS}>Name{consent&&<span style={{color:B.red}}> *</span>}</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={IS}/></div>
+          <div><label style={LS}>Company</label><input value={company} onChange={e=>setCompany(e.target.value)} placeholder="Company" style={IS}/></div>
+          <div><label style={LS}>Position</label><input value={position} onChange={e=>setPosition(e.target.value)} placeholder="e.g. Facilities Manager" style={IS}/></div>
           <div><label style={LS}>Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={IS}/></div>
         </div>
+        {stars>=4&&testimonial.trim()!==""&&<label style={{display:"flex",gap:10,alignItems:"flex-start",padding:"12px 14px",background:B.cyanGlow,border:"1px solid "+B.cyan+"33",borderRadius:8,marginBottom:14,cursor:"pointer"}}>
+          <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2,width:16,height:16,accentColor:B.cyan,cursor:"pointer"}}/>
+          <span style={{fontSize:12,color:B.text,lineHeight:1.5}}>3C Refrigeration may share my review (with my name, company, and position) on their website and marketing materials.</span>
+        </label>}
+        {localErr&&<div style={{fontSize:12,color:B.red,marginBottom:10,fontWeight:600}}>{localErr}</div>}
         <button onClick={submit} disabled={submitting} style={{...BP,width:"100%",padding:16,fontSize:15,opacity:submitting?.6:1}}>
           {submitting?"Submitting...":"Submit Feedback"}
         </button>
@@ -154,15 +169,18 @@ function FeedbackDashboard({D}){
             {fb.nps_score!==null&&<Badge color={fb.nps_score>=9?B.green:fb.nps_score>=7?B.cyan:B.red}>NPS: {fb.nps_score}</Badge>}
           </div>
           <div style={{fontSize:13,fontWeight:600,color:B.text}}>{fb.customer_name}</div>
-          {fb.respondent_name&&<div style={{fontSize:11,color:B.textDim}}>{fb.respondent_name}{fb.respondent_email&&" · "+fb.respondent_email}</div>}
+          {fb.respondent_name&&<div style={{fontSize:11,color:B.textDim}}>{fb.respondent_name}{fb.respondent_position&&", "+fb.respondent_position}{fb.respondent_company&&" — "+fb.respondent_company}{fb.respondent_email&&" · "+fb.respondent_email}</div>}
           <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{new Date(fb.submitted_at).toLocaleDateString()}{fb.invoice_num&&" · INV-"+fb.invoice_num}</div>
         </div>
       </div>
       {fb.testimonial_text&&<div style={{marginTop:8,padding:"10px 12px",background:B.bg,borderRadius:6,borderLeft:"2px solid "+B.cyan}}>
         <div style={{fontSize:12,color:B.text,fontStyle:"italic",lineHeight:1.5}}>"{fb.testimonial_text}"</div>
-        <div style={{display:"flex",gap:6,marginTop:8}}>
+        <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={()=>toggleApprove(fb)} style={{...BS,padding:"4px 10px",fontSize:10,color:fb.testimonial_approved?B.green:B.textMuted,borderColor:fb.testimonial_approved?B.green+"40":B.border}}>{fb.testimonial_approved?"✓ Approved":"Approve"}</button>
-          {fb.testimonial_approved&&<button onClick={()=>togglePublic(fb)} style={{...BS,padding:"4px 10px",fontSize:10,color:fb.testimonial_public?B.cyan:B.textMuted,borderColor:fb.testimonial_public?B.cyan+"40":B.border}}>{fb.testimonial_public?"On Website":"Add to Website"}</button>}
+          {fb.testimonial_approved&&(fb.consent_website?
+            <button onClick={()=>togglePublic(fb)} style={{...BS,padding:"4px 10px",fontSize:10,color:fb.testimonial_public?B.cyan:B.textMuted,borderColor:fb.testimonial_public?B.cyan+"40":B.border}}>{fb.testimonial_public?"On Website":"Add to Website"}</button>:
+            <span style={{fontSize:10,color:B.textDim}}>No website consent</span>)}
+          {fb.consent_website&&<Badge color={B.green}>Consent ✓</Badge>}
         </div>
       </div>}
       {fb.private_feedback&&<div style={{marginTop:8,padding:"10px 12px",background:B.red+"08",borderRadius:6,borderLeft:"2px solid "+B.red}}>
