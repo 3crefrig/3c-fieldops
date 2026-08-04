@@ -11,7 +11,6 @@ function FeedbackForm({token:rawToken}){
   const preStars=(()=>{const m=(rawToken||"").match(/[?&]s=([1-5])/);return m?parseInt(m[1],10):0;})();
   const[loading,setLoading]=useState(true);const[request,setRequest]=useState(null);const[error,setError]=useState(null);
   const[step,setStep]=useState(preStars?2:1);const[stars,setStars]=useState(preStars);const[hoverStar,setHoverStar]=useState(0);
-  const[npsScore,setNpsScore]=useState(null);const[npsFeedback,setNpsFeedback]=useState("");
   const[testimonial,setTestimonial]=useState("");const[privateFb,setPrivateFb]=useState("");
   const[name,setName]=useState("");const[email,setEmail]=useState("");
   const[company,setCompany]=useState("");const[position,setPosition]=useState("");const[consent,setConsent]=useState(false);
@@ -21,14 +20,14 @@ function FeedbackForm({token:rawToken}){
   useEffect(()=>{(async()=>{const{data,error:e}=await sb().rpc("feedback_request_by_token",{tok:token});
     if(e||!data){setError("This feedback link is invalid or has expired.");setLoading(false);return;}
     if(data.completed){setError("Feedback has already been submitted. Thank you!");setLoading(false);return;}
-    setRequest({...data,isKeyAccount:data.is_key_account||false});setLoading(false);
+    setRequest(data);setLoading(false);
   })();},[token]);
 
   const submit=async()=>{if(!stars||submitting)return;
     if(consent&&!name.trim()){setLocalErr("Please add your name so we can credit your review.");return;}
     setLocalErr("");setSubmitting(true);
     try{const resp=await fetch(SUPABASE_URL+"/functions/v1/submit-feedback",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token,star_rating:stars,nps_score:npsScore,nps_feedback:npsFeedback||null,testimonial_text:testimonial||null,private_feedback:privateFb||null,respondent_name:name||null,respondent_email:email||null,respondent_company:company||null,respondent_position:position||null,consent_website:consent})});
+      body:JSON.stringify({token,star_rating:stars,testimonial_text:testimonial||null,private_feedback:privateFb||null,respondent_name:name||null,respondent_email:email||null,respondent_company:company||null,respondent_position:position||null,consent_website:consent})});
       const result=await resp.json();if(result.success)setDone(true);else setError(result.error||"Failed to submit");
     }catch(e){setError("Network error. Please try again.");}setSubmitting(false);};
 
@@ -58,28 +57,18 @@ function FeedbackForm({token:rawToken}){
         </div>}
       </Card>}
 
-      {/* Step 2: NPS (key accounts) or feedback */}
+      {/* Step 2: testimonial (4-5 stars) or private feedback (1-3) */}
       {step>=2&&stars>0&&<Card style={{padding:20,marginBottom:16,animation:"slideUp .25s ease-out"}}>
-        {request.isKeyAccount&&<>
-          <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>How likely are you to recommend us? (0-10)</div>
-          <div style={{display:"flex",justifyContent:"center",gap:4,marginBottom:12,flexWrap:"wrap"}}>
-            {Array.from({length:11},(_, i)=>i).map(n=><button key={n} onClick={()=>{setNpsScore(n);if(step===2)setTimeout(()=>setStep(3),300);}}
-              style={{width:36,height:36,borderRadius:8,border:"1px solid "+(npsScore===n?B.cyan:B.border),background:npsScore===n?B.cyanGlow:"transparent",color:npsScore===n?B.cyan:B.textMuted,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:M}}>{n}</button>)}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:B.textDim,marginBottom:8}}><span>Not likely</span><span>Extremely likely</span></div>
+        {stars>=4?<>
+          <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Share a few words</div>
+          <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>If you're happy with the work, a short review helps a lot. With your OK below, we may feature it on our website.</p>
+          <textarea value={testimonial} onChange={e=>setTestimonial(e.target.value)} placeholder="How did the job go? What stood out?" rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
+        </>:<>
+          <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>What could we improve?</div>
+          <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>This feedback goes directly to our management team.</p>
+          <textarea value={privateFb} onChange={e=>setPrivateFb(e.target.value)} placeholder="Tell us what we could do better..." rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
         </>}
-        {(!request.isKeyAccount||npsScore!==null)&&<>
-          {stars>=4?<>
-            <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>Share a few words</div>
-            <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>If you're happy with the work, a short review helps a lot. With your OK below, we may feature it on our website.</p>
-            <textarea value={testimonial} onChange={e=>setTestimonial(e.target.value)} placeholder="How did the job go? What stood out?" rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
-          </>:<>
-            <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:request.isKeyAccount?12:0}}>What could we improve?</div>
-            <p style={{fontSize:12,color:B.textMuted,marginBottom:8}}>This feedback goes directly to our management team.</p>
-            <textarea value={privateFb} onChange={e=>setPrivateFb(e.target.value)} placeholder="Tell us what we could do better..." rows={3} style={{...IS,resize:"vertical",minHeight:80}}/>
-          </>}
-          {step===2&&<button onClick={()=>setStep(3)} style={{...BP,width:"100%",marginTop:12}}>Continue</button>}
-        </>}
+        {step===2&&<button onClick={()=>setStep(3)} style={{...BP,width:"100%",marginTop:12}}>Continue</button>}
       </Card>}
 
       {/* Step 3: Contact info + consent + Submit */}
