@@ -1299,6 +1299,11 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
   const customAsHtml=/<[a-z][^>]*>/i.test(customBody)?customBody:String(customBody||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br/>");
   const emailHTML=useCustom?customAsHtml:buildInvoiceEmailHTML(d,variant,driveLink);
 
+  const CHIP={padding:"4px 9px",borderRadius:999,border:"1px solid "+B.border,background:"transparent",color:B.textDim,fontSize:10,cursor:"pointer",fontFamily:F,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"};
+  // Append an address to a comma-separated field without duplicating it.
+  const addEmail=(cur,em)=>{const parts=(cur||"").split(",").map(s=>s.trim()).filter(Boolean);
+    if(parts.some(p=>p.toLowerCase()===em.toLowerCase()))return parts.join(", ");
+    return [...parts,em].join(", ");};
   const saveContact=async(email)=>{if(!email)return;const existing=contacts.find(c=>c.email.toLowerCase()===email.toLowerCase());if(existing){await sb().from("email_contacts").update({last_used:new Date().toISOString()}).eq("id",existing.id);setContacts(prev=>prev.map(c=>c.id===existing.id?{...c,last_used:new Date().toISOString()}:c));}else{const{data}=await sb().from("email_contacts").insert({email:email.toLowerCase()}).select().single();if(data)setContacts(prev=>[data,...prev]);}};
 
   const send=async()=>{
@@ -1315,6 +1320,20 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
 
       // Look up the invoice row this email belongs to (may not exist for legacy data).
       const{data:invRow}=await sb().from("invoices").select("id,status,customer").eq("invoice_num",d.invoiceNum).limit(1).maybeSingle();
+      // Remember the address on the customer so the To box prefills next time.
+      // Every customer currently has a BLANK email, which is why it never did.
+      // Only fills an empty field — never overwrites an address already on file.
+      try{
+        const custName=invRow?.customer||d.customerDisplayName||"";
+        const primaryTo=emailTo.split(",")[0].trim();
+        if(custName&&primaryTo){
+          const{data:crow}=await sb().from("customers").select("id,email").eq("name",custName).limit(1).maybeSingle();
+          // App.jsx has a realtime subscription on `customers`, so the new
+          // address propagates without an explicit reload here.
+          if(crow&&!String(crow.email||"").trim())
+            await sb().from("customers").update({email:primaryTo}).eq("id",crow.id);
+        }
+      }catch(ce){console.warn("Could not save customer email:",ce);}
       if(scheduleEnabled){
         const sendAt=new Date(scheduleDate+"T"+scheduleTime+":00");
         await sb().from("scheduled_emails").insert({
@@ -1370,8 +1389,25 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
         Sending invoice <strong style={{color:B.cyan}}>#{d.invoiceNum}</strong> to <strong>{d.customerDisplayName}</strong> with PDF attachment from <span style={{color:B.cyan}}>service@3crefrigeration.com</span>
       </div>
 
-      <div><label style={LS}>To <span style={{color:B.red}}>*</span></label><input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="customer@example.com" style={{...IS,fontSize:14,padding:12}}/></div>
-      <div><label style={LS}>CC <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={emailCC} onChange={e=>setEmailCC(e.target.value)} placeholder="boss@example.com" style={{...IS,fontSize:14,padding:12}}/></div>
+      {/* Addresses you've emailed before are saved in email_contacts, but this
+          modal never offered them back — so every send meant re-typing or
+          pasting from Gmail. Native autocomplete + one-tap chips (chips matter
+          on a phone, where datalist is easy to miss). */}
+      <datalist id="inv-email-contacts">{contacts.map(c=><option key={c.id} value={c.email}/>)}</datalist>
+      <div>
+        <label style={LS}>To <span style={{color:B.red}}>*</span></label>
+        <input list="inv-email-contacts" value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="customer@example.com" style={{...IS,fontSize:14,padding:12}}/>
+        {contacts.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>
+          {contacts.slice(0,6).map(c=><button key={"t"+c.id} type="button" onClick={()=>setEmailTo(addEmail(emailTo,c.email))} style={CHIP}>+ {c.email}</button>)}
+        </div>}
+      </div>
+      <div>
+        <label style={LS}>CC <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label>
+        <input list="inv-email-contacts" value={emailCC} onChange={e=>setEmailCC(e.target.value)} placeholder="boss@example.com" style={{...IS,fontSize:14,padding:12}}/>
+        {contacts.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>
+          {contacts.slice(0,6).map(c=><button key={"c"+c.id} type="button" onClick={()=>setEmailCC(addEmail(emailCC,c.email))} style={CHIP}>+ {c.email}</button>)}
+        </div>}
+      </div>
       <div><label style={LS}>Subject</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={{...IS,fontSize:14,padding:12}}/></div>
 
       {/* Email style picker */}
