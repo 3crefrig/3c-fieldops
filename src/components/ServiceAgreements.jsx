@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum, openWO} from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum, openWO, importRetry} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
@@ -202,7 +202,7 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
 
 // ─── Agreement PDF Generation (SOW format, zero AI tokens) ─────
 async function generateAgreementPDF(a, coveredEquipment, customerObj) {
-  const{jsPDF}=await import("jspdf");const doc = new jsPDF({ unit: "mm", format: "letter" });
+  const{jsPDF}=await importRetry(()=>import("jspdf"));const doc = new jsPDF({ unit: "mm", format: "letter" });
   const pw = 215.9, ph = 279.4, lm = 20, rm = 20, cw = pw - lm - rm;
   const cyan = [0, 212, 245], dark = [16, 18, 20], mid = [100, 110, 125], light = [240, 243, 248];
   let y = 0;

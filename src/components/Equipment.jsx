@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours, todayLocal, localDateStr, openWO} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours, todayLocal, localDateStr, openWO, importRetry} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
 import { CameraUpload } from "./CameraUpload";
 // html5-qrcode (~46KB gz) loads on demand when the scanner actually opens —
@@ -34,7 +34,7 @@ function BarcodeScanner({onScan,onClose}){
     const scannerId="eq-scanner-"+Date.now();
     if(containerRef.current)containerRef.current.id=scannerId;
     (async()=>{
-      const{Html5Qrcode}=await import("html5-qrcode");
+      const{Html5Qrcode}=await importRetry(()=>import("html5-qrcode"));
       if(cancelled)return;
       const scanner=new Html5Qrcode(scannerId);scannerRef.current=scanner;
       scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:180},aspectRatio:1.5},

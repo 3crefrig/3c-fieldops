@@ -223,6 +223,30 @@ select:not([style*="background-image"]){-webkit-appearance:none;appearance:none;
 
 // Authenticated edge-function call: sends the signed-in user's access token
 // (functions now reject the bare anon key — 2026-07-10 security hardening).
+// ── Chunk-load recovery ───────────────────────────────────────────────
+// Every deploy renames the hashed chunk files (static/js/389.<hash>.chunk.js).
+// A session that was open BEFORE the deploy still holds the old hashes, so the
+// first time it lazy-loads anything new it 404s: "Loading chunk 389 failed".
+// Techs keep this app open all day, so that's the normal case, not the edge case.
+// Reload once to pick up the current build; the flag stops a reload loop if the
+// failure is something else (offline, blocked, genuinely missing file).
+const CHUNK_RELOAD_KEY="fieldops-chunk-reload";
+const ss={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}},
+          set(k,v){try{sessionStorage.setItem(k,v);}catch(e){}},
+          del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
+export function importRetry(loader){
+  return Promise.resolve().then(loader).then(m=>{ss.del(CHUNK_RELOAD_KEY);return m;}).catch(err=>{
+    const msg=String(err&&err.message||err||"");
+    const isChunkErr=/Loading chunk|Loading CSS chunk|dynamically imported module|Importing a module script failed|Failed to fetch/i.test(msg);
+    if(isChunkErr&&ss.get(CHUNK_RELOAD_KEY)!=="1"){
+      ss.set(CHUNK_RELOAD_KEY,"1");
+      window.location.reload();
+      return new Promise(()=>{});   // hold forever — the page is reloading
+    }
+    throw err;
+  });
+}
+
 export async function fnFetch(name,payload){
   let token=SUPABASE_ANON_KEY;
   try{const{data:{session}}=await sb().auth.getSession();if(session?.access_token)token=session.access_token;}catch(e){}

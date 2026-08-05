@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours, fmtHours, visibleNotifs , todayLocal, localDateStr} from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, SC, SL, ROLES, haptic, cleanText, calcWOHours, fmtHours, visibleNotifs , todayLocal, localDateStr, importRetry} from "../shared";
 import { Card, Badge, StatCard, Modal, EmptyState, Toast, Icon } from "./ui";
 import { KPIDashboard, DashAnalytics } from "./KPIDashboard";
 import { WOList, WOOverview } from "./WorkOrders";
@@ -11,7 +11,9 @@ import { GlobalActivityFeed } from "./ActivityLog";
 // default export, so each named export is wrapped. Suspense fallback lives in Shell.
 // KEPT STATIC (tech's instant landing/core flow — no spinner): KPIDashboard,
 // WOList/WOOverview, TimeLog, GlobalActivityFeed.
-const lazyNamed=(loader,name)=>React.lazy(()=>loader().then(m=>({default:m[name]})));
+// importRetry: if a deploy replaced the chunk files this page was built against,
+// reload once instead of dumping "Loading chunk N failed" on the user.
+const lazyNamed=(loader,name)=>React.lazy(()=>importRetry(loader).then(m=>({default:m[name]})));
 const Reports=lazyNamed(()=>import("./Reports"),"Reports");
 const Settings=lazyNamed(()=>import("./Settings"),"Settings");
 const KnowledgeBase=lazyNamed(()=>import("./KnowledgeBase"),"KnowledgeBase");

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, nextInvoiceNumDB, openWO, getAppSetting} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, nextInvoiceNumDB, openWO, getAppSetting, importRetry} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 import { buildFeedbackEmail } from "../feedbackEmail";
@@ -30,7 +30,7 @@ export async function sendFeedbackRequest(inv,customers,{force=false,toOverride=
 }
 
 async function buildInvoiceExcel(d){
-  const ExcelJS=await import("exceljs");
+  const ExcelJS=await importRetry(()=>import("exceljs"));
   const wb=new ExcelJS.default.Workbook();
   wb.creator="3C FieldOps Pro";
   const ws=wb.addWorksheet(d.customerName+" Invoice",{properties:{defaultRowHeight:15}});
@@ -212,7 +212,7 @@ async function buildInvoiceExcel(d){
 }
 
 async function buildInvoicePDF(d){
-  const{jsPDF}=await import("jspdf");const doc=new jsPDF({unit:"mm",format:"letter"});
+  const{jsPDF}=await importRetry(()=>import("jspdf"));const doc=new jsPDF({unit:"mm",format:"letter"});
   const pw=215.9,ph=279.4,lm=18,rm=18,cw=pw-lm-rm;
   const cyan=[0,212,245],cyanDk=[0,160,200],dark=[30,34,40],mid=[100,112,130],light=[245,247,252],white=[255,255,255];
   let y=0;
@@ -1502,7 +1502,7 @@ function ScheduledEmailsModal({invoices,msg,onClose}){
 
 // ── Statement of account (internal tool: WE generate and WE send — no customer accounts) ──
 async function buildStatementPDF(custName,invs,cust){
-  const{jsPDF}=await import("jspdf");
+  const{jsPDF}=await importRetry(()=>import("jspdf"));
   const doc=new jsPDF({unit:"mm",format:"letter"});
   const pw=215.9,lm=18,rm=18;
   const cyan=[0,160,200],dark=[30,34,40],mid=[100,112,130],light=[245,247,252];
