@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO , fnFetch , openWO} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO , fnFetch , openWO, importRetry} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect } from "./ui";
 
 function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser}){
@@ -26,7 +26,7 @@ function BillingExport({wos,pos,timeEntries,customers,emailTemplates,currentUser
   const earliest=(a,b)=>{if(!a)return b||"";if(!b)return a;return a<b?a:b;};
   const getTimesheetRows=()=>{const rows=[];let totalHrs=0;completed.forEach(wo=>{const woNum=wo.customer_wo||wo.wo_id;const woTime=timeEntries.filter(t=>t.wo_id===wo.id);if(woTime.length>0){const filtered=woTime.filter(t=>{const d=t.logged_date||wo.date_completed;return(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);});filtered.forEach(te=>{const h=parseFloat(te.hours||0);rows.push({date:te.logged_date||wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:woNum,hours:h,desc:te.description||wo.title,tech:te.technician||""});totalHrs+=h;});}else{rows.push({date:wo.date_completed||"",building:wo.building||"",room:wo.location||"",wo_num:woNum,hours:0,desc:wo.title,tech:""});}}); rows.sort((a,b)=>(a.date||"").localeCompare(b.date||""));return{rows,totalHrs};};
   const buildTimesheetXLSX=async()=>{
-    const ExcelJS=await import("exceljs");
+    const ExcelJS=await importRetry(()=>import("exceljs"));
     const{rows,totalHrs}=getTimesheetRows();
     const wb=new ExcelJS.default.Workbook();wb.creator="3C FieldOps Pro";
     const sheetName=((custFilter||"Timesheet")+(dateFrom?" "+dateFrom:"")+(dateTo?" to "+dateTo:"")).slice(0,31);
