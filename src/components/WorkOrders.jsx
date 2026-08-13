@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -797,7 +797,21 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
   const[equipmentId,setEquipmentId]=useState(null);
   const[eqScanning,setEqScanning]=useState(false),[eqQuickAdding,setEqQuickAdding]=useState(false),[eqPicking,setEqPicking]=useState(false);
   const[scanning,setScanning]=useState(false);const scanRef=useRef(null);
-  const handleScanWO=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanning(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,mimeType:file.type||"image/jpeg",documentType:"work_order"});const result=await resp.json();if(result.title)setTitle(result.title);if(result.description)setNotes(result.description);if(result.customer)setCust(result.customer);if(result.location)setLoc(result.location);if(result.building)setBldg(result.building);if(result.priority)setPri(result.priority);if(result.customer_wo)setCustWO(result.customer_wo);if(result.due_date)setDue(result.due_date);}catch(err){console.error("Scan parse error:",err);alert("Could not read the scanned document. Please fill in fields manually.");}finally{setScanning(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanning(false);}if(scanRef.current)scanRef.current.value="";};
+  const handleScanWO=async(e)=>{
+    const file=e.target.files?.[0];if(!file)return;setScanning(true);
+    try{
+      const x=await scanDocument(file,"work_order");
+      if(x.title)setTitle(x.title);
+      if(x.description)setNotes(x.description);
+      if(x.customer_name)setCust(x.customer_name);
+      if(x.location)setLoc(x.location);
+      if(x.building)setBldg(x.building);
+      if(["high","medium","low"].includes(x.priority))setPri(x.priority);
+      if(x.customer_wo)setCustWO(String(x.customer_wo));
+      if(/^\d{4}-\d{2}-\d{2}$/.test(x.due_date||""))setDue(x.due_date);
+    }catch(err){console.error("Scan error:",err);alert("Could not read the scanned document.\n\n"+(err.message||err)+"\n\nPlease fill in the fields by hand.");}
+    finally{setScanning(false);if(scanRef.current)scanRef.current.value="";}
+  };
   const go=async()=>{const finalTitle=title.trim()||custWO.trim();if(!finalTitle||saving)return;if(cleanText(finalTitle,"Title")===null||cleanText(notes,"Notes")===null)return;setSaving(true);await onSave({title:finalTitle,priority:pri,assignee:assign,crew,due_date:due||"TBD",notes:notes.trim()||"No details.",location:loc.trim(),wo_type:woType,building:bldg.trim(),customer:cust,customer_wo:custWO.trim()||null,equipment_id:equipmentId});setSaving(false);};
   // Recent distinct locations/buildings for the picked customer — techs repeat the same sites.
   const custLocs=[...new Set((allWos||[]).filter(w=>!cust||w.customer===cust).map(w=>(w.location||"").trim()).filter(Boolean))].slice(0,10);

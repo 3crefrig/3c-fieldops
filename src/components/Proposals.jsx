@@ -631,7 +631,9 @@ function ProposalDashboard({D,A,userName}){
     {proposals.map(prop=>{const est=estimates.find(e=>e.id===prop.estimate_id);return(
       <Card key={prop.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(PSC_PROP[prop.status]||B.border)}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-          <div style={{flex:1,minWidth:0}}>
+          {/* 240px basis so the button row wraps below on a phone instead of
+              starving this column down to one word per line. */}
+          <div style={{flex:"1 1 240px",minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <span style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>{prop.proposal_num}</span>
               <Badge color={PSC_PROP[prop.status]||B.textDim}>{prop.status}</Badge>
@@ -644,7 +646,7 @@ function ProposalDashboard({D,A,userName}){
               {prop.sent_to&&<span> · Sent to {prop.sent_to}</span>}
             </div>
           </div>
-          <div style={{display:"flex",gap:4,flexShrink:0}}>
+          <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
             <button onClick={()=>generateProposalPdf(prop,est)} style={{...BS,padding:"5px 10px",fontSize:11}}>PDF</button>
             {(prop.status==="draft"||prop.status==="sent")&&<button onClick={()=>setEditing(prop)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>}
             {prop.status==="draft"&&<button onClick={()=>sendProposal(prop)} style={{...BP,padding:"5px 12px",fontSize:11}}>Send</button>}

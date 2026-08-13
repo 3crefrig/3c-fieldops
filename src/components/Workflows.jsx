@@ -49,8 +49,8 @@ function WorkflowBuilder({D,userName}){
       {workflows.map(wf=>{const triggerNode=wf.nodes?.find(n=>n.type==="trigger");const actionNodes=(wf.nodes||[]).filter(n=>n.type==="action");const recentRuns=runs.filter(r=>r.workflow_id===wf.id).length;
         return(<Card key={wf.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(wf.active?B.green:B.textDim),opacity:wf.active?1:0.7}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{flex:"1 1 240px",minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontSize:14,fontWeight:700,color:B.text}}>{wf.name}</span>
                 <Badge color={wf.active?B.green:B.textDim}>{wf.active?"Active":"Inactive"}</Badge>
               </div>
@@ -61,7 +61,7 @@ function WorkflowBuilder({D,userName}){
               </div>
               <div style={{fontSize:10,color:B.textDim,marginTop:4}}>{(wf.nodes||[]).length} nodes · {recentRuns} runs</div>
             </div>
-            <div style={{display:"flex",gap:4,flexShrink:0}}>
+            <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
               <button onClick={()=>toggleActive(wf)} style={{...BS,padding:"5px 10px",fontSize:10,color:wf.active?B.red:B.green,borderColor:(wf.active?B.red:B.green)+"40"}}>{wf.active?"Pause":"Activate"}</button>
               <button onClick={()=>setEditing(wf)} style={{...BS,padding:"5px 10px",fontSize:10}}>Edit</button>
               <button onClick={()=>del(wf.id)} style={{...BS,padding:"5px 10px",fontSize:10,color:B.red,borderColor:B.red+"40"}}>✕</button>
