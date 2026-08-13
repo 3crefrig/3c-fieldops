@@ -143,13 +143,13 @@ function AgreementForm({tiers,customers,equipment,userName,onSave,onClose,initia
         <div><label style={LS}>End Date <span style={{color:B.red}}>*</span></label><input type="date" value={f.end_date} onChange={e=>set("end_date",e.target.value)} style={{...IS,padding:14}}/></div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}}>
         <div><label style={LS}>Visit Frequency</label><select value={f.visit_frequency} onChange={e=>{set("visit_frequency",e.target.value);set("visits_per_year",FREQ_VISITS[e.target.value]||4);}} style={{...IS,cursor:"pointer"}}>{Object.entries(FREQ_LABELS).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></div>
         <div><label style={LS}>Monthly Rate ($)</label><input value={f.monthly_rate} onChange={e=>{const v=parseFloat(e.target.value)||0;set("monthly_rate",v);set("annual_value",v*12);}} type="number" step="0.01" style={{...IS,fontFamily:M}}/></div>
         <div><label style={LS}>Annual Value ($)</label><div style={{...IS,background:B.surfaceActive,color:B.text,fontFamily:M}}>${(f.annual_value||0).toFixed(2)}</div></div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}}>
         <div><label style={LS}>Response Time (hrs)</label><input value={f.response_time_hours} onChange={e=>set("response_time_hours",parseInt(e.target.value)||0)} type="number" style={{...IS,fontFamily:M}}/></div>
         <div><label style={LS}>WO Priority</label><select value={f.priority_level} onChange={e=>set("priority_level",e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
         <div><label style={LS}>Discount %</label><input value={f.discount_pct} onChange={e=>set("discount_pct",parseFloat(e.target.value)||0)} type="number" style={{...IS,fontFamily:M}}/></div>

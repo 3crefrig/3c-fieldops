@@ -89,7 +89,7 @@ function CompanyProfile({msg}){
 
     <Card style={{padding:18,marginBottom:14}}>
       <div style={{fontSize:12,fontWeight:700,color:B.text,marginBottom:12}}>Billing & Hours</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}}>
         <div><label style={LS}>Default Parts Markup %</label><input value={profile.default_parts_markup} onChange={e=>set("default_parts_markup",e.target.value)} type="number" style={{...IS,fontFamily:M}}/></div>
         <div><label style={LS}>Work Hours Start</label><input value={profile.working_hours_start} onChange={e=>set("working_hours_start",e.target.value)} type="time" style={IS}/></div>
         <div><label style={LS}>Work Hours End</label><input value={profile.working_hours_end} onChange={e=>set("working_hours_end",e.target.value)} type="time" style={IS}/></div>

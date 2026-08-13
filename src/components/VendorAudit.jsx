@@ -273,7 +273,7 @@ export function TicketCaptureModal({ po, pos, onClose, onSaved, userName, userId
       <ScanButton onFile={onFile} busy={scanning} label="📷 Scan Counter Ticket (photo or PDF)" />
       {err && <div style={{ fontSize: 11, color: B.red, background: B.red + "12", padding: "8px 12px", borderRadius: 6 }}>{err}</div>}
       {!po && pos && <div><label style={LS}>Purchase Order</label><CustomSelect value={selPO} onChange={setSelPO} options={poOptions(pos)} placeholder="— Link to a PO —" /></div>}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         <div><label style={LS}>Supply House</label><input value={vendor} onChange={e => setVendor(e.target.value)} placeholder="e.g. United Refrigeration" style={IS} /></div>
         <div><label style={LS}>Ticket #</label><input value={ticketNo} onChange={e => setTicketNo(e.target.value)} placeholder="—" style={{ ...IS, fontFamily: M }} /></div>
         <div><label style={LS}>Date</label><input value={tDate} onChange={e => setTDate(e.target.value)} type="date" style={IS} /></div>
@@ -385,7 +385,7 @@ function BillAuditModal({ pos, tickets, ticketItems, A, onClose, onSaved, userNa
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <ScanButton onFile={onFile} busy={scanning} label="📄 Scan Vendor Bill (photo or PDF)" />
       {err && <div style={{ fontSize: 11, color: B.red, background: B.red + "12", padding: "8px 12px", borderRadius: 6 }}>{err}</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         <div><label style={LS}>Vendor</label><input value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Supply house" style={IS} /></div>
         <div><label style={LS}>Bill / Invoice #</label><input value={billNo} onChange={e => setBillNo(e.target.value)} style={{ ...IS, fontFamily: M }} /></div>
         <div><label style={LS}>Bill Date</label><input value={bDate} onChange={e => setBDate(e.target.value)} type="date" style={IS} /></div>
