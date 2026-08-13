@@ -158,8 +158,8 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
     </div>}
 
     {pending.map(d=><Card key={d.id} onClick={()=>openDraft(d)} style={{padding:"14px 18px",borderLeft:"3px solid "+B.orange}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div style={{display:"flex",gap:10,flex:1,minWidth:0}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",gap:10,flex:"1 1 240px",minWidth:0}}>
           {/* Checkbox for bulk select */}
           {pending.length>1&&<div onClick={(e)=>toggleSelect(d.id,e)} style={{width:18,height:18,borderRadius:3,border:"2px solid "+(selected.includes(d.id)?B.cyan:B.border),background:selected.includes(d.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>
             {selected.includes(d.id)&&<span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}

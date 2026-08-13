@@ -237,7 +237,9 @@ function RFQDashboard({D,A,userRole,userName,userId}){
       {flt.map(rfq=>{const sm=SM[rfq.status]||{c:B.textDim,l:rfq.status};const url=docxUrl(rfq);const canEditDraft=rfq.status==="draft"&&(isMgr||rfq.created_by===userId);return(
         <Card key={rfq.id} style={{padding:"14px 16px",borderLeft:"3px solid "+sm.c}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-            <div style={{flex:1,minWidth:0}}>
+            {/* 240px basis so the action buttons wrap below on a phone rather
+                than squeezing this column to one word per line. */}
+            <div style={{flex:"1 1 240px",minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>{rfq.rfq_ref}</span>
                 <Badge color={sm.c}>{sm.l}</Badge>

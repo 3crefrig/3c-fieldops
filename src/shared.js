@@ -252,3 +252,33 @@ export async function fnFetch(name,payload){
   try{const{data:{session}}=await sb().auth.getSession();if(session?.access_token)token=session.access_token;}catch(e){}
   return fetch(SUPABASE_URL+"/functions/v1/"+name,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(payload)});
 }
+
+// scan-document returns {success, documentType, extracted:{...}} — every caller
+// must unwrap `extracted` or it silently reads undefined off the envelope and
+// fills in nothing. Use this instead of calling fnFetch("scan-document") raw.
+export async function scanDocument(file,documentType){
+  const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+  const resp=await fnFetch("scan-document",{image:base64,mimeType:file.type||"image/jpeg",documentType});
+  const body=await resp.json().catch(()=>({}));
+  if(!resp.ok)throw new Error(body.error||("Scan failed ("+resp.status+")"));
+  return body.extracted||body;
+}
+
+// Receipts/tickets/bills all describe money the same way: line items plus a
+// total. Fold them into the single description + amount a PO carries.
+export const scanLineSummary=(x)=>{
+  const items=Array.isArray(x?.line_items)?x.line_items.filter(li=>li&&(li.description||li.part_no)):[];
+  if(!items.length)return x?.description||"";
+  const one=(li)=>[li.part_no,li.description].filter(Boolean).join(" ")+((parseFloat(li.quantity)||0)>1?" ×"+li.quantity:"");
+  if(items.length===1)return one(items[0]);
+  if(items.length<=3)return items.map(one).join(", ");
+  return items.slice(0,2).map(one).join(", ")+" + "+(items.length-2)+" more";
+};
+export const scanTotal=(x)=>{
+  const t=parseFloat(x?.total);if(isFinite(t)&&t>0)return t;
+  const s=parseFloat(x?.subtotal),tx=parseFloat(x?.tax);
+  if(isFinite(s))return isFinite(tx)?s+tx:s;
+  const items=Array.isArray(x?.line_items)?x.line_items:[];
+  const sum=items.reduce((a,li)=>a+(parseFloat(li?.amount)||((parseFloat(li?.quantity)||1)*(parseFloat(li?.unit_price)||0))),0);
+  return sum>0?sum:null;
+};

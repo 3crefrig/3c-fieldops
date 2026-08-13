@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, fnFetch, fmtDate, cleanText } from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, EmptyState, CustomSelect } from "./ui";
 
@@ -137,6 +137,23 @@ async function uploadVendorDoc(doc, folder) {
   const { data } = sb().storage.from("vendor-docs").getPublicUrl(path);
   return data?.publicUrl || null;
 }
+// Set a PO's amount to the sum of every pickup ticket captured against it.
+// Returns the new total, or null when the write was refused (RLS: technicians
+// can only edit their own POs).
+export async function rollPOAmount(poId) {
+  try {
+    const { data, error } = await sb().from("po_tickets").select("total,subtotal,tax").eq("po_id", poId);
+    if (error || !data) return null;
+    const sum = data.reduce((s, t) => {
+      const v = num(t.total);
+      return s + (v != null ? v : (num(t.subtotal) || 0) + (num(t.tax) || 0));
+    }, 0);
+    const { data: upd, error: e2 } = await sb().from("purchase_orders").update({ amount: r2(sum) }).eq("id", poId).select("id");
+    if (e2 || !upd || upd.length === 0) return null;
+    return r2(sum);
+  } catch (e) { console.warn("rollPOAmount failed:", e); return null; }
+}
+
 async function ocrDoc(doc, documentType) {
   const resp = await fnFetch("scan-document", { image: doc.base64, mimeType: doc.mime, documentType });
   const r = await resp.json().catch(() => ({}));
@@ -190,6 +207,13 @@ export function TicketCaptureModal({ po, pos, onClose, onSaved, userName, userId
   const [doc, setDoc] = useState(null);
   const [scanning, setScanning] = useState(false); const [saving, setSaving] = useState(false);
   const [scanned, setScanned] = useState(false); const [err, setErr] = useState("");
+  // Capturing a ticket used to leave the PO's dollar amount untouched, so a PO
+  // could sit at $0 with a scanned receipt attached. Default to filling it in,
+  // but not to overwriting an amount a manager already approved — for those,
+  // leave it to a deliberate tick.
+  const targetPO = po || (pos || []).find(p => p.id === selPO) || null;
+  const [applyToPO, setApplyToPO] = useState(!(parseFloat(po?.amount) > 0));
+  useEffect(() => { setApplyToPO(!(parseFloat(targetPO?.amount) > 0)); }, [targetPO?.id, targetPO?.amount]);
 
   const onFile = async (file) => {
     setScanning(true); setErr("");
@@ -228,7 +252,14 @@ export function TicketCaptureModal({ po, pos, onClose, onSaved, userName, userId
         const { error: e2 } = await sb().from("po_ticket_items").insert(rows);
         if (e2) throw e2;
       }
-      if (onSaved) onSaved();
+      // Roll every ticket on this PO (this one plus any earlier pickups, which
+      // may be from other supply houses) up into the PO's amount.
+      let warn = "";
+      if (applyToPO && selPO) {
+        const rolled = await rollPOAmount(selPO);
+        if (rolled === null) warn = " — but the PO amount couldn't be updated (you may not have permission to edit this PO). Ask a manager to set it.";
+      }
+      if (onSaved) onSaved(warn);
       onClose();
     } catch (e) {
       console.error("Ticket save error:", e);
@@ -256,6 +287,14 @@ export function TicketCaptureModal({ po, pos, onClose, onSaved, userName, userId
         <div><label style={LS}>Tax ($)</label><input value={tax} onChange={e => setTax(e.target.value)} type="number" step="0.01" placeholder="—" style={{ ...IS, fontFamily: M }} /></div>
         <div><label style={LS}>Ticket Total ($)</label><input value={total} onChange={e => setTotal(e.target.value)} type="number" step="0.01" placeholder="auto" style={{ ...IS, fontFamily: M }} /></div>
       </div>
+      {selPO && <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", padding: "10px 12px", borderRadius: 8, background: B.cyanGlow, border: "1px solid " + B.cyan + "40" }}>
+        <input type="checkbox" checked={applyToPO} onChange={e => setApplyToPO(e.target.checked)} style={{ width: 18, height: 18, accentColor: B.cyan, flexShrink: 0, marginTop: 1 }} />
+        <span style={{ fontSize: 12, color: B.text, lineHeight: 1.45 }}>
+          Update <b>{targetPO?.po_id || "the PO"}</b>'s amount to match its receipts
+          {targetPO && parseFloat(targetPO.amount) > 0 && <span style={{ color: B.textDim }}> (currently ${(parseFloat(targetPO.amount) || 0).toFixed(2)})</span>}
+          <span style={{ display: "block", fontSize: 10, color: B.textDim, marginTop: 2 }}>Adds up every pickup ticket on this PO, including earlier ones from other supply houses.</span>
+        </span>
+      </label>}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={onClose} style={{ ...BS, flex: 1 }}>Cancel</button>
         <button onClick={save} disabled={saving} style={{ ...BP, flex: 1, opacity: saving ? .6 : 1 }}>{saving ? "Saving…" : "Save Ticket"}</button>
@@ -275,12 +314,19 @@ function BillAuditModal({ pos, tickets, ticketItems, A, onClose, onSaved, userNa
   const [scanned, setScanned] = useState(false); const [err, setErr] = useState("");
   const [showUnbilled, setShowUnbilled] = useState(false);
 
-  // Ticket scope: the selected PO's tickets, else all tickets from the same vendor
+  // Ticket scope: the selected PO's tickets, else all tickets from the same vendor.
+  // A PO can be filled at several supply houses, so once the bill's vendor is
+  // known, narrow to that vendor's pickups — otherwise a Grainger bill would be
+  // fuzzy-matched against another vendor's ticket lines on the same PO.
   const scopeTickets = useMemo(() => {
-    if (selPO) return tickets.filter(t => t.po_id === selPO);
-    const v = norm(vendor);
-    if (!v) return [];
-    return tickets.filter(t => { const tv = norm(t.vendor_name); return tv && (tv.includes(v) || v.includes(tv)); });
+    const sameVendor = (t) => { const v = norm(vendor), tv = norm(t.vendor_name); return v && tv && (tv.includes(v) || v.includes(tv)); };
+    if (selPO) {
+      const onPO = tickets.filter(t => t.po_id === selPO);
+      const byVendor = onPO.filter(sameVendor);
+      return byVendor.length ? byVendor : onPO;
+    }
+    if (!norm(vendor)) return [];
+    return tickets.filter(sameVendor);
   }, [selPO, vendor, tickets]);
   const scopeLines = useMemo(() => { const ids = new Set(scopeTickets.map(t => t.id)); return ticketItems.filter(i => ids.has(i.ticket_id)); }, [scopeTickets, ticketItems]);
   const audit = useMemo(() => lines.length ? auditBill(lines, scopeLines) : null, [lines, scopeLines]);
@@ -508,7 +554,7 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
     </div>}
 
     {showBillModal && <BillAuditModal pos={pos} tickets={tickets} ticketItems={tItems} A={A} userName={userName} userId={userId} onClose={() => setShowBillModal(false)} onSaved={(s) => msg(s.exceptions > 0 ? s.exceptions + " exception(s) flagged — $" + s.variance.toFixed(2) : "Bill is clean — all lines matched")} />}
-    {showTicketModal && <TicketCaptureModal pos={pos} userName={userName} userId={userId} onClose={() => setShowTicketModal(false)} onSaved={() => { msg("Pickup ticket saved"); if (A.reloadTable) { A.reloadTable("po_tickets"); A.reloadTable("po_ticket_items"); } }} />}
+    {showTicketModal && <TicketCaptureModal pos={pos} userName={userName} userId={userId} onClose={() => setShowTicketModal(false)} onSaved={(warn) => { msg("Pickup ticket saved" + (warn || "")); if (A.reloadTable) { A.reloadTable("po_tickets"); A.reloadTable("po_ticket_items"); A.reloadTable("purchase_orders"); } }} />}
     {detailBill && <BillDetailModal bill={detailBill} items={bItems.filter(i => i.bill_id === detailBill.id)} pos={pos} A={A} msg={msg} onClose={() => setDetail(null)} />}
   </div>);
 }

@@ -572,8 +572,8 @@ function AgreementDashboard({D,A,userRole,userName}){
       {agreements.map(a=>{
         const daysLeft=Math.ceil((new Date(a.end_date)-new Date())/86400000);
         return(<Card key={a.id} className="card-hover" onClick={()=>setSelected(a.id)} style={{padding:"14px 16px",cursor:"pointer",borderLeft:"3px solid "+(STATUS_COLORS[a.status]||B.border)}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-            <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+            <div style={{flex:"1 1 220px",minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontFamily:M,fontWeight:700,fontSize:14,color:B.text}}>{a.agreement_num}</span>
                 <Badge color={STATUS_COLORS[a.status]}>{STATUS_LABELS[a.status]}</Badge>

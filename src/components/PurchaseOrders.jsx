@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText , fnFetch , openWO, importRetry} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, haptic, cleanText , fnFetch , openWO, importRetry, scanDocument, scanLineSummary, scanTotal} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Logo, PdfPreviewModal, previewPdfDoc, usePasteImage } from "./ui";
 import { TicketCaptureModal } from "./VendorAudit";
 
@@ -133,22 +133,75 @@ async function generatePOPdf(po,wo,opts){
 
 const vendorSuggestions=(pos)=>[...new Set((pos||[]).map(p=>(p.notes||"").trim()).filter(v=>v&&v.length<=40))].slice(0,12);
 
+// A PO can be filled at more than one supply house — Grainger for one part,
+// United for the next. Sum the pickup tickets captured against it, broken out
+// per vendor, so the PO shows what was actually spent.
+export function ticketRollup(tickets,poId){
+  const mine=(tickets||[]).filter(t=>t.po_id===poId);
+  if(!mine.length)return null;
+  const lineTotal=(t)=>{const v=parseFloat(t.total);if(isFinite(v))return v;const s=parseFloat(t.subtotal)||0,x=parseFloat(t.tax)||0;return s+x;};
+  const byVendor={};
+  mine.forEach(t=>{const n=(t.vendor_name||"Unknown vendor").trim();byVendor[n]=(byVendor[n]||0)+lineTotal(t);});
+  return{
+    count:mine.length,
+    total:mine.reduce((s,t)=>s+lineTotal(t),0),
+    vendors:Object.entries(byVendor).map(([name,total])=>({name,total})).sort((a,b)=>b.total-a.total),
+  };
+}
+
+// Receipt / vendor-invoice scanning, shared by both PO modals. Fills the three
+// fields a PO carries: what was bought, what it cost, and who sold it.
+function useReceiptScan(setDesc,setAmt,setNotes){
+  const[busy,setBusy]=useState("");
+  const receiptRef=useRef(null),invoiceRef=useRef(null);
+  const scan=async(file,kind)=>{
+    if(!file||busy)return;
+    setBusy(kind);
+    try{
+      const x=await scanDocument(file,kind==="receipt"?"purchase_receipt":"vendor_invoice");
+      const ref=kind==="receipt"?x.receipt_number:x.invoice_number;
+      const summary=scanLineSummary(x);
+      if(summary||ref)setDesc([summary,ref?"(#"+ref+")":""].filter(Boolean).join(" "));
+      const total=scanTotal(x);
+      if(total!=null)setAmt(total.toFixed(2));
+      if(x.vendor_name)setNotes(String(x.vendor_name).trim());
+      if(total==null)alert("Read the "+(kind==="receipt"?"receipt":"invoice")+", but couldn't find a total — please type the amount in.");
+    }catch(err){
+      console.error("Scan error:",err);
+      alert("Could not read the "+(kind==="receipt"?"receipt":"invoice")+".\n\n"+(err.message||err)+"\n\nYou can still fill the fields in by hand.");
+    }finally{setBusy("");}
+  };
+  const pick=(ref,kind)=>async(e)=>{const f=e.target.files?.[0];await scan(f,kind);if(ref.current)ref.current.value="";};
+  return{busy,receiptRef,invoiceRef,onReceiptFile:pick(receiptRef,"receipt"),onInvoiceFile:pick(invoiceRef,"invoice"),scan};
+}
+
+// The scan buttons + hidden file inputs, identical in both PO modals.
+function ScanRow({s}){
+  return(<div>
+    <input ref={s.receiptRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={s.onReceiptFile}/>
+    <input ref={s.invoiceRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={s.onInvoiceFile}/>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <button onClick={()=>s.receiptRef.current?.click()} disabled={!!s.busy} type="button" style={{...BS,flex:"1 1 140px",padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:s.busy?.6:1}}>{s.busy==="receipt"?"Scanning...":"Scan Receipt"}</button>
+      <button onClick={()=>s.invoiceRef.current?.click()} disabled={!!s.busy} type="button" style={{...BS,flex:"1 1 140px",padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:s.busy?.6:1}}>{s.busy==="invoice"?"Scanning...":"Scan Vendor Invoice"}</button>
+    </div>
+    {s.busy?<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the {s.busy==="receipt"?"receipt":"invoice"}...</div>
+      :<div style={{fontSize:10,color:B.textDim,marginTop:4,textAlign:"center"}}>Photo, screenshot, or PDF — you can also paste a screen capture with Ctrl+V</div>}
+  </div>);
+}
+
 function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole,userId,initial}){
   const isMgr=userRole==="admin"||userRole==="manager";
   const[desc,setDesc]=useState(initial?.description||""),[amt,setAmt]=useState(initial?.amount?String(initial.amount):""),[notes,setNotes]=useState(initial?.notes||""),[saving,setSaving]=useState(false);
   const[ticketFor,setTicketFor]=useState(null);
-  const[scanningReceipt,setScanningReceipt]=useState(false);const scanReceiptRef=useRef(null);
-  const[scanningInvoice,setScanningInvoice]=useState(false);const scanInvoiceRef=useRef(null);
-  const handleScanReceipt=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanningReceipt(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,mimeType:file.type||"image/jpeg",documentType:"purchase_receipt"});const result=await resp.json();if(result.description)setDesc(result.description);if(result.amount)setAmt(String(result.amount));if(result.vendor||result.notes)setNotes(result.vendor||result.notes||"");}catch(err){console.error("Scan parse error:",err);alert("Could not read the receipt. Please fill in fields manually.");}finally{setScanningReceipt(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanningReceipt(false);}if(scanReceiptRef.current)scanReceiptRef.current.value="";};
-  const handleScanInvoice=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanningInvoice(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,mimeType:file.type||"image/jpeg",documentType:"vendor_invoice"});const result=await resp.json();if(result.line_items?.[0]?.description||result.description){let d=result.line_items?.[0]?.description||result.description||"";if(result.invoice_number)d+=" (Inv#"+result.invoice_number+")";setDesc(d);}if(result.total||result.amount)setAmt(String(result.total||result.amount));if(result.vendor||result.invoice_number||result.date){const parts=[];if(result.vendor)parts.push(result.vendor);if(result.invoice_number)parts.push("Inv#"+result.invoice_number);if(result.date)parts.push(result.date);setNotes(parts.join(" | "));}}catch(err){console.error("Invoice scan parse error:",err);alert("Could not read the invoice. Please fill in fields manually.");}finally{setScanningInvoice(false);}};reader.readAsDataURL(file);}catch(err){console.error("Invoice scan error:",err);setScanningInvoice(false);}if(scanInvoiceRef.current)scanInvoiceRef.current.value="";};
-  usePasteImage(true,(f)=>handleScanReceipt({target:{files:[f]}}));
+  const scan=useReceiptScan(setDesc,setAmt,setNotes);
+  usePasteImage(true,(f)=>scan.scan(f,"receipt"));
   const existing=pos.filter(p=>p.wo_id===wo.id);
   const go=async()=>{if(!desc.trim()||saving)return;if(cleanText(desc,"PO Description")===null||cleanText(notes,"PO Notes")===null)return;setSaving(true);try{await onCreatePO({wo_id:wo.id,description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim()});setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
   return(<Modal title="Purchase Order" onClose={onClose} wide>
     {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,gap:6}}><div style={{flex:1,minWidth:0}}><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><button data-tip="Snap the counter ticket at pickup. Supply Audit uses it to catch vendor billing errors later." onClick={()=>setTicketFor(po)} title="Snap the supply house pickup ticket for this PO" style={{...BS,padding:"4px 8px",fontSize:11,minHeight:28,flexShrink:0}}>🧾 Ticket</button><Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
-    {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={()=>{}}/>}
+    {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={(warn)=>{if(warn)alert("Ticket saved"+warn);}}/>}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div><input ref={scanReceiptRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanReceipt}/><input ref={scanInvoiceRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanInvoice}/><div style={{display:"flex",gap:8}}><button onClick={()=>scanReceiptRef.current?.click()} disabled={scanningReceipt} type="button" style={{...BS,flex:1,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanningReceipt?.6:1}}>{scanningReceipt?"Scanning...":"Scan Receipt"}</button><button onClick={()=>scanInvoiceRef.current?.click()} disabled={scanningInvoice} type="button" style={{...BS,flex:1,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanningInvoice?.6:1}}>{scanningInvoice?"Scanning...":"Scan Vendor Invoice"}</button></div>{(scanningReceipt||scanningInvoice)?<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the {scanningReceipt?"receipt":"invoice"}...</div>:<div style={{fontSize:10,color:B.textDim,marginTop:4,textAlign:"center"}}>Photo, screenshot, or PDF — you can also paste a screen capture with Ctrl+V</div>}</div>
+      <ScanRow s={scan}/>
       <div><label style={LS}>Parts/Materials <span style={{color:B.red}}>*</span></label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Estimated Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div></div>
       <div><label style={LS}>Vendor / Where to get it</label><input list="po-vendor-suggest" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Johnstone Supply, Home Depot, etc." style={IS}/><datalist id="po-vendor-suggest">{vendorSuggestions(pos).map(v=><option key={v} value={v}/>)}</datalist></div>
@@ -180,16 +233,13 @@ function POEditForm({po,onSave,onClose}){
 
 function StandalonePOModal({onCreatePO,onClose}){
   const[desc,setDesc]=useState(""),[amt,setAmt]=useState(""),[notes,setNotes]=useState(""),[saving,setSaving]=useState(false);
-  const[scanningReceipt,setScanningReceipt]=useState(false);const scanReceiptRef=useRef(null);
-  const[scanningInvoice,setScanningInvoice]=useState(false);const scanInvoiceRef=useRef(null);
-  const handleScanReceipt=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanningReceipt(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,mimeType:file.type||"image/jpeg",documentType:"purchase_receipt"});const result=await resp.json();if(result.description)setDesc(result.description);if(result.amount)setAmt(String(result.amount));if(result.vendor||result.notes)setNotes(result.vendor||result.notes||"");}catch(err){console.error("Scan parse error:",err);alert("Could not read the receipt. Please fill in fields manually.");}finally{setScanningReceipt(false);}};reader.readAsDataURL(file);}catch(err){console.error("Scan error:",err);setScanningReceipt(false);}if(scanReceiptRef.current)scanReceiptRef.current.value="";};
-  const handleScanInvoice=async(e)=>{const file=e.target.files?.[0];if(!file)return;setScanningInvoice(true);try{const reader=new FileReader();reader.onload=async()=>{try{const base64=reader.result.split(",")[1];const resp=await fnFetch("scan-document",{image:base64,mimeType:file.type||"image/jpeg",documentType:"vendor_invoice"});const result=await resp.json();if(result.line_items?.[0]?.description||result.description){let d=result.line_items?.[0]?.description||result.description||"";if(result.invoice_number)d+=" (Inv#"+result.invoice_number+")";setDesc(d);}if(result.total||result.amount)setAmt(String(result.total||result.amount));if(result.vendor||result.invoice_number||result.date){const parts=[];if(result.vendor)parts.push(result.vendor);if(result.invoice_number)parts.push("Inv#"+result.invoice_number);if(result.date)parts.push(result.date);setNotes(parts.join(" | "));}}catch(err){console.error("Invoice scan parse error:",err);alert("Could not read the invoice. Please fill in fields manually.");}finally{setScanningInvoice(false);}};reader.readAsDataURL(file);}catch(err){console.error("Invoice scan error:",err);setScanningInvoice(false);}if(scanInvoiceRef.current)scanInvoiceRef.current.value="";};
-  usePasteImage(true,(f)=>handleScanReceipt({target:{files:[f]}}));
+  const scan=useReceiptScan(setDesc,setAmt,setNotes);
+  usePasteImage(true,(f)=>scan.scan(f,"receipt"));
   const go=async()=>{if(!desc.trim()||saving)return;if(cleanText(desc,"PO Description")===null||cleanText(notes,"PO Notes")===null)return;setSaving(true);try{await onCreatePO({description:desc.trim(),amount:parseFloat(amt)||0,notes:notes.trim()});setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
   return(<Modal title="Create Standalone PO" onClose={onClose} wide>
     <div style={{fontSize:11,color:B.textDim,background:B.bg,padding:"8px 12px",borderRadius:6,border:"1px solid "+B.border,marginBottom:14}}>This PO will not be linked to a work order. Use for shop stock, tools, office supplies, etc.</div>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div><input ref={scanReceiptRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanReceipt}/><input ref={scanInvoiceRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanInvoice}/><div style={{display:"flex",gap:8}}><button onClick={()=>scanReceiptRef.current?.click()} disabled={scanningReceipt} type="button" style={{...BS,flex:1,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanningReceipt?.6:1}}>{scanningReceipt?"Scanning...":"Scan Receipt"}</button><button onClick={()=>scanInvoiceRef.current?.click()} disabled={scanningInvoice} type="button" style={{...BS,flex:1,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanningInvoice?.6:1}}>{scanningInvoice?"Scanning...":"Scan Vendor Invoice"}</button></div>{(scanningReceipt||scanningInvoice)?<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the {scanningReceipt?"receipt":"invoice"}...</div>:<div style={{fontSize:10,color:B.textDim,marginTop:4,textAlign:"center"}}>Photo, screenshot, or PDF — you can also paste a screen capture with Ctrl+V</div>}</div>
+      <ScanRow s={scan}/>
       <div><label style={LS}>Parts/Materials <span style={{color:B.red}}>*</span></label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Shop refrigerant stock, tools, office supplies" style={IS}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted,fontStyle:"italic"}}>None (standalone)</div></div></div>
       <div><label style={LS}>Vendor / Where to get it</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Johnstone Supply, Home Depot, etc." style={IS}/></div>
@@ -208,6 +258,11 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
     const{error}=await sb().from("purchase_orders").update({assigned_techs:techs}).eq("id",po.id);
     if(error){msg("Failed: "+error.message);return;}
     if(reloadTable)reloadTable("purchase_orders");
+  };
+  // Pull the PO's dollar amount up to what the captured receipts actually say.
+  const syncPOAmount=async(po,total)=>{
+    await onUpdatePO({...po,amount:Number(total.toFixed(2))});
+    msg("PO "+po.po_id+" set to $"+total.toFixed(2));
   };
   const[inlineAmt,setInlineAmt]=useState({});   // po.id → amount typed on the card ($0 POs approve inline, no Edit detour)
   const[selPOs,setSelPOs]=useState([]);          // bulk-approve selection (pending filter)
@@ -238,11 +293,30 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
         <Card key={po.id} style={{padding:"14px 16px",borderLeft:"3px solid "+(PSC[po.status]||B.border)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             {po.status==="pending"&&<input type="checkbox" checked={selPOs.includes(po.id)} onChange={()=>toggleSel(po.id)} style={{width:18,height:18,accentColor:B.cyan,cursor:"pointer",marginTop:4,flexShrink:0}}/>}
-            <div style={{flex:1,minWidth:0}}>
+            {/* 240px basis: on a phone the button cluster can't fit beside this,
+                so it wraps to its own line instead of squeezing the text to
+                one-word-per-line. */}
+            <div style={{flex:"1 1 240px",minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontFamily:M,fontWeight:700,fontSize:15,color:B.text}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{wo&&<button onClick={()=>openWO(wo.wo_id||wo.id)} title={"Open "+wo.wo_id+(wo.title?" — "+wo.title:"")} style={{fontFamily:M,fontSize:11,color:B.cyan,background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textDecorationColor:B.cyan+"44"}}>{wo.wo_id}</button>}</div>
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · {parseFloat(po.amount)?<span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount).toFixed(2)}</span>:<span style={{fontFamily:M,fontWeight:700,color:B.orange}}>$ —  needs amount</span>}{wo&&<span> · {wo.title}</span>}</div>
               {po.notes&&<div style={{fontSize:11,color:B.orange,marginTop:4,fontStyle:"italic"}}>Note: {po.notes}</div>}
+              {(()=>{
+                // Actual spend so far, from the pickup tickets captured against
+                // this PO — one line per supply house, since a PO can be filled
+                // by several vendors.
+                const t=ticketRollup(tickets,po.id);if(!t)return null;
+                const poAmt=parseFloat(po.amount)||0;const off=Math.abs(t.total-poAmt)>0.01;
+                return(<div style={{marginTop:6,padding:"6px 10px",borderRadius:6,background:B.bg,border:"1px solid "+(off?B.orange+"55":B.border)}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                    <span style={{fontSize:10,color:B.textDim,fontWeight:700,letterSpacing:.4,textTransform:"uppercase"}}>Receipts</span>
+                    <span style={{fontFamily:M,fontSize:12,fontWeight:800,color:off?B.orange:B.green}}>${t.total.toFixed(2)}</span>
+                    <span style={{fontSize:10,color:B.textDim}}>from {t.count} ticket{t.count!==1?"s":""}</span>
+                    {off&&<button onClick={()=>syncPOAmount(po,t.total)} title={"Set the PO amount to the receipts total ($"+t.total.toFixed(2)+")"} style={{...BS,padding:"3px 10px",fontSize:10,minHeight:26,color:B.cyan,borderColor:B.cyan+"55"}}>Set PO to ${t.total.toFixed(2)}</button>}
+                  </div>
+                  <div style={{fontSize:10,color:B.textMuted,marginTop:3}}>{t.vendors.map(v=>v.name+" $"+v.total.toFixed(2)).join(" · ")}</div>
+                </div>);
+              })()}
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:6}}>
                 <span style={{fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:.4,textTransform:"uppercase"}}>Techs</span>
                 {(po.assigned_techs||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button onClick={()=>setPOTechs(po,(po.assigned_techs||[]).filter(x=>x!==t))} title={"Remove "+t} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button></span>)}
@@ -274,7 +348,10 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
       </div>
     </Modal>}
     {showCreate&&<StandalonePOModal onCreatePO={onCreatePO} onClose={()=>setShowCreate(false)}/>}
-    {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={()=>msg("Pickup ticket saved on "+ticketFor.po_id)}/>}
+    {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={(warn)=>{
+      msg("Pickup ticket saved on "+ticketFor.po_id+(warn||""));
+      if(reloadTable){reloadTable("po_tickets");reloadTable("po_ticket_items");reloadTable("purchase_orders");}
+    }}/>}
   </div>);
 }
 
