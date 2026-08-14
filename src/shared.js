@@ -178,6 +178,11 @@ export const visibleNotifs=(notifs,role)=>{if(!Array.isArray(notifs))return[];if
 
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
+/* Native date/time pickers draw their OWN popup, and without color-scheme the
+   browser paints that popup in light mode over a dark app — a white calendar
+   flashing out of a dark form. This one declaration makes Chrome, Safari and
+   Edge render the native picker to match the theme. */
+:root{color-scheme:${_theme==="light"?"light":"dark"}}
 /* ── Sharpness pass (2026-08-02) ─────────────────────────────────────────
    Small global touches that make interactions feel crisp without changing
    the design: every button gets hover/press feedback, keyboard focus gets a
@@ -212,7 +217,8 @@ body{font-variant-numeric:tabular-nums}
 /* iOS auto-zooms (and doesn't zoom back) when a focused field's font is <16px,
    leaving the page zoomed/shifted so it looks "stuck". Force 16px on phones. */
 @media(max-width:767px){input,select,textarea{font-size:16px!important}}
-input[type="date"],input[type="time"]{cursor:pointer;position:relative}
+input[type="date"],input[type="time"],input[type="datetime-local"],input[type="month"]{cursor:pointer;position:relative}
+input[type="date"]::-webkit-datetime-edit,input[type="time"]::-webkit-datetime-edit{color:${B.text}}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;opacity:0;cursor:pointer}
 select{cursor:pointer}
 /* iOS Safari/WebKit paints appearance:auto selects as white native controls,
