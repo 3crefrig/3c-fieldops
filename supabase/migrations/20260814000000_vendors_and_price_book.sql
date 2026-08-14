@@ -47,9 +47,11 @@ returns text
 language sql
 immutable
 as $$
+  -- \y is PostgreSQL's word boundary. \b would mean a backspace character
+  -- here and silently match nothing.
   select nullif(
     regexp_replace(
-      regexp_replace(upper(coalesce(txt, '')), '\b(CO|INC|LLC|LTD|CORP|COMPANY|SUPPLY|SUPPLIES)\b', '', 'g'),
+      regexp_replace(upper(coalesce(txt, '')), '\y(CO|INC|LLC|LTD|CORP|COMPANY|SUPPLY|SUPPLIES)\y', '', 'g'),
       '[^A-Z0-9]', '', 'g'
     ), '');
 $$;
@@ -204,9 +206,11 @@ begin
   if v_part is null then return null; end if;
   v_vendor := public.upsert_vendor(p_vendor_name);
 
+  -- The dedupe index is partial, so ON CONFLICT has to repeat its
+  -- predicate or Postgres won't match it to the arbiter index.
   insert into public.part_prices (part_id, vendor_id, unit_price, qty, source, source_ref, source_item_id, observed_at)
   values (v_part, v_vendor, p_unit_price, p_qty, coalesce(p_source,'purchase'), p_source_ref, p_source_item_id, coalesce(p_observed_at, now()))
-  on conflict (source_item_id) do nothing
+  on conflict (source_item_id) where source_item_id is not null do nothing
   returning id into v_id;
 
   -- Only a real purchase moves last_cost; a reference price from a
