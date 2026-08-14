@@ -66,7 +66,14 @@ export const TOURS={
     {target:"kpi-ranges",title:"Rolling windows",body:"Numbers default to the last 30 days so they never reset to zero on the 1st. Switch ranges any time — the ↑↓ arrows compare against the prior period."},
     {target:"kpi-tiles",title:"Tiles drill down",body:"Overdue WOs, Outstanding AR, and WOs Completed are clickable — and every row inside opens the actual work order or invoice."},
     {target:"wo-filters",title:"The TMS queue",body:"“TMS Needed” collects completed jobs still needing entry in the customer's system. Each row has a Copy button that formats the whole line for pasting."},
+    {title:"Narrowing a long queue",body:"Under the buttons there's a search box and chips built from what's on screen — every customer and tech with a count. One tap on “Duke School Of Medicine 75” leaves just those, and the counts show you the shape of the backlog before you tap. Your pick is remembered."},
     {title:"Requests inbox",body:"Emails to service@ become drafts in Requests. Approving one creates a numbered work order — and now drops you straight onto it."},
+  ]},
+  pricebook:{title:"Price Book",roles:["manager","admin"],steps:[
+    {title:"What every part costs",body:"This builds itself. Every pickup ticket and vendor bill a tech scans drops its line items in here — part number, price, vendor, date. Nobody maintains a catalog."},
+    {title:"Spotting a bad price",body:"“Wide price swings” lists the parts where what you pay moves most. Tap one to see every price ever charged. If the same part bounces between two prices, that's usually two price files at the supplier — worth a phone call, not an accusation."},
+    {title:"Compare to elsewhere",body:"Open a part → Add a price → Reference, and enter what another supply house charges. The “Cheaper elsewhere” view then shows the gap. Reference prices never touch job costing — they exist only to compare."},
+    {title:"It cuts both ways",body:"Half the time your usual supplier wins. When they beat the outside price the card says so, so you keep buying the things they're genuinely good on and move only what you shouldn't."},
   ]},
   orders:{title:"Work Orders",steps:[
     {target:"wo-search",title:"Find any job",body:"Search hits job numbers, titles, customers, locations, assignees, and the customer's own WO number."},
@@ -119,6 +126,7 @@ export const TOURS={
   ]},
   audit:{title:"Supply Audit",roles:["manager","admin"],steps:[
     {title:"Catch billing errors",body:"Techs snap counter tickets at pickup; when the vendor's bill arrives, scan it and the app matches every line — price, quantity, missing tickets — and flags what doesn't add up."},
+    {title:"No ticket? Still checked",body:"If a bill line has no pickup ticket, the Price Book stands in — a price above the most you've ever paid gets flagged, a line over $1,000 asks you to confirm delivery, and anything at its normal price passes quietly. Catching a wrong QUANTITY still needs the counter ticket, so keep snapping them."},
   ]},
   rfqs:{title:"RFQs",steps:[
     {title:"Price requests",body:"Draft a parts pricing request, a manager approves, and it emails the vendor as a branded document. Record their quote on the line items."},
