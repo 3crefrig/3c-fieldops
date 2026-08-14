@@ -40,6 +40,14 @@ function matchByTag(list,tag){
   return(list||[]).find(e=>fields.some(f=>{const v=tagKey(e[f]);return v&&v.length>=4&&k.includes(v);}))||null;
 }
 
+// html5-qrcode's stop() THROWS synchronously ("Cannot stop, scanner is not
+// running or paused") when the camera never started — a rejected-promise catch
+// never sees it, so it escaped as an uncaught error.
+function stopScanner(scanner){
+  if(!scanner)return;
+  try{const p=scanner.stop();if(p&&p.catch)p.catch(()=>{});}catch(e){/* was never running */}
+}
+
 // ─── Barcode / QR Scanner ─────────────────────────────
 function BarcodeScanner({onScan,onClose}){
   const scannerRef=useRef(null);const containerRef=useRef(null);const[error,setError]=useState("");const[manual,setManual]=useState("");
@@ -78,19 +86,21 @@ function BarcodeScanner({onScan,onClose}){
     // Many asset tags (Duke's engraved metal plates among them) carry no barcode
     // at all. Say so rather than leaving them pointing the camera indefinitely.
     const t=setTimeout(()=>{if(!cancelled)setNoRead(true);},12000);
-    return()=>{cancelled=true;clearTimeout(t);scannerRef.current?.stop().catch(()=>{});};
+    return()=>{cancelled=true;clearTimeout(t);stopScanner(scannerRef.current);};
   },[]);
   return(<Modal title="Scan Asset Tag" onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-      <div ref={containerRef} style={{width:"100%",maxWidth:400,minHeight:250,borderRadius:10,overflow:"hidden",background:B.bg}}/>
+      {/* Collapse the viewfinder when the camera can't run — otherwise it's a
+          750px slab of black above the field the tech actually needs. */}
+      <div ref={containerRef} style={{width:"100%",maxWidth:400,minHeight:error?0:250,height:error?0:undefined,borderRadius:10,overflow:"hidden",background:B.bg}}/>
       {error&&<div style={{color:B.orange,fontSize:12,textAlign:"center",padding:8}}>{error}</div>}
       {!error&&noRead&&<div style={{color:B.textMuted,fontSize:11,textAlign:"center",padding:"8px 10px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,lineHeight:1.5}}>
         Still no read? Plenty of tags — including Duke's engraved metal property plates — have <b>no barcode on them at all</b>. Just type the number below.
       </div>}
       <div style={{fontSize:11,color:B.textDim,textAlign:"center"}}>Point camera at barcode or QR code on equipment</div>
       <div style={{display:"flex",gap:6,width:"100%",maxWidth:400,marginTop:4}}>
-        <input value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&manual.trim()){scannerRef.current?.stop().catch(()=>{});onScan(manual.trim());}}} placeholder="Or type the asset tag…" style={{...IS,flex:1}}/>
-        <button onClick={()=>{if(manual.trim()){scannerRef.current?.stop().catch(()=>{});onScan(manual.trim());}}} disabled={!manual.trim()} style={{...BP,opacity:manual.trim()?1:0.5,whiteSpace:"nowrap"}}>Find</button>
+        <input value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&manual.trim()){stopScanner(scannerRef.current);onScan(manual.trim());}}} placeholder="Or type the asset tag…" style={{...IS,flex:1}}/>
+        <button onClick={()=>{if(manual.trim()){stopScanner(scannerRef.current);onScan(manual.trim());}}} disabled={!manual.trim()} style={{...BP,opacity:manual.trim()?1:0.5,whiteSpace:"nowrap"}}>Find</button>
       </div>
     </div>
   </Modal>);
