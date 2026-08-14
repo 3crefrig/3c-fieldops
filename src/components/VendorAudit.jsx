@@ -18,13 +18,25 @@ const words = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").s
 const descSim = (a, b) => { const wa = new Set(words(a)), wb = new Set(words(b)); if (!wa.size || !wb.size) return 0; let hit = 0; wa.forEach(w => { if (wb.has(w)) hit++; }); return hit / Math.max(wa.size, wb.size); };
 const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-export const EXCEPTION_STATUSES = ["price_mismatch", "qty_over", "no_ticket"];
-export const MS_LABELS = { matched: "Matched", price_mismatch: "Price High", qty_over: "Qty Over", qty_under: "Qty Under", no_ticket: "No Ticket", price_unverified: "No Price Ref", accepted: "Accepted" };
-export const msColor = (s) => ({ matched: B.green, price_mismatch: B.orange, qty_over: B.red, qty_under: B.cyan, no_ticket: B.red, price_unverified: B.textDim, accepted: B.green }[s] || B.textDim);
+export const EXCEPTION_STATUSES = ["price_mismatch", "qty_over", "price_high_vs_history", "unverified_high_value"];
+// A line with no pickup ticket used to be an exception full stop, which meant a
+// bill scanned before ticket-capture is a habit came back 100% red and told you
+// nothing. The price book is now a second reference: an unticketed line whose
+// price matches what we normally pay is informational, while one that beats our
+// worst-ever price, or is simply big enough to matter, still gets flagged.
+// Two thresholds, because "worth checking" means different things depending on
+// whether we know the part. An unfamiliar part over $250 deserves a look; a
+// refrigerant cylinder we buy monthly at its usual price does not, however
+// pricey it is. Anything over $1,000 is material enough to confirm regardless —
+// that band is where both real over-bills landed.
+export const UNKNOWN_PART_VALUE = 250;
+export const MATERIAL_LINE_VALUE = 1000;
+export const MS_LABELS = { matched: "Matched", price_mismatch: "Price High", qty_over: "Qty Over", qty_under: "Qty Under", no_ticket: "No Ticket", price_high_vs_history: "Over Our Best", unverified_high_value: "Verify Receipt", no_ticket_price_ok: "Price Normal", price_unverified: "No Price Ref", accepted: "Accepted" };
+export const msColor = (s) => ({ matched: B.green, price_mismatch: B.orange, qty_over: B.red, qty_under: B.cyan, no_ticket: B.textDim, price_high_vs_history: B.orange, unverified_high_value: B.red, no_ticket_price_ok: B.green, price_unverified: B.textDim, accepted: B.green }[s] || B.textDim);
 
 // Match every bill line against the pickup-ticket lines in scope.
 // Returns per-line statuses + an "unbilled" info list + a summary.
-export function auditBill(billLines, ticketLines) {
+export function auditBill(billLines, ticketLines, priceRef) {
   // Group ticket lines by part number (fallback: each priceless-desc line its own group)
   const groups = []; const byPart = {};
   ticketLines.forEach(t => {
@@ -91,11 +103,33 @@ export function auditBill(billLines, ticketLines) {
       r.variance = i === 0 ? variance : 0; // variance counted once per group
     });
   });
+  // No pickup ticket for this line — fall back to what we've historically paid.
   orphans.forEach(({ bl, idx }) => {
     const r = results[idx];
-    r.match_status = "no_ticket";
-    r.expected_price = null; r.expected_qty = null; r.matched_ticket_item_id = null;
-    r.variance = r2(lineAmt(bl));
+    const amt = lineAmt(bl);
+    const ref = priceRef ? (priceRef[norm(bl.part_no)] || null) : null;
+    const unit = num(bl.unit_price) ?? ((num(bl.qty) ?? 1) > 0 ? amt / (num(bl.qty) ?? 1) : null);
+    r.expected_qty = null; r.matched_ticket_item_id = null;
+    r.expected_price = ref && ref.avg_paid != null ? r2(ref.avg_paid) : null;
+
+    const maxPaid = ref && ref.max_paid != null ? Number(ref.max_paid) : null;
+    const tol = maxPaid != null ? Math.max(1, 0.02 * maxPaid) : 0;
+    if (maxPaid != null && unit != null && unit - maxPaid > tol) {
+      // We have real history and this beats the worst price we've ever paid.
+      r.match_status = "price_high_vs_history";
+      r.expected_price = r2(maxPaid);
+      r.variance = r2((unit - maxPaid) * (num(bl.qty) ?? 1));
+    } else if (amt >= MATERIAL_LINE_VALUE || (maxPaid == null && amt >= UNKNOWN_PART_VALUE)) {
+      // Material either way, or an unfamiliar part big enough to be worth a look.
+      r.match_status = "unverified_high_value";
+      r.variance = r2(amt);
+    } else if (maxPaid != null) {
+      r.match_status = "no_ticket_price_ok";
+      r.variance = 0;
+    } else {
+      r.match_status = "no_ticket";
+      r.variance = 0;
+    }
   });
 
   const unbilled = groups.filter(g => g.billedQty === 0).map(g => ({ part_no: g.part ? (g.lines[0]?.part_no || g.part) : null, description: g.desc, qty: g.qty, unit_price: g.avgPrice != null ? r2(g.avgPrice) : null }));
@@ -329,7 +363,20 @@ function BillAuditModal({ pos, tickets, ticketItems, A, onClose, onSaved, userNa
     return tickets.filter(sameVendor);
   }, [selPO, vendor, tickets]);
   const scopeLines = useMemo(() => { const ids = new Set(scopeTickets.map(t => t.id)); return ticketItems.filter(i => ids.has(i.ticket_id)); }, [scopeTickets, ticketItems]);
-  const audit = useMemo(() => lines.length ? auditBill(lines, scopeLines) : null, [lines, scopeLines]);
+  // What we've historically paid, keyed by normalized part number. Lets a bill
+  // be audited before pickup-ticket capture is a habit — without it, every
+  // line on an unticketed bill comes back red and says nothing.
+  const [priceRef, setPriceRef] = useState(null);
+  useEffect(() => {
+    let dead = false;
+    sb().from("part_audit_ref").select("part_key,part_no,avg_paid,max_paid,buys").then(({ data }) => {
+      if (dead) return;
+      const map = {}; (data || []).forEach(r => { if (r.part_key) map[r.part_key] = r; });
+      setPriceRef(map);
+    });
+    return () => { dead = true; };
+  }, []);
+  const audit = useMemo(() => lines.length ? auditBill(lines, scopeLines, priceRef) : null, [lines, scopeLines, priceRef]);
   const auditedLines = audit ? audit.results : lines;
 
   const onFile = async (file) => {
@@ -458,7 +505,10 @@ function BillDetailModal({ bill, items, pos, A, onClose, msg }) {
             {EXCEPTION_STATUSES.includes(it.match_status) && <button onClick={() => accept(it)} disabled={busy} style={{ ...BS, padding: "4px 10px", fontSize: 10, minHeight: 26 }}>Accept</button>}
           </div>
           {EXCEPTION_STATUSES.includes(it.match_status) && <div style={{ fontSize: 10, color: B.orange, marginTop: 3 }}>
-            {it.match_status === "no_ticket" && "No pickup ticket has this item — verify it was actually received."}
+            {it.match_status === "no_ticket" && "No pickup ticket and no price history for this part yet."}
+            {it.match_status === "no_ticket_price_ok" && it.expected_price != null && "No pickup ticket, but $" + (parseFloat(it.unit_price) || 0).toFixed(2) + " is in line with the $" + parseFloat(it.expected_price).toFixed(2) + " you normally pay."}
+            {it.match_status === "price_high_vs_history" && it.expected_price != null && "Highest you have ever paid for this part is $" + parseFloat(it.expected_price).toFixed(2) + " — this bill says $" + (parseFloat(it.unit_price) || 0).toFixed(2) + "."}
+            {it.match_status === "unverified_high_value" && "No pickup ticket and this line is $" + (parseFloat(it.amount) || 0).toFixed(2) + " — confirm it was actually delivered before paying."}
             {it.match_status === "price_mismatch" && it.expected_price != null && "Ticket price $" + parseFloat(it.expected_price).toFixed(2) + " → billed $" + (parseFloat(it.unit_price) || 0).toFixed(2) + (it.variance ? " (+$" + parseFloat(it.variance).toFixed(2) + ")" : "")}
             {it.match_status === "qty_over" && it.expected_qty != null && "Picked up " + it.expected_qty + ", billed " + (it.qty ?? "?") + (it.variance ? " (+$" + parseFloat(it.variance).toFixed(2) + ")" : "")}
           </div>}

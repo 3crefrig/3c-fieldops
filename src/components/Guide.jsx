@@ -140,6 +140,7 @@ const SECTIONS = [
     intro: "Keep the board moving.",
     steps: [
       ["All work orders", "The “Work Orders” tab shows everything. Filter by status/customer and use bulk actions on multiple orders."],
+      ["Narrowing a long list", "Under the status buttons there’s a search box and a row of chips built from whatever is currently on screen — each customer and tech with a count beside it. With 112 jobs waiting on TMS entry, one tap on “Duke School Of Medicine 75” leaves just those. The counts also tell you the shape of the backlog before you tap anything. Your choice sticks when you come back."],
       ["Assign a tech", "Open a WO and set the assignee — the tech gets a push (or an email if they haven’t enabled push)."],
       ["Week Plan", "Use “Week Plan” to see and balance the crew’s schedule across the week."],
       ["Repeat failures", "The Overview flags equipment/locations with 3+ corrective jobs in 90 days so you can plan a replacement."],
@@ -150,8 +151,23 @@ const SECTIONS = [
     intro: "Approve spend and request vendor pricing.",
     steps: [
       ["Approve/reject POs", "In “PO Mgmt”, set an amount if the tech left it blank, then Approve or Reject. The requester gets notified."],
+      ["Receipts fill in the amount", "When a tech snaps a pickup ticket against a PO, the app adds it up and offers to set the PO amount to match — ticked by default when the PO has no amount yet, left alone when you’ve already approved a figure. Each PO card shows a Receipts line with a per-vendor breakdown, so a PO filled at two supply houses reads clearly."],
+      ["One PO, several vendors", "You can absolutely buy against one PO from more than one supply house. Capture a ticket per pickup and the card totals them separately — “Grainger $218.53 · ACR $96.20”."],
       ["Create an RFQ", "In “RFQs”, click New RFQ, add the vendor, line items, and notes. The app builds a branded .docx request."],
       ["Review & send", "Open an RFQ → Review & Send → Approve, then Send to Vendor. It emails the vendor the document. Record their quoted prices when they reply."],
+    ],
+  },
+  {
+    id: "pricebook", title: "Price Book & Supply Audit", icon: "🏷", audience: "manager",
+    intro: "What every part costs, who charged it, and whether the bill is right.",
+    steps: [
+      ["It fills itself in", "Every pickup ticket and vendor bill a tech scans writes its line items into the Price Book automatically. Nobody types a catalog — it accumulates from work you already do at the counter."],
+      ["Reading a part", "Tap any part to see every price ever recorded for it, who charged it, and when. “Wide price swings” collects the parts where what you pay moves most — usually worth a phone call."],
+      ["Compare to elsewhere", "Looked up a price at another supply house? Open the part → Add a price → choose Reference. The “Cheaper elsewhere” view then shows the gap. Reference prices are ones you haven’t bought at — they never affect job costing, they exist purely to compare."],
+      ["When to re-check", "Copper, refrigerant and gas move with the market and get re-checked every 90 days; everything else every 180. Anything under about $100 a year is left alone — the hour spent pricing it costs more than the saving. A price landing more than 15% above its own average flags itself straight away."],
+      ["Audit a vendor bill", "In Supply Audit, scan the supplier’s bill. Every line is matched against the pickup tickets for that PO — wrong price, wrong quantity, or an item no ticket has."],
+      ["Bills without tickets", "No ticket for a line? The Price Book stands in. A price above the most you’ve ever paid gets flagged, a line over $1,000 asks you to confirm it was delivered, and anything at its usual price passes quietly. It’s a safety net, not a substitute — catching a wrong QUANTITY still needs the counter ticket."],
+      ["Why it matters", "Over one four-month stretch ACR billed 3C for a condensing unit and a leak detector that were never received — $5,766, caught only because somebody read the invoice. This is that check, done automatically."],
     ],
   },
   {
