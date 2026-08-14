@@ -7,6 +7,7 @@ import { ActivityLog } from "./ActivityLog";
 import { POReqModal, POEditForm } from "./PurchaseOrders";
 import { InvoiceGenerator } from "./Invoices";
 import { EquipmentPicker, BarcodeScanner, EQ_TYPES, EQ_LABELS, REF_TYPES } from "./Equipment";
+import { useListFilter, ListFilterBar } from "./ListFilter";
 
 // ─── Inline Equipment helpers (used by WODetail and CreateWO) ─────────────────
 // Compact searchable picker that lists equipment for the WO's customer.
@@ -1062,6 +1063,16 @@ function WOOverview({orders,wlp,pos,time}){
   const thirtyDaysAgo=localDateStr(new Date(Date.now()-30*86400000));
   const staleWOs=orders.filter(o=>o.status==="pending"&&o.created_at?.slice(0,10)<thirtyDaysAgo);
   const filteredWeek=filter==="all"?thisWeek:filter==="pending"?thisWeek.filter(o=>o.status==="pending"):filter==="active"?thisWeek.filter(o=>o.status==="in_progress"):filter==="done"?thisWeek.filter(o=>o.status==="completed"):filter==="tms"?thisWeek.filter(o=>!o.tms_entered):filter==="stale"?staleWOs:thisWeek;
+  // Source list depends on the status chip; the filter bar then narrows it by
+  // text and by contextual facets (customer / tech) drawn from that set.
+  const filterSource=filter==="tms"?orders.filter(o=>!o.tms_entered):filter==="stale"?staleWOs:filteredWeek;
+  const listFilter=useListFilter("wo-"+filter,filterSource,{
+    searchFields:["wo_id","title","customer","assignee","location","building","customer_wo",(o)=>(o.crew||[]).join(" ")],
+    facets:[
+      {key:"customer",label:"Customer",short:(v)=>v.replace(/^Duke University /,"Duke ").slice(0,30)},
+      {key:"assignee",label:"Tech",accent:"#5AD48A"},
+    ],
+  });
 
   return(<div>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
@@ -1077,7 +1088,10 @@ function WOOverview({orders,wlp,pos,time}){
       <span style={{fontFamily:M,fontSize:12,color:B.cyan}}>{thisWeek.length} orders</span>
     </div>
     <div data-tour="wo-filters" style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["active","Active"],["done","Done"],["tms","TMS Needed"],["stale","Stale 30d+"]].map(([k,l])=>{const accent=k==="tms"?B.orange:k==="stale"?B.red:B.cyan;return<button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+(filter===k?accent:B.border),background:filter===k?accent+"22":"transparent",color:filter===k?accent:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="tms"&&tmsPending>0?" ("+tmsPending+")":""}{k==="stale"&&staleWOs.length>0?" ("+staleWOs.length+")":""}</button>})}</div>
-    {filter==="tms"?<TMSQueue orders={orders.filter(o=>!o.tms_entered)} wlp={wlp}/>:(filteredWeek.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>No work orders</div></Card>:<WOList orders={filteredWeek} {...wlp}/>)}
+    <ListFilterBar filter={listFilter}
+      placeholder={filter==="tms"?"Search the TMS queue by WO#, customer, title, tech…":"Search by WO#, customer, title, tech…"}
+      showing={(n,t)=>n+" of "+t+(filter==="tms"?" needing TMS":" orders")}/>
+    {filter==="tms"?<TMSQueue orders={listFilter.result} wlp={wlp}/>:(listFilter.result.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>{listFilter.activeCount>0?"Nothing matches those filters":"No work orders"}</div></Card>:<WOList orders={listFilter.result} {...wlp}/>)}
     {past.length>0&&<div style={{marginTop:20}}>
       <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📁</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
