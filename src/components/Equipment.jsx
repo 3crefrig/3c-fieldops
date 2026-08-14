@@ -26,28 +26,67 @@ const REF_TYPES=["R-404A","R-134a","R-410A","R-290","R-407C","R-22","R-448A","R-
 const STATUS_COLORS={active:B.green,decommissioned:B.textDim,pending_install:B.orange};
 const STATUS_LABELS={active:"Active",decommissioned:"Decommissioned",pending_install:"Pending Install"};
 
+// A scanned or hand-typed tag rarely matches the stored one character for
+// character — case differs, barcodes carry padding, and what's printed on a
+// unit may be the serial or the customer's equipment number rather than the
+// asset tag. Compare on alphanumerics only, across all three identifiers.
+const tagKey=(s)=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+function matchByTag(list,tag){
+  const k=tagKey(tag);if(!k)return null;
+  const fields=["asset_tag","serial_number","equipment_number"];
+  for(const f of fields){const hit=(list||[]).find(e=>tagKey(e[f])===k);if(hit)return hit;}
+  // Last resort: the scan is a longer string that contains the stored tag
+  // (some barcodes prefix a site or department code).
+  return(list||[]).find(e=>fields.some(f=>{const v=tagKey(e[f]);return v&&v.length>=4&&k.includes(v);}))||null;
+}
+
 // ─── Barcode / QR Scanner ─────────────────────────────
 function BarcodeScanner({onScan,onClose}){
   const scannerRef=useRef(null);const containerRef=useRef(null);const[error,setError]=useState("");const[manual,setManual]=useState("");
+  const[noRead,setNoRead]=useState(false);
+  // Callers pass inline arrows, so onScan/onClose are new every render. Keep the
+  // live one in a ref and start the camera ONCE — with them in the dep array the
+  // effect tore the camera down and restarted it on every parent re-render (and
+  // this app re-renders constantly off realtime), so start() raced its own stop()
+  // and surfaced as "Camera access denied or unavailable".
+  const onScanRef=useRef(onScan);useEffect(()=>{onScanRef.current=onScan;},[onScan]);
   useEffect(()=>{
     let cancelled=false;
-    const scannerId="eq-scanner-"+Date.now();
-    if(containerRef.current)containerRef.current.id=scannerId;
+    const el=containerRef.current;if(!el)return;
+    if(!el.id)el.id="eq-scanner-"+Math.random().toString(36).slice(2);
+    const scannerId=el.id;
     (async()=>{
-      const{Html5Qrcode}=await importRetry(()=>import("html5-qrcode"));
-      if(cancelled)return;
-      const scanner=new Html5Qrcode(scannerId);scannerRef.current=scanner;
-      scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:180},aspectRatio:1.5},
-        (text)=>{haptic(50);scanner.stop().catch(()=>{});onScan(text);},
-        ()=>{}
-      ).catch(err=>{setError("Camera access denied or unavailable. You can type the asset tag manually.");console.warn("Scanner error:",err);});
+      try{
+        const{Html5Qrcode}=await importRetry(()=>import("html5-qrcode"));
+        if(cancelled)return;
+        const scanner=new Html5Qrcode(scannerId);scannerRef.current=scanner;
+        // No aspectRatio constraint — an unsatisfiable one makes getUserMedia
+        // throw OverconstrainedError on some iPhones. A wide, short box reads
+        // 1D asset-tag barcodes (Code 39 / Code 128) far better than a square.
+        await scanner.start(
+          {facingMode:"environment"},
+          {fps:10,qrbox:(vw,vh)=>({width:Math.floor(vw*0.9),height:Math.floor(Math.min(vh*0.5,160))})},
+          (text)=>{haptic(50);scanner.stop().catch(()=>{});onScanRef.current(String(text).trim());},
+          ()=>{}
+        );
+      }catch(err){
+        if(cancelled)return;
+        console.warn("Scanner error:",err);
+        setError("Couldn't start the camera: "+(err?.message||err)+" — type the tag below instead.");
+      }
     })();
-    return()=>{cancelled=true;scannerRef.current?.stop().catch(()=>{});};
-  },[onScan,onClose]);
+    // Many asset tags (Duke's engraved metal plates among them) carry no barcode
+    // at all. Say so rather than leaving them pointing the camera indefinitely.
+    const t=setTimeout(()=>{if(!cancelled)setNoRead(true);},12000);
+    return()=>{cancelled=true;clearTimeout(t);scannerRef.current?.stop().catch(()=>{});};
+  },[]);
   return(<Modal title="Scan Asset Tag" onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
       <div ref={containerRef} style={{width:"100%",maxWidth:400,minHeight:250,borderRadius:10,overflow:"hidden",background:B.bg}}/>
       {error&&<div style={{color:B.orange,fontSize:12,textAlign:"center",padding:8}}>{error}</div>}
+      {!error&&noRead&&<div style={{color:B.textMuted,fontSize:11,textAlign:"center",padding:"8px 10px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,lineHeight:1.5}}>
+        Still no read? Plenty of tags — including Duke's engraved metal property plates — have <b>no barcode on them at all</b>. Just type the number below.
+      </div>}
       <div style={{fontSize:11,color:B.textDim,textAlign:"center"}}>Point camera at barcode or QR code on equipment</div>
       <div style={{display:"flex",gap:6,width:"100%",maxWidth:400,marginTop:4}}>
         <input value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&manual.trim()){scannerRef.current?.stop().catch(()=>{});onScan(manual.trim());}}} placeholder="Or type the asset tag…" style={{...IS,flex:1}}/>
@@ -68,9 +107,9 @@ function EquipmentPicker({equipment,customerName,value,onChange}){
   });
   const selected=value?equipment.find(e=>e.id===value):null;
   const handleScan=(tag)=>{setScanning(false);
-    const match=filtered.find(e=>e.asset_tag===tag)||equipment.find(e=>e.asset_tag===tag);
+    const match=matchByTag(filtered,tag)||matchByTag(equipment,tag);
     if(match){onChange(match.id);haptic();}
-    else alert("No equipment found with asset tag: "+tag+". Register it in the Equipment tab first.");
+    else alert("Nothing registered under \""+tag+"\" yet.\n\nAdd it once from the Equipment tab and every future scan on this unit will find it.");
   };
   return(<div>
     <label style={LS}>Equipment</label>
@@ -323,7 +362,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
   }
 
   const handleScan=(tag)=>{setScanning(false);
-    const match=equipment.find(e=>e.asset_tag===tag);
+    const match=matchByTag(equipment,tag);
     if(match){setSelected(match.id);haptic();}
     else{msg("No equipment found with tag: "+tag);if(canEdit&&window.confirm("Register new equipment with asset tag \""+tag+"\"?")){setCreating({asset_tag:tag});}}
   };
