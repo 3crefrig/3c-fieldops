@@ -204,6 +204,10 @@ export function PriceBook({ userRole }) {
                   <div style={{ fontFamily: M, fontWeight: 700, fontSize: 16 }}>{money(r.avg_paid)}</div>
                   <div style={{ fontSize: 10, color: B.textDim }}>avg paid</div>
                   {saves > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: B.green, marginTop: 4 }}>{saves.toFixed(0)}% less at {money(r.best_alternative)}</div>}
+                  {/* A negative gap means this vendor beat the outside price —
+                      worth saying out loud, or the tab reads as an indictment
+                      of a supplier that is winning on half the catalog. */}
+                  {saves != null && saves <= 0 && <div style={{ fontSize: 11, fontWeight: 700, color: B.cyan, marginTop: 4 }}>best price we have · {Math.abs(saves).toFixed(0)}% under {money(r.best_alternative)}</div>}
                   {saves == null && spread >= 25 && <div style={{ fontSize: 11, fontWeight: 700, color: B.orange, marginTop: 4 }}>{spread.toFixed(0)}% swing</div>}
                 </div>
               </div>
