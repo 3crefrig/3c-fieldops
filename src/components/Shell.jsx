@@ -64,7 +64,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       const TAB_GROUPS=[
         {label:"Operations",icon:"⚡",keys:["overview","today","inbox","orders","planner","time","calendar"]},
         {label:"Finance",icon:"💰",keys:["billing","invoices","parts","proposals","agreements","feedback","reports"]},
-        {label:"Management",icon:"👥",keys:["pos","rfqs","audit","customers","equipment","users","recurring","team","projects"]},
+        {label:"Management",icon:"👥",keys:["pos","rfqs","audit","pricebook","customers","equipment","users","recurring","team","projects"]},
         {label:"System",icon:"⚙️",keys:["settings","kb","guide"]},
       ];
       const useGroups=!isMobile&&tabs.length>8;
