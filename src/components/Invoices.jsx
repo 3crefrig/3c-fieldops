@@ -4,11 +4,27 @@ import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewM
 import { fetchLogoBase64 } from "./PurchaseOrders";
 import { buildFeedbackEmail } from "../feedbackEmail";
 
+// How long after the invoice goes out the review ask should follow, in hours.
+// Landing in the customer's inbox seconds behind the invoice reads as spam and
+// asks for a review before they've even opened the bill — so it waits.
+// Settings → App Settings → "Review Email Delay"; 0 = send immediately.
+export const feedbackDelayHours=()=>{const h=parseFloat(getAppSetting("feedback_delay_hours",2));return isNaN(h)||h<0?2:h;};
+// "90 minutes" / "2 hours" / "1 day" — for the toast and the checkbox label.
+export const fmtDelay=(h)=>{if(!h)return "immediately";
+  if(h<1)return Math.round(h*60)+" minutes";
+  if(h>=24&&h%24===0){const d=h/24;return d===1?"1 day":d+" days";}
+  return (Number.isInteger(h)?h:h.toFixed(1))+(h===1?" hour":" hours");};
+
 // Send the "how did we do?" review email for an invoice. Auto mode (force=false)
 // only fires for a customer's FIRST feedback request — repeat customers aren't
 // nagged after every job. force=true is the manual "Ask for review" path.
-// Returns "sent" | "skipped" | "no-email".
-export async function sendFeedbackRequest(inv,customers,{force=false,toOverride=null}={}){
+// Anything with a delay is queued into scheduled_emails (the 5-minute dispatcher
+// sends it, and it shows up in the Scheduled view where it can be cancelled).
+// delayHours: undefined → the app setting; a number overrides it (0 = send now).
+// baseTime: what the delay counts from (defaults to now) — a scheduled invoice
+// passes its own send time so the review still follows the invoice, not the click.
+// Returns "sent" | "queued" | "skipped" | "no-email".
+export async function sendFeedbackRequest(inv,customers,{force=false,toOverride=null,delayHours=undefined,baseTime=null}={}){
   if(getAppSetting("feedback_enabled",true)===false)return "skipped";
   const custName=inv.customer||"";
   const cust=(customers||[]).find(c=>c.name===custName);
@@ -25,6 +41,16 @@ export async function sendFeedbackRequest(inv,customers,{force=false,toOverride=
   if(reqErr)throw new Error("Could not create feedback link: "+reqErr.message);
   const feedbackUrl=window.location.origin+"/#/feedback/"+token;
   const{subject,body}=buildFeedbackEmail({customerName:custName,invoiceNum:inv.invoice_num,feedbackUrl});
+  const delay=delayHours===undefined||delayHours===null?feedbackDelayHours():Math.max(0,parseFloat(delayHours)||0);
+  if(delay>0){
+    const base=baseTime?new Date(baseTime):new Date();
+    const sendAt=new Date(base.getTime()+delay*3600*1000);
+    // No invoice_id on purpose: the dispatcher flips draft invoices to "sent"
+    // when it sends a row, and this row is the review ask, not the invoice.
+    const{error:qErr}=await sb().from("scheduled_emails").insert({to_emails:toEmail,subject,body,send_at:sendAt.toISOString(),status:"pending"});
+    if(qErr)throw new Error("Could not queue review email: "+qErr.message);
+    return "queued";
+  }
   await fnFetch("send-email",{to:toEmail,subject,body});
   return "sent";
 }
@@ -515,11 +541,15 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const avgDays=invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).length>0?Math.round(invoices.filter(i=>i.status==="paid"&&i.date_paid&&i.date_issued).reduce((s,i)=>s+daysOut(i.date_issued)-daysOut(i.date_paid),0)/invoices.filter(i=>i.status==="paid").length):0;
 
   const markSent=async(inv)=>{await onUpdateInvoice({...inv,status:"sent",date_sent:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as sent");
-    // Auto review-ask: first-time customers only (manual "☆ Review" covers the rest)
-    try{await sendFeedbackRequest(inv,customers);}catch(e){console.error("Feedback request error:",e);}
+    // Auto review-ask: first-time customers only (manual "☆ Review" covers the rest).
+    // Queued with a delay — it used to fire the instant the invoice was marked sent.
+    try{const r=await sendFeedbackRequest(inv,customers);
+      if(r==="queued"){msg("Invoice "+inv.invoice_num+" marked as sent · review email queued for "+fmtDelay(feedbackDelayHours()));loadSchedCount();}
+    }catch(e){console.error("Feedback request error:",e);}
   };
-  const askReview=async(inv)=>{if(!window.confirm("Email a review request to "+(inv.customer||"this customer")+" now?"))return;
-    try{const r=await sendFeedbackRequest(inv,customers,{force:true});
+  // Manual button: an explicit "send it now" click, so it bypasses the delay.
+  const askReview=async(inv)=>{if(!window.confirm("Email a review request to "+(inv.customer||"this customer")+" right now?"))return;
+    try{const r=await sendFeedbackRequest(inv,customers,{force:true,delayHours:0});
       msg(r==="sent"?"Review request sent":r==="no-email"?"No customer email on file":"Feedback requests are disabled in Settings");
     }catch(e){console.error(e);msg("⚠️ Failed to send review request");}
   };
@@ -1342,19 +1372,11 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
           drive_file_id:d.driveFileId||null,send_at:sendAt.toISOString(),status:"pending",
           invoice_id:invRow?.id||null
         });
-        // Review ask (checkbox): queue the review email 2h after the invoice lands,
-        // through the same scheduled_emails dispatcher. Token row is created now;
-        // if it fails, nothing is queued (no dead links).
+        // Review ask (checkbox): queue it behind the invoice, counting the delay
+        // from when the INVOICE lands rather than from this click.
         if(feedbackOnSend&&askReview){
-          try{
-            const custName=invRow?.customer||d.customerDisplayName||"";
-            const toFb=emailTo.split(",")[0].trim();
-            const fbToken=crypto.randomUUID();
-            const{error:reqErr}=await sb().from("feedback_requests").insert({invoice_id:invRow?.id||null,invoice_num:d.invoiceNum,customer_name:custName,sent_to:toFb,token:fbToken});
-            if(reqErr)throw new Error(reqErr.message);
-            const{subject:fbSubject,body:fbBody}=buildFeedbackEmail({customerName:custName,invoiceNum:d.invoiceNum,feedbackUrl:window.location.origin+"/#/feedback/"+fbToken});
-            await sb().from("scheduled_emails").insert({to_emails:toFb,subject:fbSubject,body:fbBody,send_at:new Date(sendAt.getTime()+2*3600*1000).toISOString(),status:"pending"});
-          }catch(fe){console.error("Review-ask scheduling error:",fe);msg("Invoice scheduled, but the review email could not be queued");}
+          try{await sendFeedbackRequest({...(invRow||{}),invoice_num:d.invoiceNum,customer:invRow?.customer||d.customerDisplayName||""},null,{force:true,toOverride:emailTo.split(",")[0].trim(),baseTime:sendAt});}
+          catch(fe){console.error("Review-ask scheduling error:",fe);msg("Invoice scheduled, but the review email could not be queued");}
         }
         msg("Invoice scheduled for "+sendAt.toLocaleString()+"!");
       }else{
@@ -1365,10 +1387,12 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
         if(result.success){
           msg("Invoice sent!");
           // Review ask (checkbox): explicit user choice, so force past the
-          // first-customer gate.
+          // first-customer gate — but still queued behind the invoice instead of
+          // landing in the same inbox refresh (it used to send immediately).
           if(feedbackOnSend&&askReview){
-            try{await sendFeedbackRequest({...(invRow||{}),invoice_num:d.invoiceNum,customer:invRow?.customer||d.customerDisplayName||""},null,{force:true,toOverride:emailTo.split(",")[0].trim()});}
-            catch(fe){console.error("Feedback request error:",fe);}
+            try{const fr=await sendFeedbackRequest({...(invRow||{}),invoice_num:d.invoiceNum,customer:invRow?.customer||d.customerDisplayName||""},null,{force:true,toOverride:emailTo.split(",")[0].trim()});
+              if(fr==="queued")msg("Invoice sent · review email in "+fmtDelay(feedbackDelayHours()));
+            }catch(fe){console.error("Feedback request error:",fe);msg("Invoice sent, but the review email could not be queued");}
           }
           // Reconcile: sending IS marking sent. (Previously the invoice stayed
           // "draft" until someone remembered Mark Sent on the tracker.)
@@ -1457,9 +1481,9 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
       {feedbackOnSend&&<div style={{background:B.bg,borderRadius:8,padding:14,border:"1px solid "+B.border}}>
         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setAskReview(!askReview)}>
           <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+(askReview?B.cyan:B.border),background:askReview?B.cyan:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{askReview&&<span style={{color:B.bg,fontSize:12}}>✓</span>}</span>
-          <span style={{fontSize:12,color:B.text,fontWeight:600}}>Ask for a review{scheduleEnabled?" (sends 2h after the invoice)":""}</span>
+          <span style={{fontSize:12,color:B.text,fontWeight:600}}>Ask for a review{feedbackDelayHours()>0?" (sends "+fmtDelay(feedbackDelayHours())+" after the invoice)":""}</span>
         </label>
-        <div style={{fontSize:10,color:B.textDim,marginTop:6,marginLeft:28}}>Emails the customer a 30-second review link. Pre-checks itself the first time we invoice a customer.</div>
+        <div style={{fontSize:10,color:B.textDim,marginTop:6,marginLeft:28}}>Emails the customer a 30-second review link. Pre-checks itself the first time we invoice a customer. Delay is set in Settings → App Settings.</div>
       </div>}
 
       <div style={{display:"flex",gap:8}}>

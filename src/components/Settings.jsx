@@ -105,7 +105,7 @@ function CompanyProfile({msg}){
 
 function AppSettings({msg}){
   const[loading,setLoading]=useState(true);const[saving,setSaving]=useState(false);
-  const[settings,setSettings]=useState({max_daily_hours:"12",invoice_reminder_days:"30",default_payment_terms:"Net 30",auto_invoice_default:false,feedback_enabled:true,proposal_validity_months:"6",po_auto_approve_threshold:""});
+  const[settings,setSettings]=useState({max_daily_hours:"12",invoice_reminder_days:"30",default_payment_terms:"Net 30",auto_invoice_default:false,feedback_enabled:true,feedback_delay_hours:"2",proposal_validity_months:"6",po_auto_approve_threshold:""});
 
   useEffect(()=>{(async()=>{
     const{data}=await sb().from("app_settings").select("*").eq("key","app_settings").single();
@@ -141,6 +141,11 @@ function AppSettings({msg}){
         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={settings.auto_invoice_default} onChange={e=>set("auto_invoice_default",e.target.checked)} style={{width:18,height:18,accentColor:B.cyan}}/><div><div style={{fontSize:12,fontWeight:600,color:B.text}}>Auto-Invoice Default</div><div style={{fontSize:10,color:B.textDim}}>New customers get auto-invoicing enabled</div></div></label>
         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={settings.feedback_enabled} onChange={e=>set("feedback_enabled",e.target.checked)} style={{width:18,height:18,accentColor:B.cyan}}/><div><div style={{fontSize:12,fontWeight:600,color:B.text}}>Feedback Requests</div><div style={{fontSize:10,color:B.textDim}}>Auto-send feedback emails when invoices are sent</div></div></label>
       </div>
+      {settings.feedback_enabled&&<div style={{marginTop:14,maxWidth:260}}>
+        <label style={LS}>Review Email Delay (hours)</label>
+        <input value={settings.feedback_delay_hours} onChange={e=>set("feedback_delay_hours",e.target.value)} type="number" min="0" step="0.5" style={{...IS,fontFamily:M}}/>
+        <div style={{fontSize:10,color:B.textDim,marginTop:4}}>How long after the invoice the review email goes out. 0 sends it immediately (not recommended — it lands in the same inbox refresh as the bill).</div>
+      </div>}
     </Card>
 
     <Card style={{padding:18,marginBottom:14}}>
