@@ -132,6 +132,18 @@ Published SOPs using this (2026-07-23, both live in prod DB):
 
 Torque-spec note: the valve-plate SOP's head-torque figure and text were corrected against AE4-1219 R18 — the 103 ft-lb 1/2"-bolt spec belongs to Discus III/Digital 4D/6D*N/*X heads (NOT 2D/3D), 2D/3D & E/L/M/N are 44 ft-lb (3/8" bolts), H/K only (not L) are 25 ft-lb, Carlyle 06E is 85–100 ft-lb.
 
+## Work Order Service Ticket PDF (2026-08-27)
+
+`src/components/WoPdf.jsx` turns a work order into a branded, customer-facing **Service Ticket** PDF. Button lives on WODetail (all roles, not just managers); options sheet -> `previewPdfDoc` -> `PdfPreviewModal`, same preview path as invoices/POs.
+
+- **Layout** mirrors `buildInvoicePDF` on purpose (logo top-left, cyan rule, right info box, dark summary strip) so a ticket and the invoice that follows it read as one company. Sections, all skipped when empty: equipment serviced, reported issue, work performed, per-tech service log + total hours, SLA response times, parts & materials, purchase orders, EPA refrigerant log, field notes, job photos (before/during/after), acknowledgement block.
+- **Customer copy is the default.** Two opt-in toggles switch on the *internal* copy: `pricing` (material amounts + approved POs) and `notes` (tech-to-tech field notes). Photos toggle on by default.
+- **No captured signature.** The acknowledgement block is blank ruled lines (signature / print name / date) for the handed-over or printed copy — the in-app signature is stored as cyan-on-near-black canvas output and prints as a black slab.
+- **Photos need a proxy.** `drive.google.com/thumbnail` sends no `Access-Control-Allow-Origin`, so the browser can't read the bytes for jsPDF. `drive-upload` gained a `{fetchIds:[...], size}` mode that relays public Drive thumbnails back as data URIs — **ids only**, validated against `/^[A-Za-z0-9_-]{10,120}$/`, so there's no SSRF surface. Supabase-hosted photo URLs are fetched directly client-side. Redeploy `drive-upload` if you touch this.
+- **`compress:true`** on the jsPDF doc — a ticket with photos goes from ~8.9MB to under 300KB. Worth copying to the other PDF builders.
+- **`S()` sanitises every drawn string to WinAnsi** and repairs the mis-encoded curly quotes ("PMâ€™s") sitting in some older WO titles. The other PDF builders don't do this yet.
+- **Verifying layout changes:** bundle `WoPdf.jsx` with esbuild for node (alias `app` -> `src`, `define` the `REACT_APP_SUPABASE_*` vars), shim `localStorage`/`sessionStorage`/`window.atob`/`FileReader`, render to PDF, then rasterise with `pdf-to-img` (`useSystemFonts:true`). Fixtures built from production rows contain customer data — keep them in the scratchpad, never commit them.
+
 ## New-Tech Onboarding Email
 
 `src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).
