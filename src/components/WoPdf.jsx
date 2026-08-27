@@ -101,9 +101,23 @@ function collectWOPdfData({wo,customer,equipment,timeEntries,lineItems,pos,photo
   };
 }
 
-async function buildWOPdf(d){
+// Every vertical measurement the layout uses, at two densities. Compact shaves
+// roughly a fifth off the rhythm without touching the type hierarchy, which is
+// usually enough to pull a short ticket back onto one page. Nothing picks it
+// directly — buildWOPdfFitted() below tries it and keeps it only if it wins.
+const DENSITY={
+  normal :{lead:18,infoRow:7.5,ciLh:4.2,topGap:7,titlePt:23,logoH:16,jobPt:13,jobLh:6,
+           paneTop:12,paneLh:4.6,paneMin:24,paneGap:6,stripPad:8,stripLh:4.5,stripGap:8,
+           hdr:10,rule:5,pad:3,lh:4.6,rowMin:7,rowLh:4.4,eqRow:7,ack:30},
+  compact:{lead:16,infoRow:6.6,ciLh:3.9,topGap:4,titlePt:20,logoH:14,jobPt:12,jobLh:5.4,
+           paneTop:10.5,paneLh:4.2,paneMin:20,paneGap:5,stripPad:6.5,stripLh:4.2,stripGap:5,
+           hdr:8,rule:3.5,pad:1.5,lh:4.2,rowMin:6.2,rowLh:4.1,eqRow:6.2,ack:24},
+};
+
+async function buildWOPdf(d,compact){
   const{jsPDF}=await importRetry(()=>import("jspdf"));
   const doc=new jsPDF({unit:"mm",format:"letter",compress:true});
+  const K=DENSITY[compact?"compact":"normal"];
   const pw=215.9,ph=279.4,lm=18,rm=18,cw=pw-lm-rm;
   const cyan=[0,212,245],dark=[30,34,40],mid=[100,112,130],light=[245,247,252],hair=[221,226,235],white=[255,255,255];
   let y=0;
@@ -119,61 +133,61 @@ async function buildWOPdf(d){
     doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.setTextColor(...cyan);
     txt(label,lm,y+4);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.4);doc.line(lm,y+5.8,lm+doc.getTextWidth(label),y+5.8);
-    y+=10;
+    y+=K.hdr;
   };
-  const rule=()=>{doc.setDrawColor(...hair);doc.setLineWidth(0.2);doc.line(lm,y,pw-rm,y);y+=5;};
+  const rule=()=>{doc.setDrawColor(...hair);doc.setLineWidth(0.2);doc.line(lm,y,pw-rm,y);y+=K.rule;};
   const para=(text,x,width,size,color)=>{
     doc.setFont("helvetica","normal");doc.setFontSize(size);doc.setTextColor(...color);
-    wrap(String(text||""),width).forEach(ln=>{need(7);txt(ln,x,y+3);y+=4.6;});
+    wrap(String(text||""),width).forEach(ln=>{need(7);txt(ln,x,y+3);y+=K.lh;});
   };
 
   // ── Letterhead ──
   R(0,0,pw,3,cyan);
   y=12;
   const logo=await fetchLogoBase64();
-  if(logo)doc.addImage(logo,"PNG",lm,y,44,16);
-  doc.setFont("helvetica","bold");doc.setFontSize(23);doc.setTextColor(...dark);
+  if(logo)doc.addImage(logo,"PNG",lm,y,K.logoH*2.75,K.logoH);
+  doc.setFont("helvetica","bold");doc.setFontSize(K.titlePt);doc.setTextColor(...dark);
   txt("SERVICE TICKET",pw-rm,y+8,{align:"right"});
   doc.setDrawColor(...cyan);doc.setLineWidth(1.2);
   doc.line(pw-rm-doc.getTextWidth("SERVICE TICKET"),y+11,pw-rm,y+11);
-  y+=18;
+  y+=K.lead;
 
   const infoRows=[["DATE",d.dateStr],["WORK ORDER #",d.woId]];
   if(d.customerWO)infoRows.push(["YOUR WO #",d.customerWO]);
   infoRows.push(["STATUS",d.status]);
-  const boxW=64,boxX=pw-rm-boxW,boxH=5+infoRows.length*7.5;
+  const boxW=64,boxX=pw-rm-boxW,boxH=5+infoRows.length*K.infoRow;
   R(boxX,y,boxW,boxH,light);
   doc.setDrawColor(...cyan);doc.setLineWidth(0.6);doc.line(boxX,y,boxX,y+boxH);
   infoRows.forEach((r,i)=>{
-    const ry=y+6.5+i*7.5;
+    const ry=y+6.5+i*K.infoRow;
     doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...mid);txt(r[0],boxX+4,ry);
     doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);txt(r[1],pw-rm-4,ry,{align:"right"});
   });
   doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...mid);
   ["3C Refrigeration, LLC","3065 Gwyn Rd., Elon, N.C. 27244","336-264-0935  |  service@3crefrigeration.com","N.C. License 4923"]
-    .forEach((t,i)=>txt(t,lm,y+5+i*4.2));
-  y+=Math.max(boxH,22)+7;
+    .forEach((t,i)=>txt(t,lm,y+5+i*K.ciLh));
+  y+=Math.max(boxH,22)+K.topGap;
 
   // ── Job title ──
-  doc.setFont("helvetica","bold");doc.setFontSize(13);doc.setTextColor(...dark);
-  wrap(d.title||"Service Call",cw).slice(0,2).forEach(ln=>{txt(ln,lm,y+4);y+=6;});
-  y+=3;
+  doc.setFont("helvetica","bold");doc.setFontSize(K.jobPt);doc.setTextColor(...dark);
+  wrap(d.title||"Service Call",cw).slice(0,2).forEach(ln=>{txt(ln,lm,y+4);y+=K.jobLh;});
+  y+=K.pad;
 
   // ── Customer / Service location ──
   const custLines=[d.customerName,d.contactName].filter(Boolean);
   if(d.customerAddress)wrap(d.customerAddress,cw/2-14).forEach(l=>custLines.push(l));
   const siteLines=[d.location,d.building&&("Building "+d.building)].filter(Boolean);
   if(!siteLines.length)siteLines.push("—");
-  const paneH=Math.max(24,13+Math.max(custLines.length,siteLines.length)*4.6);
+  const paneH=Math.max(K.paneMin,K.paneTop+1+Math.max(custLines.length,siteLines.length)*K.paneLh);
   const paneW=(cw-6)/2;
   [["CUSTOMER",custLines,lm],["SERVICE LOCATION",siteLines,lm+paneW+6]].forEach(([label,lines,x])=>{
     R(x,y,paneW,paneH,light);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(x,y,x,y+paneH);
     doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...cyan);txt(label,x+5,y+5.5);
     doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...mid);
-    lines.forEach((l,i)=>txt(l,x+5,y+12+i*4.6));
+    lines.forEach((l,i)=>txt(l,x+5,y+K.paneTop+i*K.paneLh));
   });
-  y+=paneH+6;
+  y+=paneH+K.paneGap;
 
   // ── Dark summary strip ──
   const strip=[
@@ -184,7 +198,7 @@ async function buildWOPdf(d){
   ];
   doc.setFont("helvetica","normal");doc.setFontSize(9);
   const wrapped=strip.map(c=>({...c,lines:wrap(String(c.val),c.w-8)}));
-  const stripH=8+Math.max(...wrapped.map(c=>c.lines.length))*4.5;
+  const stripH=K.stripPad+Math.max(...wrapped.map(c=>c.lines.length))*K.stripLh;
   need(stripH+4);
   R(lm,y,cw,stripH,dark);
   let sx=lm;
@@ -192,31 +206,31 @@ async function buildWOPdf(d){
   wrapped.forEach(c=>{txt(c.label,sx+4,y+4.5);sx+=c.w;});
   sx=lm;
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...white);
-  wrapped.forEach(c=>{c.lines.forEach((ln,i)=>txt(ln,sx+4,y+9+i*4.5));sx+=c.w;});
-  y+=stripH+8;
+  wrapped.forEach(c=>{c.lines.forEach((ln,i)=>txt(ln,sx+4,y+K.stripPad+1+i*K.stripLh));sx+=c.w;});
+  y+=stripH+K.stripGap;
 
   // ── Equipment ──
   if(d.equipment){
     const e=d.equipment;
     const pairs=[["UNIT",e.model||e.number||"—"],["MANUFACTURER",e.manufacturer],["TYPE",e.type],["SERIAL #",e.serial],["ASSET TAG",e.tag],["REFRIGERANT",e.refrigerant],["LOCATED",e.spot]].filter(p=>p[1]);
     if(pairs.length){
-      const gridH=8+Math.ceil(pairs.length/2)*7;
+      const gridH=8+Math.ceil(pairs.length/2)*K.eqRow;
       section("EQUIPMENT SERVICED",gridH+12);
       R(lm,y-2,cw,gridH,light);
       pairs.forEach((p,i)=>{
-        const px=lm+6+(i%2)*(cw/2),py=y+4+Math.floor(i/2)*7;
+        const px=lm+6+(i%2)*(cw/2),py=y+4+Math.floor(i/2)*K.eqRow;
         doc.setFont("helvetica","bold");doc.setFontSize(6.8);doc.setTextColor(...mid);txt(p[0],px,py);
         doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);
         txt(clip(p[1],cw/2-32),px+30,py);
       });
-      y+=gridH+4;
+      y+=gridH+K.pad;
       rule();
     }
   }
 
   // ── Narrative ──
-  if(d.reported){section("REPORTED ISSUE");para(d.reported,lm,cw-4,9,mid);y+=3;rule();}
-  if(d.workPerformed){section("WORK PERFORMED");para(d.workPerformed,lm,cw-4,9,dark);y+=3;rule();}
+  if(d.reported){section("REPORTED ISSUE");para(d.reported,lm,cw-4,9,mid);y+=K.pad;rule();}
+  if(d.workPerformed){section("WORK PERFORMED");para(d.workPerformed,lm,cw-4,9,dark);y+=K.pad;rule();}
 
   // ── Service log ──
   if(d.timeEntries.length){
@@ -229,7 +243,7 @@ async function buildWOPdf(d){
     y+=6;
     d.timeEntries.forEach((t,i)=>{
       const lines=wrap(t.description||"—",pw-rm-cDesc-2).slice(0,4);
-      const rowH=Math.max(7,3+lines.length*4.4);
+      const rowH=Math.max(K.rowMin,3+lines.length*K.rowLh);
       need(rowH+2);
       if(i%2===0)R(lm,y-1.5,cw,rowH,light);
       doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...dark);
@@ -238,7 +252,7 @@ async function buildWOPdf(d){
       doc.setFont("helvetica","bold");doc.setTextColor(...cyan);
       txt((parseFloat(t.hours)||0).toFixed(2),cHrs,y+3);
       doc.setFont("helvetica","normal");doc.setTextColor(...mid);
-      lines.forEach((ln,li)=>txt(ln,cDesc,y+3+li*4.4));
+      lines.forEach((ln,li)=>txt(ln,cDesc,y+3+li*K.rowLh));
       y+=rowH;
     });
     y+=1;
@@ -276,11 +290,11 @@ async function buildWOPdf(d){
     section("PARTS & MATERIALS");
     d.lineItems.forEach((li,i)=>{
       const lines=wrap(li.description||"—",cw-(d.pricing?46:12)).slice(0,3);
-      const rowH=Math.max(7,2.5+lines.length*4.4);
+      const rowH=Math.max(K.rowMin,2.5+lines.length*K.rowLh);
       need(rowH+2);
       if(i%2===0)R(lm,y-1.5,cw,rowH,light);
       doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);
-      lines.forEach((ln,li2)=>txt(ln,lm+6,y+3+li2*4.4));
+      lines.forEach((ln,li2)=>txt(ln,lm+6,y+3+li2*K.rowLh));
       if(d.pricing){doc.setFont("helvetica","bold");txt(money(li.amount),pw-rm-4,y+3,{align:"right"});}
       y+=rowH;
     });
@@ -404,9 +418,9 @@ async function buildWOPdf(d){
   // Blank ruled lines, not the signature captured in the app: this sheet is meant
   // to be handed over or printed, so the customer signs the copy in front of them.
   {
-    const ackH=30;
+    const ackH=K.ack;
     // Reserve the closing line too, so it never lands alone on a page of its own.
-    section("ACKNOWLEDGEMENT",ackH+32);
+    section("ACKNOWLEDGEMENT",ackH+K.hdr+K.pad+19);
     R(lm,y,cw,ackH,light);
     doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+ackH);
     const fields=[
@@ -414,18 +428,21 @@ async function buildWOPdf(d){
       {label:"PRINT NAME",x:lm+78,w:48,val:""},
       {label:"DATE",x:lm+130,w:42,val:d.completedDate||d.dateStr},
     ];
+    // The ruled line sits a fixed distance off the bottom of the block, so the
+    // fields stay put whichever density is in play.
+    const ruleY=y+ackH-11;
     fields.forEach(f=>{
       doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);
-      if(f.val)txt(clip(f.val,f.w),f.x,y+17);
-      doc.setDrawColor(...mid);doc.setLineWidth(0.3);doc.line(f.x,y+19,f.x+f.w,y+19);
+      if(f.val)txt(clip(f.val,f.w),f.x,ruleY-2);
+      doc.setDrawColor(...mid);doc.setLineWidth(0.3);doc.line(f.x,ruleY,f.x+f.w,ruleY);
       doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...mid);
-      txt(f.label,f.x,y+23);
+      txt(f.label,f.x,ruleY+4);
     });
     doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...mid);
     txt("SERVICED BY",lm+6,y+6.5);
     doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...dark);
     txt(clip(d.techs.join(", ")||"—",cw-40),lm+34,y+6.5);
-    y+=ackH+6;
+    y+=ackH+K.paneGap;
   }
 
   // ── Closing line ──
@@ -454,6 +471,16 @@ function OptRow({on,label,hint,disabled,onToggle}){
   </label>);
 }
 
+// A one-page ticket is worth a lot to whoever has to hand it over, so a document
+// that spills onto a second page is rebuilt at the compact density and that copy
+// is kept only if it actually saves a page. Long jobs still get the room they need.
+async function buildWOPdfFitted(d){
+  const roomy=await buildWOPdf(d,false);
+  if(roomy.getNumberOfPages()<=1)return roomy;
+  const tight=await buildWOPdf(d,true);
+  return tight.getNumberOfPages()<roomy.getNumberOfPages()?tight:roomy;
+}
+
 // Options sheet. Defaults are the customer copy — flipping "internal copy" turns
 // on the three things a customer shouldn't see (costs, PO amounts, field notes).
 function WOPdfModal({wo,customer,equipment,timeEntries,lineItems,pos,photos,refLog,fieldNotes,onClose,onPreview,onToast}){
@@ -466,7 +493,7 @@ function WOPdfModal({wo,customer,equipment,timeEntries,lineItems,pos,photos,refL
     try{
       const d=collectWOPdfData({wo,customer,equipment,timeEntries,lineItems,pos,photos,refLog,fieldNotes,opts});
       if(d.photos.length)d.photoImages=await fetchPhotoImages(d.photos,900);
-      const doc=await buildWOPdf(d);
+      const doc=await buildWOPdfFitted(d);
       onPreview(doc,"Service Ticket "+(wo.wo_id||""));
       onClose();
     }catch(e){console.error(e);onToast&&onToast("⚠️ PDF failed: "+e.message);}
@@ -486,4 +513,4 @@ function WOPdfModal({wo,customer,equipment,timeEntries,lineItems,pos,photos,refL
   </Modal>);
 }
 
-export { buildWOPdf, collectWOPdfData, fetchPhotoImages, WOPdfModal };
+export { buildWOPdf, buildWOPdfFitted, collectWOPdfData, fetchPhotoImages, WOPdfModal };
