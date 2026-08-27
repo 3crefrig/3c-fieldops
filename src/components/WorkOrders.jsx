@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage} from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage, PdfPreviewModal, previewPdfDoc} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
@@ -8,6 +8,7 @@ import { POReqModal, POEditForm } from "./PurchaseOrders";
 import { InvoiceGenerator } from "./Invoices";
 import { EquipmentPicker, BarcodeScanner, EQ_TYPES, EQ_LABELS, REF_TYPES } from "./Equipment";
 import { useListFilter, ListFilterBar } from "./ListFilter";
+import { WOPdfModal } from "./WoPdf";
 
 // ─── Inline Equipment helpers (used by WODetail and CreateWO) ─────────────────
 // Compact searchable picker that lists equipment for the WO's customer.
@@ -222,6 +223,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const reloadWOs=()=>reloadTable?reloadTable("work_orders"):loadData();
   const D_equipment=equipment||[];
   const[showBill,setShowBill]=useState(false);
+  const[showPdf,setShowPdf]=useState(false),[pdfPreview,setPdfPreview]=useState(null);
   const[showTime,setShowTime]=useState(false),[showPO,setShowPO]=useState(false),[showComplete,setShowComplete]=useState(false),[editingTime,setEditingTime]=useState(null),[completeStep,setCompleteStep]=useState(1),[showReceipt,setShowReceipt]=useState(false),[receiptData,setReceiptData]=useState(null),[scanningReceipt,setScanningReceipt]=useState(false),[showTroubleshoot,setShowTroubleshoot]=useState(false),[editingPO,setEditingPO]=useState(null);
   const[jobIntel,setJobIntel]=useState(null),[intelLoading,setIntelLoading]=useState(false),[intelOpen,setIntelOpen]=useState(false);
   const[partsPred,setPartsPred]=useState(null),[partsLoading,setPartsLoading]=useState(false);
@@ -338,6 +340,13 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const Toggle=({label,count,open,setOpen})=><button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"12px 14px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:open?0:8}}><span style={{fontSize:13,fontWeight:700,color:B.text}}>{label}{count>0&&<span style={{marginLeft:6,fontFamily:M,color:B.cyan,fontSize:12}}>({count})</span>}</span><span style={{color:B.textDim,fontSize:14}}>{open?"▾":"▸"}</span></button>;
 
   return(<div><Toast msg={toast}/>
+    {pdfPreview&&<PdfPreviewModal {...pdfPreview} onClose={()=>setPdfPreview(null)}/>}
+    {showPdf&&<WOPdfModal wo={wo} customer={(customers||[]).find(c=>c.name===wo.customer)}
+      equipment={wo.equipment_id?D_equipment.find(e=>e.id===wo.equipment_id):null}
+      timeEntries={woTime} lineItems={woLineItems} pos={woPOs} photos={woPhotos}
+      refLog={refLog} fieldNotes={fieldNoteRows}
+      onClose={()=>setShowPdf(false)} onToast={msg}
+      onPreview={(doc,title)=>previewPdfDoc(doc,title,setPdfPreview)}/>}
     <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,fontFamily:F,padding:"8px 0"}}>← Back to Orders</button>
 
     {/* HEADER — WO ID, title, customer, status */}
@@ -359,6 +368,9 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         {phone&&<a href={"tel:"+String(phone).replace(/[^0-9+]/g,"")} style={chip}>Call{cO.contact_name?" "+cO.contact_name.split(" ")[0]:""}</a>}
         {navQ&&<a href={"https://maps.google.com/?q="+encodeURIComponent(navQ)} target="_blank" rel="noreferrer" style={chip}>Navigate</a>}
       </div>:null;})()}
+      {/* Service ticket PDF — the customer-facing record of the visit. Available to
+          techs too, so they can hand a copy over before they leave the site. */}
+      <button onClick={()=>setShowPdf(true)} style={{...BS,width:"100%",marginTop:8}}>Service Ticket PDF</button>
       {/* Bill from this WO — gated to the same roles that can reach the Finance tab
           (manager/admin). The completion gate is deliberate: it preserves the
           signature attestation from Review & Sign before anything gets billed. */}

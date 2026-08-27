@@ -1,6 +1,6 @@
 import{serve}from"https://deno.land/std@0.177.0/http/server.ts";
 import{create,getNumericDate}from"https://deno.land/x/djwt@v2.8/mod.ts";
-import{decode as b64d}from"https://deno.land/std@0.177.0/encoding/base64.ts";
+import{decode as b64d,encode as b64e}from"https://deno.land/std@0.177.0/encoding/base64.ts";
 const C={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization,x-client-info,apikey,content-type"};
 const SE=Deno.env.get("GOOGLE_SERVICE_EMAIL")||"";
 const PK=(Deno.env.get("GOOGLE_PRIVATE_KEY")||"").replace(/\\n/g,"\n");
@@ -85,7 +85,33 @@ serve(async(req)=>{
   const __d=await __guard(req, true); if(__d) return __d;
 if(req.method==="OPTIONS")return new Response("ok",{headers:C});
 try{
-const{fileBase64,fileName,mimeType,folderPath}=await req.json();
+const _payload=await req.json();
+
+// ── Image read-back mode ──────────────────────────────────────────────────
+// drive.google.com serves thumbnails with no Access-Control-Allow-Origin, so
+// the browser can't read their bytes to embed a photo in a generated PDF
+// (service tickets). Uploaded files are already world-readable, so this just
+// relays them back as data URIs. Ids only — never an arbitrary URL — so there
+// is no SSRF surface.
+if(_payload.fetchIds){
+  const ids=(Array.isArray(_payload.fetchIds)?_payload.fetchIds:[]).filter((id:unknown)=>typeof id==="string"&&/^[A-Za-z0-9_-]{10,120}$/.test(id)).slice(0,40);
+  const size=Math.min(2000,Math.max(100,parseInt(_payload.size)||900));
+  const images:Record<string,string>={};
+  await Promise.all(ids.map(async(id:string)=>{
+    try{
+      const r=await fetch("https://drive.google.com/thumbnail?id="+id+"&sz=w"+size,{redirect:"follow"});
+      if(!r.ok)return;
+      const ct=(r.headers.get("content-type")||"").split(";")[0]||"image/jpeg";
+      if(!ct.startsWith("image/"))return;
+      const bytes=new Uint8Array(await r.arrayBuffer());
+      if(!bytes.length||bytes.length>5_000_000)return;
+      images[id]="data:"+ct+";base64,"+b64e(bytes);
+    }catch(_e){/* one unreadable photo shouldn't fail the whole document */}
+  }));
+  return new Response(JSON.stringify({success:true,images}),{headers:{...C,"Content-Type":"application/json"}});
+}
+
+const{fileBase64,fileName,mimeType,folderPath}=_payload;
 if(!fileBase64||!fileName)return new Response(JSON.stringify({error:"Missing file"}),{status:400,headers:{...C,"Content-Type":"application/json"}});
 const token=await gat();
 const path=(folderPath||"3C FieldOps");
