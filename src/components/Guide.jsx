@@ -141,6 +141,7 @@ const SECTIONS = [
     steps: [
       ["All work orders", "The “Work Orders” tab shows everything. Filter by status/customer and use bulk actions on multiple orders."],
       ["Narrowing a long list", "Under the status buttons there’s a search box and a row of chips built from whatever is currently on screen — each customer and tech with a count beside it. With 112 jobs waiting on TMS entry, one tap on “Duke School Of Medicine 75” leaves just those. The counts also tell you the shape of the backlog before you tap anything. Your choice sticks when you come back."],
+      ["Import a stack of Duke WOs", "On Work Orders, tap “📷 Scan Batch”. Feed it photos or one multi-page PDF of Duke TMS printouts (PM or CM layout). It reads every work order, flags any TMS WO# already in the system, and you create the rest in one tap after a quick review."],
       ["Assign a tech", "Open a WO and set the assignee — the tech gets a push (or an email if they haven’t enabled push)."],
       ["Week Plan", "Use “Week Plan” to see and balance the crew’s schedule across the week."],
       ["Repeat failures", "The Overview flags equipment/locations with 3+ corrective jobs in 90 days so you can plan a replacement."],

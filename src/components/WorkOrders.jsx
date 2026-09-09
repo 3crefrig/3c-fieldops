@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument, scannedWOToRow, findExistingByCustomerWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage, PdfPreviewModal, previewPdfDoc} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -888,6 +888,151 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
   </div>);
 }
 
+// ─── Batch import: scan a stack of customer-issued WOs (Duke TMS printouts) ────
+// Each file (photo or multi-page PDF) goes to scan-document as work_order_batch,
+// which returns one entry per work order it finds. Rows land in a review table,
+// anything whose customer WO# already exists is flagged and unchecked, and the
+// checked rows are created one after another (createWO derives the next WO-####
+// from the DB, so parallel inserts would collide). Assignment comes from the
+// manager's batch defaults, never from the printout.
+const BATCH_MAX_MB=20;
+function BatchScanWO({onCreateWO,onCancel,users,customers,userName,allWos}){
+  const assignable=(users||[]).filter(u=>u.active!==false);
+  const dukeDefault=(customers||[]).find(c=>/school of medicine/i.test(c.name||""))?.name||"";
+  const[defCust,setDefCust]=useState(dukeDefault),[defAssign,setDefAssign]=useState("Unassigned"),[defCrew,setDefCrew]=useState([]);
+  const[rows,setRows]=useState([]);
+  const[progress,setProgress]=useState(null);   // {i,n,name} while files are being read
+  const[errors,setErrors]=useState([]);
+  const[creating,setCreating]=useState(null);   // {i,n} while WOs are being inserted
+  const[done,setDone]=useState(null);           // {created:[],failed:[]}
+  const[open,setOpen]=useState({});             // row index → details expanded
+  const fileRef=useRef(null);
+  // Latest defaults for rows scanned mid-batch (state is stale inside the async loop).
+  const defRef=useRef({});defRef.current={defCust,defAssign,defCrew};
+  const addFiles=async(files)=>{
+    const list=Array.from(files||[]).filter(Boolean);if(!list.length)return;
+    const errs=[];setDone(null);
+    for(let i=0;i<list.length;i++){
+      const f=list[i];setProgress({i:i+1,n:list.length,name:f.name});
+      if(f.size>BATCH_MAX_MB*1024*1024){errs.push(f.name+": over "+BATCH_MAX_MB+" MB — split the PDF or scan at a lower resolution.");continue;}
+      try{
+        const x=await scanDocument(f,"work_order_batch");
+        const found=Array.isArray(x?.work_orders)?x.work_orders:[];
+        if(!found.length){errs.push(f.name+": no work orders found in this file.");continue;}
+        // Duplicate check goes to the DB too — the in-memory list is capped by the
+        // API's 1000-row page, so an old Duke number could be missing from allWos.
+        const keys=[...new Set(found.map(w=>String(w.customer_wo||"").replace(/\s+/g,"")).filter(Boolean))];
+        let dbHits=[];
+        if(keys.length){try{const{data}=await sb().from("work_orders").select("wo_id,customer_wo").in("customer_wo",keys);dbHits=data||[];}catch(e){}}
+        const known=[...dbHits,...(allWos||[])];
+        const d=defRef.current;
+        setRows(prev=>{
+          const next=[...prev];
+          found.forEach(w=>{
+            const r=scannedWOToRow(w,{customers,defaultCustomer:d.defCust,defaultAssignee:d.defAssign,defaultCrew:d.defCrew});
+            r.file=f.name;
+            const ex=findExistingByCustomerWO(r.customer_wo,known);
+            const key=r.customer_wo.toLowerCase();
+            r.existing=ex?ex.wo_id:null;
+            r.dupInBatch=!!key&&next.some(o=>o.customer_wo.toLowerCase()===key);
+            if(r.existing||r.dupInBatch)r.include=false;
+            next.push(r);
+          });
+          return next;
+        });
+      }catch(err){console.error("Batch scan error:",err);errs.push(f.name+": "+(err?.message||err));}
+    }
+    setProgress(null);if(errs.length)setErrors(e=>[...e,...errs]);
+  };
+  usePasteImage(!progress&&!creating,(f)=>addFiles([f]));
+  const upd=(i,patch)=>setRows(prev=>prev.map((r,j)=>j===i?{...r,...patch}:r));
+  const remove=(i)=>setRows(prev=>prev.filter((_,j)=>j!==i));
+  const applyAll=(patch)=>setRows(prev=>prev.map(r=>({...r,...patch})));
+  const selected=rows.filter(r=>r.include);
+  const busy=!!progress||!!creating;
+  const createAll=async()=>{
+    if(!selected.length||busy)return;
+    const bad=selected.find(r=>!r.customer||!(r.title.trim()||r.customer_wo.trim()));
+    if(bad){alert("Every checked row needs a customer and a title (or a customer WO#).");return;}
+    if(!window.confirm("Create "+selected.length+" work order"+(selected.length===1?"":"s")+"?"))return;
+    const created=[],failed=[],byTech={};
+    for(let k=0;k<selected.length;k++){
+      const r=selected[k];setCreating({i:k+1,n:selected.length});
+      const title=r.title.trim()||r.customer_wo.trim();
+      if(cleanText(title,"Title")===null||cleanText(r.notes,"Notes")===null){failed.push({row:r,error:"Blocked by the text filter"});continue;}
+      const crew=(r.crew||[]).filter(n=>n&&n!==r.assignee);
+      try{
+        const res=await onCreateWO({title,priority:r.priority,assignee:r.assignee||"Unassigned",crew,due_date:r.due_date||"TBD",notes:r.notes.trim()||"No details.",location:r.location.trim(),wo_type:r.wo_type,building:r.building.trim(),customer:r.customer,customer_wo:r.customer_wo.trim()||null,equipment_id:null,_batch:true});
+        created.push({wo_id:res?.wo_id||"?",title,customer_wo:r.customer_wo});
+        [r.assignee,...crew].filter(n=>n&&n!=="Unassigned").forEach(n=>{byTech[n]=(byTech[n]||0)+1;});
+      }catch(err){failed.push({row:r,error:err?.message||String(err)});}
+    }
+    // One roll-up alert instead of one per WO (createWO stays quiet with _batch).
+    if(created.length){
+      const n=created.length;
+      try{await sb().from("notifications").insert({type:"wo_created",title:"Work Orders Imported",message:n+" work order"+(n===1?"":"s")+" created from scanned documents by "+userName,for_role:"manager"});}catch(e){}
+      Object.entries(byTech).forEach(([name,c])=>{try{fnFetch("send-push",{userNames:[name],title:"New Work Orders",body:c+" new work order"+(c===1?"":"s")+" assigned to you",url:"/#tab=orders",emailFallback:true}).catch(()=>{});}catch(e){}});
+    }
+    setCreating(null);setDone({created,failed});
+    setRows(prev=>prev.filter(r=>!r.include||failed.some(f=>f.row===r)));  // keep unchecked + failed rows for another pass
+  };
+  const cell={...IS,padding:"6px 8px",fontSize:12,minHeight:0};
+  const th={textAlign:"left",fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:.5,padding:"6px 6px",whiteSpace:"nowrap",borderBottom:"1px solid "+B.border};
+  const td={padding:"6px 6px",verticalAlign:"top",borderBottom:"1px solid "+B.border};
+  return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
+    <Card style={{maxWidth:1180}}>
+      <h2 style={{margin:"0 0 6px",fontSize:18,fontWeight:700,color:B.text}}>Import Scanned Work Orders</h2>
+      <div style={{fontSize:12,color:B.textDim,marginBottom:16,lineHeight:1.5}}>Scan a stack of customer-issued work orders (Duke TMS printouts, PM or CM layout) as photos or one multi-page PDF. The app reads every work order, you review the table, then create them all at once. A TMS WO# that is already in the system is flagged and left unchecked.</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12,padding:"12px 14px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,marginBottom:14}}>
+        <div><label style={LS}>Customer <span style={{color:B.textDim,fontWeight:400}}>(default for every row)</span></label><div style={{display:"flex",gap:6}}><select value={defCust} onChange={e=>setDefCust(e.target.value)} style={{...IS,cursor:"pointer",flex:1}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}</select>{rows.length>0&&<button type="button" onClick={()=>applyAll({customer:defCust})} style={{...BS,padding:"6px 10px",fontSize:11,whiteSpace:"nowrap"}}>Apply to all</button>}</div></div>
+        <div><label style={LS}>Assign to</label><div style={{display:"flex",gap:6}}><select value={defAssign} onChange={e=>setDefAssign(e.target.value)} style={{...IS,cursor:"pointer",flex:1}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{rows.length>0&&<button type="button" onClick={()=>applyAll({assignee:defAssign,crew:defCrew.filter(n=>n!==defAssign)})} style={{...BS,padding:"6px 10px",fontSize:11,whiteSpace:"nowrap"}}>Apply to all</button>}</div></div>
+        <div><label style={LS}>Additional crew <span style={{color:B.textDim,fontWeight:400}}>(applied with Assign to)</span></label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:defCrew.length?6:0}}>{defCrew.map(t=><span key={t} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button type="button" onClick={()=>setDefCrew(defCrew.filter(x=>x!==t))} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}</div><select value="" onChange={e=>{if(!e.target.value)return;setDefCrew([...defCrew,e.target.value]);}} style={{...IS,cursor:"pointer"}}><option value="">+ Add technician</option>{assignable.filter(u=>u.name!==defAssign&&!defCrew.includes(u.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
+      </div>
+      <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{addFiles(e.target.files);e.target.value="";}}/>
+      <button type="button" onClick={()=>fileRef.current?.click()} disabled={busy} style={{...BP,width:"100%",padding:"12px 16px",fontSize:13,opacity:busy?.6:1}}>{progress?"Reading "+progress.name+" ("+progress.i+" of "+progress.n+")…":rows.length?"📷 Scan More Documents":"📷 Scan Documents (photos or PDF)"}</button>
+      <div style={{fontSize:10,color:progress?B.cyan:B.textDim,marginTop:4,textAlign:"center"}}>{progress?"AI is extracting work orders — a 30-page stack takes about a minute.":"Pick several photos at once, or one PDF with every page. You can also paste a screenshot with Ctrl+V."}</div>
+      {errors.length>0&&<div style={{marginTop:10,padding:"8px 12px",background:B.red+"18",border:"1px solid "+B.red+"66",borderRadius:6,fontSize:11,color:B.red}}>{errors.map((e,i)=><div key={i}>{e}</div>)}<button type="button" onClick={()=>setErrors([])} style={{background:"none",border:"none",color:B.red,fontSize:10,cursor:"pointer",padding:0,marginTop:4,fontFamily:F}}>dismiss</button></div>}
+      {done&&<div style={{marginTop:12,padding:"10px 14px",background:done.created.length?B.green+"18":B.orange+"18",border:"1px solid "+(done.created.length?B.green:B.orange)+"66",borderRadius:8,fontSize:12}}>
+        <div style={{fontWeight:700,color:done.created.length?B.green:B.orange,marginBottom:4}}>{done.created.length} work order{done.created.length===1?"":"s"} created{done.failed.length?" · "+done.failed.length+" failed":""}</div>
+        {done.created.length>0&&<div style={{fontFamily:M,fontSize:11,color:B.text,display:"flex",flexWrap:"wrap",gap:"2px 10px"}}>{done.created.map(c=><span key={c.wo_id}>{c.wo_id}{c.customer_wo?" ← #"+c.customer_wo:""}</span>)}</div>}
+        {done.failed.map((f,i)=><div key={i} style={{color:B.red,fontSize:11}}>#{f.row.customer_wo||f.row.title}: {f.error}</div>)}
+        {rows.length===0&&<button type="button" onClick={onCancel} style={{...BP,marginTop:8,padding:"7px 14px",fontSize:12}}>Back to Work Orders</button>}
+      </div>}
+      {rows.length>0&&<div style={{marginTop:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:700,color:B.text}}>{selected.length} of {rows.length} checked</span>
+          <button type="button" onClick={()=>applyAll({include:true})} style={{background:"none",border:"none",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F}}>Check all</button>
+          <button type="button" onClick={()=>applyAll({include:false})} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer",fontFamily:F}}>Uncheck all</button>
+          <span style={{fontSize:10,color:B.textDim,marginLeft:"auto"}}>Orange = double-check · Red = already in the system</span>
+        </div>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table style={{borderCollapse:"collapse",width:"100%",minWidth:960}}>
+          <thead><tr><th style={th}></th><th style={th}>Cust WO#</th><th style={{...th,minWidth:220}}>Title</th><th style={th}>Bldg</th><th style={th}>Room</th><th style={th}>Type</th><th style={th}>Pri</th><th style={th}>Due</th><th style={th}>Assignee</th><th style={{...th,minWidth:160}}>Customer</th><th style={th}></th></tr></thead>
+          <tbody>{rows.map((r,i)=>{const shaky=r.confidence!=null&&r.confidence<0.7;const flagColor=r.existing?B.red:(r.dupInBatch||shaky)?B.orange:null;const lowSet=new Set(r.lowFields||[]);const mark=(f)=>lowSet.has(f)?{borderColor:B.orange}:null;return(<React.Fragment key={i}>
+            <tr style={{background:r.include?"transparent":B.bg,opacity:r.include?1:.7}}>
+              <td style={{...td,borderLeft:flagColor?"3px solid "+flagColor:"3px solid transparent"}}><input type="checkbox" checked={!!r.include} onChange={e=>upd(i,{include:e.target.checked})} style={{width:18,height:18,cursor:"pointer"}}/></td>
+              <td style={td}><input value={r.customer_wo} onChange={e=>{const v=e.target.value;const ex=findExistingByCustomerWO(v,allWos);upd(i,{customer_wo:v,existing:ex?ex.wo_id:null});}} placeholder="2448341" style={{...cell,width:88,fontFamily:M,...mark("customer_wo")}}/>{r.existing&&<div style={{fontSize:9,color:B.red,fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>Exists: {r.existing}</div>}{r.dupInBatch&&!r.existing&&<div style={{fontSize:9,color:B.orange,fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>Twice in batch</div>}</td>
+              <td style={td}><input value={r.title} onChange={e=>upd(i,{title:e.target.value})} style={{...cell,width:"100%",boxSizing:"border-box",...mark("title")}}/><button type="button" onClick={()=>setOpen(o=>({...o,[i]:!o[i]}))} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",padding:"2px 0 0",fontFamily:F}}>{open[i]?"▾ hide details":"▸ details"+(r.notes?"":" (empty)")}{r.page?" · p."+r.page:""}{shaky?" · low confidence":""}</button></td>
+              <td style={td}><input value={r.building} onChange={e=>upd(i,{building:e.target.value})} placeholder="7549" style={{...cell,width:58,fontFamily:M,...mark("building")}}/></td>
+              <td style={td}><input value={r.location} onChange={e=>upd(i,{location:e.target.value})} placeholder="209 CR" style={{...cell,width:110,...mark("location")}}/></td>
+              <td style={td}><select value={r.wo_type} onChange={e=>upd(i,{wo_type:e.target.value})} style={{...cell,cursor:"pointer",...mark("work_type")}}><option value="PM">PM</option><option value="CM">CM</option></select></td>
+              <td style={td}><select value={r.priority} onChange={e=>upd(i,{priority:e.target.value})} style={{...cell,cursor:"pointer",color:PC[r.priority]||B.text}}><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option></select></td>
+              <td style={td}><input type="date" value={r.due_date} onChange={e=>upd(i,{due_date:e.target.value})} style={{...cell,width:130,...mark("due_date")}}/></td>
+              <td style={td}><select value={r.assignee} onChange={e=>upd(i,{assignee:e.target.value})} style={{...cell,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{r.crew?.length>0&&<div style={{fontSize:9,color:B.textDim,marginTop:2}}>+ {r.crew.filter(n=>n!==r.assignee).join(", ")}</div>}</td>
+              <td style={td}><select value={r.customer} onChange={e=>upd(i,{customer:e.target.value})} style={{...cell,cursor:"pointer",width:"100%",borderColor:r.customer?undefined:B.red}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}</select>{r.scannedCustomer&&<div style={{fontSize:9,color:B.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={r.scannedCustomer}>scan: {r.scannedCustomer}</div>}</td>
+              <td style={td}><button type="button" onClick={()=>remove(i)} aria-label="Remove row" style={{background:"none",border:"none",color:B.textDim,fontSize:14,cursor:"pointer",padding:"2px 4px"}}>×</button></td>
+            </tr>
+            {open[i]&&<tr><td colSpan={11} style={{...td,paddingTop:0,background:B.bg}}><textarea value={r.notes} onChange={e=>upd(i,{notes:e.target.value})} rows={Math.min(10,Math.max(3,(r.notes||"").split("\n").length))} placeholder="Details / instructions" style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:12,width:"100%",boxSizing:"border-box"}}/>{r.lowFields?.length>0&&<div style={{fontSize:10,color:B.orange,marginTop:4}}>AI wasn't sure about: {r.lowFields.join(", ")}</div>}{r.file&&<div style={{fontSize:10,color:B.textDim,marginTop:2}}>from {r.file}{r.confidence!=null?" · confidence "+Math.round(r.confidence*100)+"%":""}</div>}</td></tr>}
+          </React.Fragment>);})}</tbody>
+        </table></div>
+        <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
+          <button type="button" onClick={onCancel} disabled={busy} style={{...BS,flex:1}}>Cancel</button>
+          <button type="button" onClick={createAll} disabled={busy||!selected.length} style={{...BP,flex:2,opacity:(busy||!selected.length)?.6:1}}>{creating?"Creating "+creating.i+" of "+creating.n+"…":"Create "+selected.length+" Work Order"+(selected.length===1?"":"s")}</button>
+        </div>
+      </div>}
+    </Card>
+  </div>);
+}
+
 function SwipeCard({wo,onStatusChange,children}){
   const ref=useRef(null);const[swipeX,setSwipeX]=useState(0);const[undoMsg,setUndoMsg]=useState(null);const startRef=useRef(null);const undoTimer=useRef(null);
   const nextStatus=wo.status==="pending"?"in_progress":wo.status==="in_progress"?"completed":null;
@@ -908,6 +1053,8 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   const PAGE_SIZE=50;
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
   const[startComplete,setStartComplete]=useState(false);
+  const[batching,setBatching]=useState(false);
+  const isMgr=userRole==="admin"||userRole==="manager";
   useEffect(()=>{if(navWOId){const wo=orders.find(o=>o.wo_id===navWOId||o.id===navWOId);if(wo){setSel(wo);if(clearNavWO)clearNavWO();}}},[navWOId]);
   // Open a WO that was just created (duplicate/follow-up) once it lands in orders.
   const[pendingOpen,setPendingOpen]=useState(null);
@@ -931,6 +1078,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     const liWOSet=new Set((lineItems||[]).map(li=>li.wo_id));
     return{poByWO,phByWO,hrsByWO,liWOSet};
   },[pos,photos,timeEntries,lineItems]);
+  if(batching&&canEdit&&isMgr)return <BatchScanWO onCreateWO={onCreateWO} onCancel={()=>setBatching(false)} users={users} customers={customers} userName={userName} allWos={orders}/>;
   if(creating&&canEdit)return <CreateWO onSave={async(nw)=>{await onCreateWO(nw);setCreating(false);}} onCancel={()=>setCreating(false)} users={users} customers={customers} userName={userName} userRole={userRole} allWos={orders} equipment={equipment} reloadTable={reloadTable}/>;
   if(sel){const fresh=orders.find(o=>o.id===sel.id);if(!fresh){setSel(null);return null;}return <WODetail wo={fresh} onBack={()=>setSel(null)} onOpenWO={setPendingOpen} onUpdateWO={async u=>{await onUpdateWO(u);}} onDeleteWO={async id=>{await onDeleteWO(id);setSel(null);}} onCreateWO={onCreateWO} canEdit={canEdit} pos={pos} onCreatePO={onCreatePO} timeEntries={timeEntries} onAddTime={onAddTime} onUpdateTime={onUpdateTime} onDeleteTime={onDeleteTime} photos={photos} onAddPhoto={onAddPhoto} users={users} userName={userName} userRole={userRole} loadData={loadData} reloadTable={reloadTable} equipment={equipment} lineItems={lineItems} customers={customers} invoices={invoices} projects={projects} emailTemplates={emailTemplates} onCreateInvoice={onCreateInvoice} currentUser={currentUser} startComplete={startComplete} onStartCompleteHandled={()=>setStartComplete(false)}/>;}
   const today=todayLocal();
@@ -938,6 +1086,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
       {canEdit&&<button data-tip="Create a new work order. It shows up on the assigned tech’s My Day immediately, with a push alert." data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
+      {canEdit&&isMgr&&<button data-tip="Import a stack of customer-issued work orders (Duke TMS printouts): scan photos or a multi-page PDF, review, create them all at once." onClick={()=>setBatching(true)} style={{...BS,padding:"7px 10px",fontSize:11}}>📷 Scan Batch</button>}
       {canEdit&&<button data-tip="Bulk mode: select several jobs, then set them Active or Pending in one go." onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim}}>{bulkMode?"Cancel":"☑ Bulk"}</button>}
     </div>
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
