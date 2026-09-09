@@ -232,11 +232,17 @@ All AI runs on the Anthropic API via edge functions. Model tiers (as of 2026-07-
 - When creating UI components, prioritize mobile-first design since techs use this on phones in the field
 - Keep the dark/light theme system working — test both modes
 
-## UI conventions (refresh 2026-09-09, applied with the impeccable methodology)
+## UI conventions (redesign v2 "dispatch ledger", merged to main 2026-09-09)
 
-- **No colored side rails.** `borderLeft:"3px solid …"` was removed from all 56 cards/rows; status lives in pills/badges, priority in a 7px dot before the WO number. The `impeccable detect` scanner (run via `npx impeccable@latest detect src`) reports 0 side-tab findings; keep it that way. Remaining findings are the Arial email templates and the swipe-card width transition, both intentional.
-- **Drawn icons, not emoji.** `Icon` in `ui.jsx` (Lucide-style strokes) now covers search/bell/sun/moon/user/pin/alert/logout/plus/x/chevron/repeat/map/receipt/building/checksquare. `IconText` = icon + label for card meta lines; `IconButton` = 34px square header control. Emoji remain only in Guide/Tutorial copy and a few less-used screens.
-- **Phone header is one row:** compact logo (`<Logo size="compact"/>`), search (placeholder "Search…"), theme, bell, sign-out icon. Don't reintroduce wrapping.
-- **Stat tiles** use `className="stat-card"` with `.stat-label` / `.stat-value`; GlobalStyles makes them 3-up with a 20px value under 640px. Use `StatCard` or copy its markup; don't hand-roll tiles.
-- **Neutrals are tinted** toward the brand cyan (DARK bg #0F1215 / surface #181C20 / border #293036; LIGHT bg #F3F5F7 / border #DCE1E6). Selection, caret, scrollbars and button focus rings are themed in GlobalStyles.
-- **7-column grids** (calendar) must use `repeat(7,minmax(0,1fr))` + `minWidth:0` cells; plain `1fr` lets nowrap text push columns off-screen on phones.
+The full visual system lives in `DESIGN.md` (tokens, type, components, rules) and the product contract in `PRODUCT.md`. Read `DESIGN.md` before touching any screen. Summary of what must not regress:
+
+- **Navigation and control locations are frozen.** The redesign changed only the look; tab positions, the phone bottom bar, and where buttons sit stay as they are unless Alex asks.
+- **No emoji anywhere** (icons, labels, toasts, tooltips, Guide copy, option text). Use the drawn SVG `Icon` set in `ui.jsx` (40+ glyphs), `IconText` for meta lines, `IconButton` for 34px header controls. Typographic glyphs (✓ ✕ ▸ ▾ ← → ★) are fine. A scan for emoji codepoints in `src/` must return 0.
+- **Type:** `F` = Archivo (Inter → Barlow fallback), `M` = JetBrains Mono for IDs, hours and money. Buttons/inputs inherit the body face via GlobalStyles. Nothing under 10.5px; UI floor 13px; phone inputs 16px.
+- **Job tickets, not generic cards.** WO/PO/INV lists are separated `.ticket` cards with a `.ticket-stub` (cyan mono kicker + big mono number + dashed perforation) and tags on the last line. Detail headers lead with the same kicker (WO / PROJECT / EQUIPMENT / AGREEMENT) and number.
+- **No colored side rails, no card shadows, no pills.** Badge = dot + word tag (radius 5). Radii: 5 tags, 6 controls, 8 panels, 10 modals; 999 only for counters. Shadows only on modals and toasts.
+- **Cyan is for state only:** links, active tab underline, the 2px brand rule atop the header, today rule on the calendar. Never fills, never rails. Primary button is near-black on dark / white on light.
+- **Stat tiles** use `className="stat-card"` and fuse into a stat strip via GlobalStyles (`div:has(> .stat-card)`); 2-up on phones. Wrap StatCards in their own div so sibling buttons don't get pulled into the strip.
+- **Secondary lists** are `.list-row` ledger rows inside one bordered panel (Week Plan overdue/day rows); cards are for singular things.
+- **Phone rules:** every in-content button ≥36px tall (GlobalStyles); action clusters wrap (`flexWrap:"wrap"`, `maxWidth:"100%"`, never `flexShrink:0`); data tables get `className="data-table"` and scroll horizontally with nowrap cells; 7-column grids use `repeat(7,minmax(0,1fr))` + `minWidth:0`; phone header stays one row.
+- **Verify** with `npx impeccable@latest detect src` (expected findings: only the Arial email templates and the swipe-card width transition) and the iPhone WebKit harness (see memory `reference_ios_testing_harness.md`) before shipping UI changes.
