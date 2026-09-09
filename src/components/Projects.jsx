@@ -86,7 +86,10 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
   const projectPOs=(allPOs||[]).filter(p=>p.project_id===project.id);
   const woPOs=(allPOs||[]).filter(p=>pWOs.some(w=>w.id===p.wo_id)&&!p.project_id);
   const allProjectPOs=[...projectPOs,...woPOs];
-  const projectInvoices=(invoices||[]).filter(inv=>(inv.wo_ids||[]).length>0&&pWOs.some(w=>inv.wo_ids.includes(w.wo_id)||inv.wo_ids.includes(w.id)));
+  // An invoice belongs here if it was billed to the project directly (project_id — set by the
+  // generator's project picker and by auto-invoicing) OR it lists one of the project's WOs.
+  // Line-item-only project bills carry no wo_ids, which is why four of them were invisible.
+  const projectInvoices=(invoices||[]).filter(inv=>inv.project_id===project.id||((inv.wo_ids||[]).length>0&&pWOs.some(w=>inv.wo_ids.includes(w.wo_id)||inv.wo_ids.includes(w.id))));
   const ISC={draft:B.cyan,sent:B.cyan,paid:B.green,overdue:B.red};
   const ISL={draft:"Draft",sent:"Sent",paid:"Paid",overdue:"Overdue"};
   const invDaysOut=(d)=>d?Math.floor((new Date()-new Date(d))/86400000):0;

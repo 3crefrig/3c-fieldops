@@ -102,9 +102,9 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         <span style={{fontSize:13,fontWeight:700,color:B.red}}>Overdue ({overdueWOs.length})</span>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {overdueWOs.slice(0,10).map(w=><div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:B.red+"08",borderRadius:4,border:"1px solid "+B.red+"22",cursor:onOpenWO?"pointer":"default",minHeight:36}}>
-          <div><span style={{fontFamily:M,fontWeight:700,color:B.red,fontSize:11}}>{w.wo_id}</span><span style={{fontSize:11,color:B.textMuted,marginLeft:6}}>{w.title?.slice(0,40)}</span></div>
-          <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:10,color:B.textDim}}>{w.assignee}</span><span style={{fontSize:10,color:B.red,fontWeight:600}}>Due {w.due_date}</span></div>
+        {overdueWOs.slice(0,10).map(w=><div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"6px 10px",background:B.red+"08",borderRadius:4,border:"1px solid "+B.red+"22",cursor:onOpenWO?"pointer":"default",minHeight:36}}>
+          <div style={{flex:1,minWidth:0,display:"flex",alignItems:"baseline",gap:6}}><span style={{fontFamily:M,fontWeight:700,color:B.red,fontSize:11,flexShrink:0}}>{w.wo_id}</span><span style={{fontSize:11,color:B.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.title}</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,whiteSpace:"nowrap"}}><span style={{fontSize:10,color:B.textDim}}>{(w.assignee||"").split(" ")[0]}</span><span style={{fontSize:10,color:B.red,fontWeight:600}}>Due {fmtDate(w.due_date,{month:"numeric",day:"numeric"})}</span></div>
         </div>)}
       </div>
     </Card>}

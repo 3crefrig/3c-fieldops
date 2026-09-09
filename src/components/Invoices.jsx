@@ -884,7 +884,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(!onCreateInvoice)return;
     if(savedNumRef.current===invoiceNum)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()};
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),project_id:selProject||(filteredWOs.find(w=>w.project_id)||{}).project_id||null,tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     savedNumRef.current=invoiceNum; // only mark saved after a successful insert so a failed attempt can retry
@@ -1005,7 +1005,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
           </select>
           {selProject&&<div style={{marginTop:6,fontSize:10,color:B.cyan}}>✓ Customer, WOs, line items, and customer PO# auto-filled from project</div>}
         </div>
-        {cust&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWOs([]);setSelProject("");}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
+        {cust&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{[["wo","Per Work Order"],["range","Date Range"],["lineonly","Line Items Only"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);setSelWOs([]);/* keep selProject: a "Line Items Only" project bill must still land on the project's Invoices tab */}} style={{padding:"5px 12px",borderRadius:4,border:"1px solid "+(mode===k?B.cyan:B.border),background:mode===k?B.cyanGlow:"transparent",color:mode===k?B.cyan:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}</div>}
         {cust&&mode==="wo"&&(()=>{
           const tagMap={draft:["Draft",B.orange],sent:["Sent",B.cyan],overdue:["Overdue",B.red]};
           const avail=custWOs.filter(w=>{const inv=(invoices||[]).find(i=>i.wo_ids&&i.wo_ids.includes(w.wo_id));return!inv||inv.status!=="paid";});
