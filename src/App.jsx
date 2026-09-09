@@ -226,7 +226,7 @@ function App(){
     const tiers=getCustomerTiers(cust).map((t,i)=>({...t,hours:i===0?totalHrs:0}));
     const laborTotal=tiers.reduce((s,t)=>s+t.rate*t.hours,0);
     let invNum=await nextInvoiceNumDB();
-    const invRow=(n)=>({invoice_num:n,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:[completedWO.wo_id],tier_data:tiers,job_desc:completedWO.title,po_number:completedWO.customer_wo||"",notes:""});
+    const invRow=(n)=>({invoice_num:n,customer:cust.name,customer_contact:cust.contact_name||"",amount:laborTotal+partsTotal,parts_total:partsTotal,status:"draft",wo_ids:[completedWO.wo_id],project_id:completedWO.project_id||null,tier_data:tiers,job_desc:completedWO.title,po_number:completedWO.customer_wo||"",notes:""});
     let{error:invErr}=await sb().from("invoices").insert(invRow(invNum));
     if(invErr&&invErr.code==="23505"){invNum=await nextInvoiceNumDB();({error:invErr}=await sb().from("invoices").insert(invRow(invNum)));}
     if(invErr)throw invErr;
