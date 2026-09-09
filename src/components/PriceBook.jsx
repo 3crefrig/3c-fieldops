@@ -89,7 +89,7 @@ function PartDetail({ part, vendors, onClose, onChanged }) {
       <div style={{ fontSize: 13, color: B.textMuted, marginBottom: 14 }}>{part.description || "No description"}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <StatCard label="Avg paid" value={money(part.avg_paid)} icon="dollar" color={B.cyan} />
-        <StatCard label="Range" value={money(part.min_price) + " – " + money(part.max_price)} icon="↕" color={pct(part.own_spread_pct) > 25 ? B.orange : B.textDim} />
+        <StatCard label="Range" value={money(part.min_price) + " – " + money(part.max_price)} icon="chart" color={pct(part.own_spread_pct) > 25 ? B.orange : B.textDim} />
         <StatCard label="Buys" value={part.buys || 0} icon="receipt" color={B.textDim} />
         {part.best_alternative != null && <StatCard label="Best elsewhere" value={money(part.best_alternative)} icon="search" color={B.green} />}
       </div>

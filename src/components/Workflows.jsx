@@ -3,7 +3,7 @@ import { sb, B, F, M, IS, LS, BP, BS } from "../shared";
 import { Card, Badge, Modal, Toast, Spinner, Icon } from "./ui";
 
 const WF_TRIGGERS=[{key:"wo_created",label:"Work Order Created",icon:"clipboard",fields:["customer","priority","wo_type","assignee"]},{key:"wo_completed",label:"WO Completed",icon:"check",fields:["customer","priority","wo_type","assignee"]},{key:"wo_status_changed",label:"WO Status Changed",icon:"repeat",fields:["customer","priority","status","assignee"]},{key:"invoice_sent",label:"Invoice Sent",icon:"mail",fields:["customer","amount","status"]},{key:"po_requested",label:"PO Requested",icon:"file",fields:["amount","customer"]},{key:"po_approved",label:"PO Approved",icon:"check",fields:["amount","customer"]},{key:"customer_created",label:"Customer Created",icon:"building",fields:["name","email"]}];// Only events the app actually emits — inert triggers were removed 2026-08-02
-const WF_ACTIONS=[{key:"wait",label:"Wait / Delay",icon:"⏳",fields:["delay_hours"]},{key:"send_email",label:"Send Email",icon:"mail",fields:["to_email","subject","body"]},{key:"create_notification",label:"Create Notification",icon:"bell",fields:["title","message","for_role"]},{key:"log_activity",label:"Log Activity",icon:"edit",fields:["message"]}];// Only actions evaluateTriggers implements — inert actions were removed 2026-08-02
+const WF_ACTIONS=[{key:"wait",label:"Wait / Delay",icon:"clock",fields:["delay_hours"]},{key:"send_email",label:"Send Email",icon:"mail",fields:["to_email","subject","body"]},{key:"create_notification",label:"Create Notification",icon:"bell",fields:["title","message","for_role"]},{key:"log_activity",label:"Log Activity",icon:"edit",fields:["message"]}];// Only actions evaluateTriggers implements — inert actions were removed 2026-08-02
 const WF_OPERATORS=[{key:"equals",label:"="},{key:"not_equals",label:"!="},{key:">",label:">"},{key:"<",label:"<"},{key:">=",label:">="},{key:"<=",label:"<="},{key:"contains",label:"contains"}];
 
 function WorkflowBuilder({D,userName}){
@@ -100,7 +100,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
   const removeEdge=(id)=>setEdges(edges.filter(e=>e.id!==id));
 
   const nodeColors={trigger:B.cyan,condition:B.orange,action:B.cyan,wait:B.textDim};
-  const nodeIcons={trigger:"",condition:"",action:"▶",wait:"⏳"};
+  const nodeIcons={trigger:"zap",condition:"help",action:"check",wait:"clock"};
 
   const handleMouseDown=(e,nodeId)=>{e.stopPropagation();if(connecting){addEdge(connecting,nodeId);setConnecting(null);return;}
     setSelected(nodeId);setDragNode({id:nodeId,startX:e.clientX,startY:e.clientY,origX:nodes.find(n=>n.id===nodeId).x,origY:nodes.find(n=>n.id===nodeId).y});};
@@ -150,7 +150,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
           onMouseDown={e=>handleMouseDown(e,n.id)} onDoubleClick={(e)=>{e.stopPropagation();setConfigNode(n);}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
-              <span style={{fontSize:12}}>{nodeIcons[n.type]}</span>
+              <span style={{display:"inline-flex",color:c}}><Icon name={nodeIcons[n.type]} size={12}/></span>
               <span style={{fontSize:9,fontWeight:700,color:c,textTransform:"uppercase",letterSpacing:0.5}}>{n.type}</span>
             </div>
             <div style={{display:"flex",gap:2}}>

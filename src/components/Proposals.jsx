@@ -617,7 +617,7 @@ function ProposalDashboard({D,A,userName}){
       <StatCard label="Total Proposals" value={proposals.length} icon="clipboard" color={B.cyan}/>
       <StatCard label="Approval Rate" value={approvalRate+"%"} icon="✓" color={approvalRate>=50?B.green:B.orange}/>
       <StatCard label="Quoted Value" value={"$"+totalQuoted.toLocaleString(undefined,{minimumFractionDigits:0})} icon="dollar" color={B.green}/>
-      <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="⏳" color={B.orange}/>
+      <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="clock" color={B.orange}/>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
       <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Proposals</h3>

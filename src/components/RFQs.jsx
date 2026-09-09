@@ -222,7 +222,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
     <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"flex-start"}}>
       <StatCard label="Total RFQs" value={visible.length} icon="mail" color={B.cyan}/>
       <StatCard label="Draft" value={visible.filter(r=>r.status==="draft").length} icon="edit" color={B.textDim}/>
-      <StatCard label="Pending" value={visible.filter(r=>r.status==="pending_approval").length} icon="⏳" color={B.orange}/>
+      <StatCard label="Pending" value={visible.filter(r=>r.status==="pending_approval").length} icon="clock" color={B.orange}/>
       <StatCard label="Sent" value={visible.filter(r=>r.status==="sent").length} icon="mail" color={B.green}/>
       <button onClick={()=>setShowCreate(true)} style={{...BP,padding:"10px 18px",fontSize:13,fontWeight:700,whiteSpace:"nowrap",marginLeft:"auto"}}>+ New RFQ</button>
     </div>
