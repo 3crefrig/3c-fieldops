@@ -118,14 +118,15 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
   const LAYERS=[["jobs","Jobs",B.green],["hours","Hours",B.cyan],["events","Events",B.orange],["sched","Schedule",B.purple]];
 
   return(<div><Toast msg={toast}/>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <button onClick={()=>setMonth(new Date(y,m-1))} style={{...BS,padding:"6px 12px",fontSize:14}}>←</button>
-        <span style={{fontSize:compact?15:16,fontWeight:700,color:B.text,fontFamily:F,minWidth:compact?130:150,textAlign:"center"}}>{month.toLocaleString("default",{month:"long",year:"numeric"})}</span>
-        <button onClick={()=>setMonth(new Date(y,m+1))} style={{...BS,padding:"6px 12px",fontSize:14}}>→</button>
-        {!isCurrentMonth&&<button onClick={()=>setMonth(new Date())} style={{...BS,padding:"6px 12px",fontSize:12,color:B.cyan,borderColor:B.cyan+"55"}}>Today</button>}
+    {/* One row on phones: ← Sep 2026 → Today [+ Event]; the wrapping full-width Add Event was the last mobile eyesore. */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:compact?"nowrap":"wrap",gap:compact?6:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:compact?6:8,flex:compact?1:"none",minWidth:0}}>
+        <button onClick={()=>setMonth(new Date(y,m-1))} style={{...BS,padding:compact?"6px 10px":"6px 12px",fontSize:14,flexShrink:0}}>←</button>
+        <span style={{fontSize:compact?15:16,fontWeight:700,color:B.text,fontFamily:F,minWidth:compact?0:150,flex:compact?1:"none",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{month.toLocaleString("default",{month:compact?"short":"long",year:"numeric"})}</span>
+        <button onClick={()=>setMonth(new Date(y,m+1))} style={{...BS,padding:compact?"6px 10px":"6px 12px",fontSize:14,flexShrink:0}}>→</button>
+        {!isCurrentMonth&&<button onClick={()=>setMonth(new Date())} style={{...BS,padding:compact?"6px 8px":"6px 12px",fontSize:12,color:B.cyan,borderColor:B.cyan+"55",flexShrink:0}}>Today</button>}
       </div>
-      {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12,padding:compact?"7px 12px":undefined,marginLeft:"auto"}}>+ Add Event</button>}
+      {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap",flexShrink:0}}>{compact?"+ Event":"+ Add Event"}</button>}
     </div>
 
     {/* Layer + people chips — every chip filters EVERY layer */}
