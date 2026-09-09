@@ -150,7 +150,7 @@ function FeedbackDashboard({D}){
     {/* Feedback List */}
     {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
     {!loading&&filtered.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13}}>No feedback yet.</div></Card>}
-    {filtered.map(fb=><Card key={fb.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(fb.star_rating>=4?B.green:fb.star_rating===3?B.orange:B.red)}}>
+    {filtered.map(fb=><Card key={fb.id} style={{padding:"14px 16px",marginBottom:8}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>

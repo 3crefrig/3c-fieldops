@@ -615,7 +615,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📝</div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {invoices.slice(0,visibleCount).map(inv=>{const st=getStatus(inv);const days=daysOut(inv.date_issued);const ac=agingColor(days);return(
-          <Card key={inv.id} style={{padding:"14px 16px",borderLeft:"3px solid "+(ISC[st]||B.border)}}>
+          <Card key={inv.id} style={{padding:"14px 16px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -716,7 +716,7 @@ function InvoiceEditForm({inv,onSave,onCancel}){
         <button onClick={()=>removeItem(i)} title="Remove" style={{background:"none",border:"1px solid "+B.red+"44",color:B.red,fontSize:14,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontFamily:F}}>×</button>
       </div>))}
     </div>
-    <div style={{padding:12,background:B.bg,borderRadius:6,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,borderLeft:"3px solid "+B.green}}>
+    <div style={{padding:12,background:B.bg,borderRadius:6,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
       <strong style={{color:B.text}}>New Invoice Total</strong>
       <span style={{fontFamily:M,fontSize:18,fontWeight:700,color:B.green}}>${newAmount.toFixed(2)}</span>
     </div>
@@ -1526,7 +1526,7 @@ function ScheduledEmailsModal({invoices,msg,onClose}){
   const stColor={pending:B.orange,sent:B.green,failed:B.red};
   const pending=(rows||[]).filter(r=>r.status==="pending").sort((a,b)=>a.send_at<b.send_at?-1:1);
   const others=(rows||[]).filter(r=>r.status!=="pending");
-  const Row=(r)=>(<Card key={r.id} style={{padding:"12px 14px",marginBottom:8,borderLeft:"3px solid "+(stColor[r.status]||B.border)}}>
+  const Row=(r)=>(<Card key={r.id} style={{padding:"12px 14px",marginBottom:8}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
       <div style={{flex:1,minWidth:200}}>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>

@@ -495,7 +495,7 @@ function BillDetailModal({ bill, items, pos, A, onClose, msg }) {
       </div>
       {openExc.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: B.orange, background: B.orangeGlow, padding: "8px 12px", borderRadius: 6 }}>⚠️ {openExc.length} open exception(s) — ${openExc.reduce((sm, i) => sm + Math.max(0, parseFloat(i.variance) || 0), 0).toFixed(2)} potentially overbilled. Dispute windows are usually 21–30 days.</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }}>
-        {items.map(it => (<div key={it.id} style={{ padding: "8px 12px", background: B.bg, borderRadius: 8, border: "1px solid " + B.border, borderLeft: "3px solid " + msColor(it.match_status) }}>
+        {items.map(it => (<div key={it.id} style={{ padding: "8px 12px", background: B.bg, borderRadius: 8, border: "1px solid " + B.border }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 9, fontWeight: 800, color: msColor(it.match_status), textTransform: "uppercase", letterSpacing: 0.4, minWidth: 68 }}>{MS_LABELS[it.match_status] || "—"}</span>
             {it.part_no && <span style={{ fontFamily: M, fontSize: 11, color: B.cyan }}>{it.part_no}</span>}
@@ -563,7 +563,7 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
     {view === "bills" && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {fltBills.length === 0 && <EmptyState icon="🧾" title={bills.length === 0 ? "No bills audited yet" : "Nothing here"} subtitle={bills.length === 0 ? "Techs snap pickup tickets as they leave the counter; when the supplier's bill arrives, scan it here and every line gets checked automatically. ~27% of supplier invoices contain errors." : "Try another filter."} />}
       {fltBills.map(b => { const items = bItems.filter(i => i.bill_id === b.id); const exc = items.filter(i => EXCEPTION_STATUSES.includes(i.match_status)); const v = exc.reduce((s, i) => s + Math.max(0, parseFloat(i.variance) || 0), 0); const po = pos.find(p => p.id === b.po_id); return (
-        <Card key={b.id} onClick={() => setDetail(b.id)} style={{ padding: "14px 16px", borderLeft: "3px solid " + (b.status === "clean" || b.status === "resolved" ? B.green : b.status === "disputed" ? B.red : B.orange) }}>
+        <Card key={b.id} onClick={() => setDetail(b.id)} style={{ padding: "14px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

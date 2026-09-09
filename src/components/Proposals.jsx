@@ -49,8 +49,7 @@ function EmailPicker({onSelect,onClose}){
     {loading&&emails.length===0&&<div style={{textAlign:"center",padding:30}}><Spinner/></div>}
     <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:400,overflowY:"auto"}}>
       {emails.map(em=><Card key={em.id} className="card-hover" onClick={()=>!extracting&&extract(em.id)}
-        style={{padding:"12px 14px",cursor:extracting?"wait":"pointer",opacity:extracting&&extracting!==em.id?.5:1,
-          borderLeft:"3px solid "+B.cyan}}>
+        style={{padding:"12px 14px",cursor:extracting?"wait":"pointer",opacity:extracting&&extracting!==em.id?.5:1}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:700,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{em.subject||"(no subject)"}</div>
@@ -191,7 +190,7 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
 
     {estimateType==="standard"?<>
       <OptionPanel tiers={tiers} setTiers={setTiers} parts={parts} setParts={setParts}/>
-      <Card style={{padding:16,marginBottom:16,marginTop:16,borderLeft:"3px solid "+B.green,textAlign:"center"}}>
+      <Card style={{padding:16,marginBottom:16,marginTop:16,textAlign:"center"}}>
         <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:4}}>Estimated Total</div>
         <div style={{fontSize:28,fontWeight:700,fontFamily:M,color:B.green}}>${grandTotal.toFixed(2)}</div>
         <div style={{fontSize:11,color:B.textMuted,marginTop:4}}>Labor: ${laborTotal.toFixed(2)} + Parts: ${partsTotal.toFixed(2)}</div>
@@ -215,7 +214,7 @@ function EstimateBuilder({customers,users,onSave,onCancel,initial}){
       </Card>}
       {/* Summary of all options */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:16}}>
-        {options.map((o,i)=>{const t=calcOptTotal(o);return<Card key={i} style={{padding:12,textAlign:"center",borderLeft:"3px solid "+(i===0?B.green:i===1?B.cyan:B.cyan)}}>
+        {options.map((o,i)=>{const t=calcOptTotal(o);return<Card key={i} style={{padding:12,textAlign:"center"}}>
           <div style={{fontSize:11,fontWeight:700,color:B.textMuted,marginBottom:4}}>{o.label||"Option "+(i+1)}</div>
           <div style={{fontSize:20,fontWeight:700,fontFamily:M,color:i===0?B.green:i===1?B.cyan:B.cyan}}>${t.total.toFixed(2)}</div>
           <div style={{fontSize:10,color:B.textDim}}>L: ${t.labor.toFixed(0)} + P: ${t.parts.toFixed(0)}</div>
@@ -327,7 +326,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
         <span style={{fontSize:18}}>{includeEstimate?"✅":"💰"}</span>
         <div style={{textAlign:"left"}}><div style={{fontSize:14,fontWeight:700,color:includeEstimate?B.green:B.text}}>{includeEstimate?"Pricing Added":"Add Pricing & Estimate"}</div><div style={{fontSize:11,color:B.textDim}}>{includeEstimate?"Labor, parts, and totals attached — click to collapse":"Add labor costs, equipment pricing, and totals to this proposal"}</div></div>
       </button>
-      {includeEstimate&&<Card style={{padding:16,borderLeft:"3px solid "+B.green}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate saved");}} onCancel={()=>setIncludeEstimate(false)} initial={estimate}/></Card>}
+      {includeEstimate&&<Card style={{padding:16}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate saved");}} onCancel={()=>setIncludeEstimate(false)} initial={estimate}/></Card>}
       <button onClick={()=>setStep(2)} disabled={!cust||!scope} style={{...BP,width:"100%",opacity:(!cust||!scope)?.6:1}}>Continue to Generation</button>
     </div>}
 
@@ -583,7 +582,7 @@ function ProposalEditModal({prop,est:initialEst,customers,users,onSave,onClose})
         <span style={{fontSize:18}}>{showEstimate?"✅":"💰"}</span>
         <div style={{textAlign:"left"}}><div style={{fontSize:14,fontWeight:700,color:showEstimate?B.green:B.text}}>{showEstimate?(estimate?"Edit Pricing":"Add Pricing"):"Add Pricing & Estimate"}</div><div style={{fontSize:11,color:B.textDim}}>{showEstimate?"Click to collapse":"Add labor costs, equipment pricing, and totals"}</div></div>
       </button>
-      {showEstimate&&<Card style={{padding:16,borderLeft:"3px solid "+B.green}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate updated");}} onCancel={()=>setShowEstimate(false)} initial={estimate}/></Card>}
+      {showEstimate&&<Card style={{padding:16}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate updated");}} onCancel={()=>setShowEstimate(false)} initial={estimate}/></Card>}
       <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={save} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save Changes"}</button></div>
     </div>
   </Modal>);
@@ -629,7 +628,7 @@ function ProposalDashboard({D,A,userName}){
     {!loading&&proposals.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📋</div><div style={{fontSize:13}}>No proposals yet. Create your first one.</div></Card>}
 
     {proposals.map(prop=>{const est=estimates.find(e=>e.id===prop.estimate_id);return(
-      <Card key={prop.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(PSC_PROP[prop.status]||B.border)}}>
+      <Card key={prop.id} style={{padding:"14px 16px",marginBottom:8}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           {/* 240px basis so the button row wraps below on a phone instead of
               starving this column down to one word per line. */}
@@ -705,7 +704,7 @@ function ProposalPortal({token}){
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Options</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {est.options.map((opt,i)=>{const optColors=[B.green,B.cyan,B.cyan,B.orange];const c=optColors[i%optColors.length];
-            return<Card key={i} onClick={()=>!alreadyActioned&&!isExpired&&setSelectedOpt(i)} style={{padding:16,borderLeft:"3px solid "+c,cursor:alreadyActioned||isExpired?"default":"pointer",border:selectedOpt===i?"2px solid "+c:"1px solid "+B.border}}>
+            return<Card key={i} onClick={()=>!alreadyActioned&&!isExpired&&setSelectedOpt(i)} style={{padding:16,cursor:alreadyActioned||isExpired?"default":"pointer",border:selectedOpt===i?"2px solid "+c:"1px solid "+B.border}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:14,fontWeight:700,color:B.text}}>{opt.label||"Option "+(i+1)}</div>
@@ -722,7 +721,7 @@ function ProposalPortal({token}){
         </div>
         {est.valid_until&&<div style={{fontSize:11,color:B.textDim,marginTop:8}}>Valid until {fmtDate(est.valid_until)}</div>}
         {est.payment_terms&&<div style={{fontSize:11,color:B.textDim}}>Payment terms: {est.payment_terms}</div>}
-      </div>:est&&<Card style={{padding:20,marginBottom:16,borderLeft:"3px solid "+B.green}}>
+      </div>:est&&<Card style={{padding:20,marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:12}}>Cost Estimate</div>
         {est.tier_data&&est.tier_data.filter(t=>t.hours>0).length>0&&<><div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:6}}>Labor</div>
           {est.hide_rates?<div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12}}>
@@ -755,8 +754,8 @@ function ProposalPortal({token}){
         <textarea value={rejReason} onChange={e=>setRejReason(e.target.value)} rows={2} style={{...IS,resize:"vertical",marginBottom:12}} placeholder="Let us know why..."/>
         <button onClick={reject} disabled={submitting} style={{...BP,width:"100%",background:B.red,opacity:submitting?.6:1}}>{submitting?"Submitting...":"Confirm Decline"}</button>
       </Card>}
-      {isExpired&&<Card style={{padding:16,textAlign:"center",borderLeft:"3px solid "+B.red}}><div style={{fontSize:13,color:B.red,fontWeight:600}}>This proposal has expired. Please contact us for an updated proposal.</div></Card>}
-      {alreadyActioned&&<Card style={{padding:16,textAlign:"center",borderLeft:"3px solid "+(prop.status==="approved"?B.green:B.red)}}><div style={{fontSize:13,color:prop.status==="approved"?B.green:B.red,fontWeight:600}}>This proposal has been {prop.status}.</div></Card>}
+      {isExpired&&<Card style={{padding:16,textAlign:"center"}}><div style={{fontSize:13,color:B.red,fontWeight:600}}>This proposal has expired. Please contact us for an updated proposal.</div></Card>}
+      {alreadyActioned&&<Card style={{padding:16,textAlign:"center"}}><div style={{fontSize:13,color:prop.status==="approved"?B.green:B.red,fontWeight:600}}>This proposal has been {prop.status}.</div></Card>}
     </div>
   </div>);
 }

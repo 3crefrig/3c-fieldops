@@ -41,7 +41,7 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {tiers.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}>No tiers defined yet. Create Bronze, Silver, Gold (or your own).</Card>}
-      {tiers.map(t=><Card key={t.id} style={{padding:"14px 16px",borderLeft:"3px solid "+B.cyan}}>
+      {tiers.map(t=><Card key={t.id} style={{padding:"14px 16px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div>
             <div style={{fontSize:15,fontWeight:700,color:B.text}}>{t.name}</div>
@@ -511,7 +511,7 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
       <span style={LS}>Service History ({linkedWOs.length} visits)</span>
       {linkedWOs.length===0?<div style={{fontSize:12,color:B.textDim,marginTop:6}}>No service visits recorded yet</div>:
       <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:6}}>
-        {linkedWOs.slice(0,15).map(w=><div key={w.id} onClick={()=>openWO(w.wo_id||w.id)} title="Open this work order" style={{cursor:"pointer",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,borderLeft:"3px solid "+(w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange),fontSize:12}}>
+        {linkedWOs.slice(0,15).map(w=><div key={w.id} onClick={()=>openWO(w.wo_id||w.id)} title="Open this work order" style={{cursor:"pointer",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,fontSize:12}}>
           <span style={{fontFamily:M,fontWeight:700,color:B.cyan}}>{w.wo_id}</span>
           <span style={{color:B.textMuted,marginLeft:8}}>{w.title}</span>
           <span style={{color:B.textDim,marginLeft:8}}>{w.created_at?.slice(0,10)}</span>
@@ -571,7 +571,7 @@ function AgreementDashboard({D,A,userRole,userName}){
       </Card>}
       {agreements.map(a=>{
         const daysLeft=Math.ceil((new Date(a.end_date)-new Date())/86400000);
-        return(<Card key={a.id} className="card-hover" onClick={()=>setSelected(a.id)} style={{padding:"14px 16px",cursor:"pointer",borderLeft:"3px solid "+(STATUS_COLORS[a.status]||B.border)}}>
+        return(<Card key={a.id} className="card-hover" onClick={()=>setSelected(a.id)} style={{padding:"14px 16px",cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
             <div style={{flex:"1 1 220px",minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>

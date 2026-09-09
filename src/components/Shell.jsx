@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { B, F, BS, haptic, setTheme, getTheme, getRoles, ROLES, GlobalStyles } from "../shared";
-import { Logo, Badge, GlobalSearch, Icon, Spinner } from "./ui";
+import { Logo, Badge, GlobalSearch, Icon, IconButton, Spinner } from "./ui";
 
 // Mobile bottom-bar icons (SVG, themed via currentColor) — desktop tabs are text-only.
 const TAB_ICON={today:"home",overview:"activity",inbox:"inbox",orders:"clipboard",planner:"calendar",calendar:"calendar",time:"clock",kb:"book",equipment:"wrench"};
@@ -46,17 +46,18 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
   useEffect(()=>{const el=contentRef.current;if(!el)return;const onWheel=(e)=>{const t=e.target;let n=t;let scrollable=false;while(n&&n!==el){if(n.scrollHeight>n.clientHeight&&(getComputedStyle(n).overflowY==="auto"||getComputedStyle(n).overflowY==="scroll")){scrollable=true;break;}n=n.parentElement;}if(!scrollable){el.scrollTop+=e.deltaY;e.preventDefault();}};el.addEventListener("wheel",onWheel,{passive:false});return()=>el.removeEventListener("wheel",onWheel);},[]);
   return(<div className="app-root" style={{background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <GlobalStyles/>
-    <div style={{background:B.surface,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:"wrap",gap:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
-      <Logo onClick={()=>setTab(tabs[0]?.key)}/>
+    {/* Phones: one row — logo · search · theme · bell · sign-out. The old header wrapped into three rows and ate a third of the screen. */}
+    <div style={{background:B.surface,padding:isMobile?"8px 10px":"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:isMobile?"nowrap":"wrap",gap:isMobile?8:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
+      <Logo size={isMobile?"compact":undefined} onClick={()=>setTab(tabs[0]?.key)}/>
       {searchData&&<div data-tour="global-search" data-tip="Search jumps straight to any work order, PO, customer, or piece of equipment. Ctrl+K opens it from anywhere." style={{display:"flex",alignItems:"center",minWidth:0,flex:"0 1 auto"}}><GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/></div>}
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <button data-tip="Switch between dark and light mode. Alt+T does the same from a keyboard." onClick={toggleTheme} style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,fontSize:14,cursor:"pointer",padding:"4px 8px",transition:"background .15s"}} title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>{theme==="dark"?"☀️":"🌙"}</button>
+      <div style={{display:"flex",alignItems:"center",gap:isMobile?6:10,flexShrink:0}}>
+        <span data-tip="Switch between dark and light mode. Alt+T does the same from a keyboard."><IconButton name={theme==="dark"?"sun":"moon"} onClick={toggleTheme} label={theme==="dark"?"Switch to light mode":"Switch to dark mode"}/></span>
         {offline&&<span style={{fontSize:10,color:B.red,fontWeight:700,background:B.red+"22",padding:"2px 8px",borderRadius:4}}>Offline{offlineQueueCount>0?" ("+offlineQueueCount+" queued)":""}</span>}
         {syncing&&!offline&&<span style={{fontSize:10,color:B.orange,fontWeight:600}}>syncing{offlineQueueCount>0?" ("+offlineQueueCount+")":""}...</span>}
         <div data-tip="Alerts live here — assignments, approvals, overdue jobs. Tapping most alerts jumps to the thing itself. POs can be approved right from the list."><NotifBell notifications={notifications||[]} onMarkRead={onMarkRead} onQuickApprovePO={onQuickApprovePO} onQuickRejectPO={onQuickRejectPO} userRole={user.role} onNavigate={onNavigateWO}/></div>
         {!isMobile&&<Badge color={_ROLES[user.role]?_ROLES[user.role].color:B.textDim}>{user.role}</Badge>}
         {!isMobile&&<span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>{user.name}</span>}
-        <button onClick={onLogout} style={{...BS,padding:"5px 12px",fontSize:11,borderRadius:8,transition:"background .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=B.surfaceActive;}} onMouseLeave={e=>{e.currentTarget.style.background=B.bg;}}>Sign Out</button>
+        {isMobile?<IconButton name="logout" onClick={onLogout} label="Sign Out"/>:<button onClick={onLogout} style={{...BS,padding:"5px 12px",fontSize:11,borderRadius:8,minHeight:34,transition:"background .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=B.surfaceActive;}} onMouseLeave={e=>{e.currentTarget.style.background=B.surface;}}>Sign Out</button>}
       </div>
     </div>
     {(()=>{
@@ -96,7 +97,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       </div>);
     })()}
     {pushSupported()&&pushState==="default"&&!pushDismissed&&<div style={{background:B.cyanGlow,borderBottom:"1px solid "+B.cyan+"40",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontSize:12,flexWrap:"wrap"}}>
-      <span style={{fontSize:16}}>🔔</span>
+      <span style={{display:"inline-flex",color:B.cyan}}><Icon name="bell" size={16}/></span>
       <span style={{flex:1,minWidth:160,color:B.text}}>Turn on job alerts to get a notification when work is assigned to you.</span>
       <button onClick={enablePush} disabled={pushBusy} style={{background:B.cyan,color:B.bg,border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,opacity:pushBusy?.6:1}}>{pushBusy?"Enabling…":"Enable"}</button>
       <button onClick={dismissPush} aria-label="Dismiss" style={{background:"none",border:"none",color:B.textDim,fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>

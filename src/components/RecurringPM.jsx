@@ -15,7 +15,7 @@ function RecurringPM({templates,onAdd,onUpdate,onDelete,users}){
     <button onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ New Recurring PM</button>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {templates.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No recurring templates yet</div>}
-      {templates.map(t=><Card key={t.id} style={{padding:"12px 16px",borderLeft:"3px solid "+B.cyan}}>
+      {templates.map(t=><Card key={t.id} style={{padding:"12px 16px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div><div style={{fontSize:14,fontWeight:700,color:B.text}}>{t.title}</div><div style={{fontSize:11,color:B.textDim,marginTop:2}}>{t.frequency} · {t.assignee} · {t.location||"No location"}{t.customer&&" · 👤 "+t.customer}</div>{t.next_due&&<div style={{fontSize:11,color:B.orange,marginTop:2}}>Next due: {t.next_due}</div>}</div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>

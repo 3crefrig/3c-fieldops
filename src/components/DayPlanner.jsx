@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { B, F, M, IS, LS, BP, BS, fmtDate, todayLocal, localDateStr} from "../shared";
-import { Card, Badge, StatCard, Modal } from "./ui";
+import { Card, Badge, StatCard, Modal, Icon, IconText } from "./ui";
 
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const SHORT_DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -27,7 +27,10 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
 
   const weekStart=localDateStr(weekDates[0]);
   const weekEnd=localDateStr(weekDates[4]);
-  const weekLabel=weekDates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" — "+weekDates[4].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  const compact=typeof window!=="undefined"&&window.innerWidth<640;
+  const weekLabel=compact
+    ?weekDates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" \u2013 "+(weekDates[4].getMonth()===weekDates[0].getMonth()?weekDates[4].getDate():weekDates[4].toLocaleDateString("en-US",{month:"short",day:"numeric"}))
+    :weekDates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" \u2014 "+weekDates[4].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 
   // Filter WOs for this week
   const weekWOs=useMemo(()=>{
@@ -88,7 +91,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
       <button onClick={()=>setWeekOffset(w=>w-1)} style={{...BS,padding:"6px 12px",fontSize:12}}>← Prev</button>
       <button onClick={()=>setWeekOffset(0)} style={{...BS,padding:"6px 12px",fontSize:12,color:weekOffset===0?B.cyan:B.textDim}}>This Week</button>
       <button onClick={()=>setWeekOffset(w=>w+1)} style={{...BS,padding:"6px 12px",fontSize:12}}>Next →</button>
-      <span style={{fontSize:13,fontWeight:700,color:B.text,flex:1,textAlign:"center"}}>{weekLabel}</span>
+      <span style={{fontSize:13,fontWeight:700,color:B.text,flex:1,textAlign:"center",whiteSpace:"nowrap"}}>{weekLabel}</span>
       {isManager&&<select value={selectedTech} onChange={e=>setSelectedTech(e.target.value)} style={{...IS,width:"auto",padding:"6px 10px",fontSize:12,cursor:"pointer"}}>
         <option value="all">All Techs</option>
         {techs.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
@@ -96,9 +99,9 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
     </div>
 
     {/* Overdue section */}
-    {overdueWOs.length>0&&<Card style={{marginBottom:12,borderLeft:"3px solid "+B.red}}>
+    {overdueWOs.length>0&&<Card style={{marginBottom:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{fontSize:14}}>🚨</span>
+        <span style={{display:"inline-flex",color:B.red}}><Icon name="alert" size={15}/></span>
         <span style={{fontSize:13,fontWeight:700,color:B.red}}>Overdue ({overdueWOs.length})</span>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -110,9 +113,9 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
     </Card>}
 
     {/* Route optimization hints */}
-    {routeGroups.length>0&&<Card style={{marginBottom:12,borderLeft:"3px solid "+B.cyan}}>
+    {routeGroups.length>0&&<Card style={{marginBottom:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{fontSize:14}}>🗺</span>
+        <span style={{display:"inline-flex",color:B.cyan}}><Icon name="map" size={15}/></span>
         <span style={{fontSize:13,fontWeight:700,color:B.cyan}}>Batch Opportunities</span>
         <span style={{fontSize:10,color:B.textDim}}>Jobs at the same location this week</span>
       </div>
@@ -145,7 +148,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         const dayName=DAY_NAMES[d.getDay()];
         const shortDate=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
 
-        return(<Card key={dateStr} style={{padding:"12px 16px",borderLeft:"3px solid "+(isToday?B.cyan:dayWOs.length>0?B.green+"66":B.border)}}>
+        return(<Card key={dateStr} style={{padding:"12px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dayWOs.length>0?8:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:14,fontWeight:700,color:isToday?B.cyan:B.text}}>{dayName}</span>
@@ -174,7 +177,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
                   <div style={{fontSize:10,color:B.textDim,marginTop:2}}>
                     {w.customer&&<span>{w.customer}</span>}
                     {w.location&&<span> · {w.location}</span>}
-                    {w.assignee&&w.assignee!=="Unassigned"&&<span> · 👤 {w.assignee}</span>}
+                    {w.assignee&&w.assignee!=="Unassigned"&&<span> · {w.assignee}</span>}
                   </div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>{canReschedule&&onUpdateWO&&<input data-tip="Change the due date right here — the job moves to that day the moment you pick it." type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(w.due_date||"")?w.due_date:""} onClick={e=>e.stopPropagation()} onChange={async e=>{if(e.target.value)await onUpdateWO({...w,due_date:e.target.value});}} title="Reschedule: change the due date right here" style={{background:B.bg,border:"1px solid "+B.border,borderRadius:4,color:B.textMuted,padding:"3px 5px",fontSize:10,fontFamily:M,width:112,cursor:"pointer"}}/>}

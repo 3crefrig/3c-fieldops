@@ -290,7 +290,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {flt.length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No POs found</div>}
       {flt.slice(0,visibleCount).map(po=>{const wo=wos.find(o=>o.id===po.wo_id);return(
-        <Card key={po.id} style={{padding:"14px 16px",borderLeft:"3px solid "+(PSC[po.status]||B.border)}}>
+        <Card key={po.id} style={{padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             {po.status==="pending"&&<input type="checkbox" checked={selPOs.includes(po.id)} onChange={()=>toggleSel(po.id)} style={{width:18,height:18,accentColor:B.cyan,cursor:"pointer",marginTop:4,flexShrink:0}}/>}
             {/* 240px basis: on a phone the button cluster can't fit beside this,

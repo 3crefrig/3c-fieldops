@@ -235,7 +235,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
     {flt.length===0?<EmptyState icon="📨" title="No RFQs yet" subtitle="Create a request for quotation to send part pricing requests to a vendor."/>:
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {flt.map(rfq=>{const sm=SM[rfq.status]||{c:B.textDim,l:rfq.status};const url=docxUrl(rfq);const canEditDraft=rfq.status==="draft"&&(isMgr||rfq.created_by===userId);return(
-        <Card key={rfq.id} style={{padding:"14px 16px",borderLeft:"3px solid "+sm.c}}>
+        <Card key={rfq.id} style={{padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             {/* 240px basis so the action buttons wrap below on a phone rather
                 than squeezing this column to one word per line. */}

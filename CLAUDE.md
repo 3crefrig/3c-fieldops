@@ -231,3 +231,12 @@ All AI runs on the Anthropic API via edge functions. Model tiers (as of 2026-07-
 - Always run a build check (npm run build) before committing any changes
 - When creating UI components, prioritize mobile-first design since techs use this on phones in the field
 - Keep the dark/light theme system working — test both modes
+
+## UI conventions (refresh 2026-09-09, applied with the impeccable methodology)
+
+- **No colored side rails.** `borderLeft:"3px solid …"` was removed from all 56 cards/rows; status lives in pills/badges, priority in a 7px dot before the WO number. The `impeccable detect` scanner (run via `npx impeccable@latest detect src`) reports 0 side-tab findings; keep it that way. Remaining findings are the Arial email templates and the swipe-card width transition, both intentional.
+- **Drawn icons, not emoji.** `Icon` in `ui.jsx` (Lucide-style strokes) now covers search/bell/sun/moon/user/pin/alert/logout/plus/x/chevron/repeat/map/receipt/building/checksquare. `IconText` = icon + label for card meta lines; `IconButton` = 34px square header control. Emoji remain only in Guide/Tutorial copy and a few less-used screens.
+- **Phone header is one row:** compact logo (`<Logo size="compact"/>`), search (placeholder "Search…"), theme, bell, sign-out icon. Don't reintroduce wrapping.
+- **Stat tiles** use `className="stat-card"` with `.stat-label` / `.stat-value`; GlobalStyles makes them 3-up with a 20px value under 640px. Use `StatCard` or copy its markup; don't hand-roll tiles.
+- **Neutrals are tinted** toward the brand cyan (DARK bg #0F1215 / surface #181C20 / border #293036; LIGHT bg #F3F5F7 / border #DCE1E6). Selection, caret, scrollbars and button focus rings are themed in GlobalStyles.
+- **7-column grids** (calendar) must use `repeat(7,minmax(0,1fr))` + `minWidth:0` cells; plain `1fr` lets nowrap text push columns off-screen on phones.

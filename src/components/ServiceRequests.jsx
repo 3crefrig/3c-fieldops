@@ -157,7 +157,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
       <div style={{fontSize:11,marginTop:4}}>Use the scan button above to check for new emails</div>
     </div>}
 
-    {pending.map(d=><Card key={d.id} onClick={()=>openDraft(d)} style={{padding:"14px 18px",borderLeft:"3px solid "+B.orange}}>
+    {pending.map(d=><Card key={d.id} onClick={()=>openDraft(d)} style={{padding:"14px 18px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",gap:10,flex:"1 1 240px",minWidth:0}}>
           {/* Checkbox for bulk select */}
