@@ -47,7 +47,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
   return(<div className="app-root" style={{background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <GlobalStyles/>
     {/* Phones: one row — logo · search · theme · bell · sign-out. The old header wrapped into three rows and ate a third of the screen. */}
-    <div style={{background:B.surface,padding:isMobile?"8px 10px":"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:isMobile?"nowrap":"wrap",gap:isMobile?8:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
+    <div style={{background:B.surface,padding:isMobile?"8px 10px":"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:isMobile?"nowrap":"wrap",gap:8}}>
       <Logo size={isMobile?"compact":undefined} onClick={()=>setTab(tabs[0]?.key)}/>
       {searchData&&<div data-tour="global-search" data-tip="Search jumps straight to any work order, PO, customer, or piece of equipment. Ctrl+K opens it from anywhere." style={{display:"flex",alignItems:"center",minWidth:0,flex:"0 1 auto"}}><GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/></div>}
       <div style={{display:"flex",alignItems:"center",gap:isMobile?6:10,flexShrink:0}}>
@@ -73,27 +73,27 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
       const effectiveOpen=openNavGroup||(activeGroup?.label)||null;
 
       if(useGroups){
-        return(<div style={{background:B.surface,borderBottom:"1px solid "+B.border,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
+        return(<div style={{background:B.surface,borderBottom:"1px solid "+B.border,position:"sticky",top:0,zIndex:100}}>
           {/* Group headers */}
           <div style={{display:"flex",gap:0,padding:"0 16px"}}>
             {TAB_GROUPS.map(g=>{const groupTabs=tabs.filter(t=>g.keys.includes(t.key));if(groupTabs.length===0)return null;
               const isActive=g.keys.includes(tab);const isOpen=effectiveOpen===g.label;
               const badge=g.label==="Operations"?tabs.find(t=>t.key==="inbox"&&t.label.includes("("))?"":"":null;
               return<button key={g.label} onClick={()=>{setOpenNavGroup(isOpen&&!isActive?null:g.label);if(!isOpen&&groupTabs[0])setTab(groupTabs[0].key);haptic(15);}}
-                style={{padding:"10px 18px",border:"none",background:isOpen?B.cyanGlow:"transparent",fontSize:12,fontWeight:isActive?700:500,color:isActive?B.cyan:B.textMuted,borderBottom:isActive?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.3,display:"flex",alignItems:"center",gap:6}}>
+                style={{padding:"11px 16px",border:"none",background:"transparent",fontSize:13,fontWeight:isActive?600:500,color:isActive?B.text:isOpen?B.text:B.textMuted,borderBottom:isActive?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"color .15s",display:"flex",alignItems:"center",gap:6}}>
                 {g.label}<span style={{fontSize:9,color:B.textDim,transition:"transform .15s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>{isOpen?"▾":"▸"}</span>
               </button>;})}
           </div>
           {/* Sub-tabs for open group */}
-          {effectiveOpen&&<div style={{display:"flex",gap:0,padding:"0 16px",background:B.bg,borderTop:"1px solid "+B.border}}>
+          {effectiveOpen&&<div style={{display:"flex",gap:0,padding:"0 16px",background:B.surface,borderTop:"1px solid "+B.border}}>
             {tabs.filter(t=>(TAB_GROUPS.find(g=>g.label===effectiveOpen)?.keys||[]).includes(t.key)).map(t=>
-              <button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"8px 16px",border:"none",background:tab===t.key?B.cyan+"18":"transparent",fontSize:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .12s",borderRadius:"6px 6px 0 0"}}>{t.label}</button>)}
+              <button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:"9px 14px",border:"none",background:"transparent",fontSize:12.5,fontWeight:tab===t.key?600:500,color:tab===t.key?B.text:B.textMuted,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"color .12s"}}>{t.label}</button>)}
           </div>}
         </div>);
       }
       // Simple flat tabs for tech dashboard or small tab counts
-      return(<div style={{background:B.surface,padding:isMobile?"0 8px":"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
-        {tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:isMobile?"8px 10px":"11px 16px",border:"none",background:tab===t.key?B.cyanGlow:"transparent",fontSize:isMobile?10:11,fontWeight:tab===t.key?700:500,color:tab===t.key?B.cyan:B.textDim,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"all .15s",letterSpacing:0.2}}>{t.label}</button>)}
+      return(<div style={{background:B.surface,padding:isMobile?"0 8px":"0 16px",display:"flex",gap:0,borderBottom:"1px solid "+B.border,overflowX:"auto",position:"sticky",top:0,zIndex:100}}>
+        {tabs.map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{padding:isMobile?"10px 11px":"11px 14px",border:"none",background:"transparent",fontSize:isMobile?12.5:13,fontWeight:tab===t.key?600:500,color:tab===t.key?B.text:B.textMuted,borderBottom:tab===t.key?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"color .15s"}}>{t.label}</button>)}
       </div>);
     })()}
     {pushSupported()&&pushState==="default"&&!pushDismissed&&<div style={{background:B.cyanGlow,borderBottom:"1px solid "+B.cyan+"40",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontSize:12,flexWrap:"wrap"}}>
@@ -105,6 +105,6 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     <div ref={contentRef} className="tab-content" key={tab+theme} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?"calc(150px + env(safe-area-inset-bottom))":20,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box",minHeight:0}}><React.Suspense fallback={<Spinner/>}>{children}</React.Suspense></div>
     <TutorialLayer tab={tab} role={user.role}/>
     {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,display:"flex",justifyContent:"space-around",padding:"4px 0",paddingBottom:"max(4px, env(safe-area-inset-bottom))",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,0.2)"}}>{tabs.slice(0,4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);haptic(15);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,border:"none",background:"transparent",color:tab===t.key?B.cyan:B.textDim,cursor:"pointer",padding:"6px 12px",minHeight:48,transition:"color .15s"}}><Icon name={TAB_ICON[t.key]||"dot"} size={20}/><span style={{fontSize:10,fontWeight:tab===t.key?700:500,fontFamily:F}}>{t.label}</span></button>)}<button onClick={()=>setShowMoreTabs(!showMoreTabs)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,border:"none",background:"transparent",color:showMoreTabs?B.cyan:B.textDim,fontSize:20,cursor:"pointer",padding:"6px 12px",minHeight:48}}><span>•••</span><span style={{fontSize:10,fontWeight:500,fontFamily:F}}>More</span></button></div>}
-    {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:10,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.label}</button>)}</div>}
+    {isMobile&&showMoreTabs&&<div style={{position:"fixed",bottom:64,left:0,right:0,background:B.surface,borderTop:"1px solid "+B.border,zIndex:199,padding:"8px",display:"flex",flexWrap:"wrap",gap:4,boxShadow:"0 -4px 16px rgba(0,0,0,0.3)"}}>{tabs.slice(4).map(t=><button key={t.key} onClick={()=>{setTab(t.key);setShowMoreTabs(false);haptic(15);}} style={{padding:"10px 14px",borderRadius:6,border:"1px solid "+(tab===t.key?B.cyan:B.border),background:tab===t.key?B.cyanGlow:"transparent",color:tab===t.key?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,minHeight:44}}>{t.label}</button>)}</div>}
   </div>);
 }

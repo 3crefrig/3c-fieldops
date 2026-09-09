@@ -74,14 +74,19 @@ export async function loadWOSignature(woId){
 // 2026-09-09 refresh: neutrals carry a faint cool tint from the brand cyan instead of
 // pure gray (tinted grays read as designed; pure gray reads as default), one step more
 // contrast between page and surface, and hairlines a touch softer.
-export const DARK={bg:"#0F1215",surface:"#181C20",surfaceActive:"#21262B",border:"#293036",text:"#F1F4F6",textMuted:"#9AA4AE",textDim:"#6C7681",cyan:"#4DD6F0",cyanDark:"#2AB8D6",cyanGlow:"rgba(77,214,240,0.12)",red:"#FF6B66",orange:"#F5A623",green:"#5AD48A",purple:"#A78BFA",greenGlow:"rgba(90,212,138,0.14)",orangeGlow:"rgba(245,166,35,0.14)",btnPrimary:"#F4F5F5",btnPrimaryText:"#111214"};
-export const LIGHT={bg:"#F3F5F7",surface:"#FFFFFF",surfaceActive:"#EDF0F3",border:"#DCE1E6",text:"#161A1E",textMuted:"#5B6672",textDim:"#83919C",cyan:"#0B7F9E",cyanDark:"#096B85",cyanGlow:"rgba(11,127,158,0.10)",red:"#B42318",orange:"#B54708",green:"#0A7A3D",purple:"#7C3AED",greenGlow:"rgba(10,122,61,0.10)",orangeGlow:"rgba(181,71,8,0.10)",btnPrimary:"#1A1A1A",btnPrimaryText:"#FFFFFF"};
+// Design v2 (2026-09-09, "dispatch ledger" at Linear's craft bar): near-black page, panels one
+// step up, hairline edges, no shadows. Muted text is brighter than before on purpose —
+// techs read this in plant rooms and hallways, so secondary text stays ≥4.5:1.
+export const DARK={bg:"#0C0E10",surface:"#141719",surfaceActive:"#1C2024",border:"#23282D",text:"#EDEFF2",textMuted:"#A3ABB4",textDim:"#7A838D",cyan:"#4DD6F0",cyanDark:"#2AB8D6",cyanGlow:"rgba(77,214,240,0.12)",red:"#FF6B66",orange:"#F5A623",green:"#5AD48A",purple:"#A78BFA",greenGlow:"rgba(90,212,138,0.14)",orangeGlow:"rgba(245,166,35,0.14)",btnPrimary:"#F4F5F5",btnPrimaryText:"#111214"};
+export const LIGHT={bg:"#F7F8F9",surface:"#FFFFFF",surfaceActive:"#EEF1F3",border:"#E1E5E9",text:"#15181B",textMuted:"#5D6771",textDim:"#7E8892",cyan:"#0B7F9E",cyanDark:"#096B85",cyanGlow:"rgba(11,127,158,0.10)",red:"#B42318",orange:"#B54708",green:"#0A7A3D",purple:"#7C3AED",greenGlow:"rgba(10,122,61,0.10)",orangeGlow:"rgba(181,71,8,0.10)",btnPrimary:"#1A1A1A",btnPrimaryText:"#FFFFFF"};
 let _theme=localStorage.getItem("fieldops-theme")||"dark";
 export let B=_theme==="light"?{...LIGHT}:{...DARK};
 export function setTheme(t){_theme=t;localStorage.setItem("fieldops-theme",t);Object.assign(B,t==="light"?LIGHT:DARK);}
 export function getTheme(){return _theme;}
 export function haptic(ms){try{navigator.vibrate&&navigator.vibrate(ms||30);}catch(e){}}
-export const F="'Inter','Barlow',sans-serif",M="'JetBrains Mono',monospace";
+// Archivo: a signage/spec-sheet grotesque with a tall x-height — reads at 13px in glare and
+// isn't the face every generated app ships. Inter stays as a metric-close fallback.
+export const F="'Archivo','Inter','Barlow',sans-serif",M="'JetBrains Mono',monospace";
 export const getRoles=()=>({admin:{label:"Admin",color:B.red},manager:{label:"Manager",color:B.green},technician:{label:"Technician",color:B.cyan}});
 export let ROLES=getRoles();
 export function refreshRoles(){ROLES=getRoles();}
@@ -112,11 +117,11 @@ export const SC={pending:B.orange,in_progress:B.cyan,completed:B.green};
 export const SL={pending:"Pending",in_progress:"In Progress",completed:"Completed"};
 export const PSC={pending:B.orange,approved:B.green,rejected:B.red,revised:B.orange};
 export const PSL={pending:"Pending",approved:"Approved",rejected:"Rejected",revised:"Revised"};
-// Radius scale: 6 chips/inset panels · 10 inputs/buttons/cards · 14 modals · 999 pills
-const _IS=()=>({width:"100%",padding:"11px 14px",borderRadius:10,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"});
-const _LS=()=>({fontSize:11,color:B.textDim,fontWeight:600,letterSpacing:0.4,textTransform:"uppercase",marginBottom:5,display:"block"});
-const _BP=()=>({padding:"12px 20px",borderRadius:10,border:"none",background:B.btnPrimary||B.cyan,color:B.btnPrimaryText||B.bg,fontSize:13,fontWeight:650,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",minHeight:44,boxShadow:"0 1px 0 rgba(0,0,0,.12)"});
-const _BS=()=>({padding:"12px 20px",borderRadius:10,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s",minHeight:44,boxShadow:"0 1px 0 rgba(26,26,26,.04)"});
+// Radius scale v2: 5 tags · 6 inputs/buttons · 8 panels/cards · 10 modals · 999 only for counters
+const _IS=()=>({width:"100%",padding:"10px 12px",borderRadius:6,border:"1px solid "+B.border,background:B.bg,color:B.text,fontSize:13,fontFamily:F,outline:"none",boxSizing:"border-box",transition:"border-color .15s, box-shadow .15s"});
+const _LS=()=>({fontSize:11,color:B.textMuted,fontWeight:600,letterSpacing:0.3,textTransform:"uppercase",marginBottom:5,display:"block"});
+const _BP=()=>({padding:"10px 16px",borderRadius:6,border:"1px solid transparent",background:B.btnPrimary||B.cyan,color:B.btnPrimaryText||B.bg,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:F,transition:"opacity .15s, transform .1s",minHeight:42});
+const _BS=()=>({padding:"10px 16px",borderRadius:6,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,transition:"background .15s, border-color .15s",minHeight:42});
 export const IS=new Proxy({},{get:(_,p)=>_IS()[p],ownKeys:()=>Object.keys(_IS()),getOwnPropertyDescriptor:(_,p)=>({value:_IS()[p],enumerable:true,configurable:true})});
 export const LS=new Proxy({},{get:(_,p)=>_LS()[p],ownKeys:()=>Object.keys(_LS()),getOwnPropertyDescriptor:(_,p)=>({value:_LS()[p],enumerable:true,configurable:true})});
 export const BP=new Proxy({},{get:(_,p)=>_BP()[p],ownKeys:()=>Object.keys(_BP()),getOwnPropertyDescriptor:(_,p)=>({value:_BP()[p],enumerable:true,configurable:true})});
@@ -205,7 +210,7 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 *::-webkit-scrollbar-thumb{background:${B.border};border-radius:4px;border:2px solid transparent;background-clip:padding-box}
 *::-webkit-scrollbar-thumb:hover{background:${B.textDim};background-clip:padding-box}
 /* Stat tiles: 3-up on phones with a tighter value, instead of two towering cards per row. */
-@media(max-width:640px){.stat-card{flex:1 1 30%!important;min-width:104px!important;padding:12px 12px!important}.stat-card .stat-label{font-size:10.5px!important;margin-bottom:4px!important}.stat-card .stat-value{font-size:20px!important}}
+@media(max-width:640px){.stat-card{flex:1 1 30%!important;min-width:104px!important;padding:12px 12px!important;margin:0!important}.stat-card .stat-label{font-size:10.5px!important;margin-bottom:4px!important}.stat-card .stat-value{font-size:20px!important}}
 /* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
    wins where supported so the bottom of the app isn't hidden behind mobile/tablet
    browser toolbars — otherwise trailing buttons become unreachable when scrolling. */
@@ -217,9 +222,16 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-.card-hover{transition:border-color .2s,box-shadow .2s,transform .15s}
-.card-hover:hover{box-shadow:0 2px 12px rgba(0,0,0,0.15)}
-.card-hover:active{transform:scale(0.985)}
+.card-hover{transition:border-color .15s,background .15s}
+.card-hover:hover{border-color:${B.textDim}66!important}
+.card-hover:active{background:${B.surfaceActive}}
+/* Ledger rows: one panel, hairlines between rows, nothing after the last. */
+.list-row{transition:background .12s}
+.list-row:hover{background:${B.surfaceActive}}
+.list-row:last-child{border-bottom:none!important}
+/* Stat strip (desktop): sibling stat tiles fuse into one panel with vertical hairlines. */
+div:has(> .stat-card){gap:1px!important;border:1px solid ${B.border};border-radius:8px;overflow:hidden;background:${B.border}}
+.stat-card{border:none!important;border-radius:0!important;box-shadow:none!important;background:${B.surface}!important}
 .tab-content{animation:fadeIn .2s ease-out;-webkit-overflow-scrolling:touch}
 .modal-card{max-height:85vh;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 @supports(max-height:100dvh){.modal-card{max-height:85dvh}}

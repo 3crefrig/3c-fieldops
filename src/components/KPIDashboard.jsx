@@ -107,9 +107,8 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
   const bentoTile=(color,idx,extra={})=>({
     background:B.surface,
     border:"1px solid "+B.border,
-    borderRadius:12,
-    boxShadow:"0 1px 0 rgba(26,26,26,.05)",
-    padding:"16px 18px",
+    borderRadius:8,
+    padding:"14px 16px",
     ...extra,
   });
 
@@ -156,7 +155,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
         const idx=i;
         const gridStyle={};
         return(
-          <div key={t.key} className="card-hover"
+          <div key={t.key} className={"stat-card"+(t.click?" card-hover":"")}
             style={{...bentoTile(t.color,idx,gridStyle),cursor:t.click?"pointer":"default",position:"relative",overflow:"hidden"}}
             onClick={t.click||undefined}
           >
