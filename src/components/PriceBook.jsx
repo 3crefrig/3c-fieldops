@@ -187,7 +187,7 @@ export function PriceBook({ userRole }) {
           const spread = pct(r.own_spread_pct), saves = pct(r.pct_cheaper_elsewhere);
           return (
             <Card key={r.part_id} onClick={() => setSel(r)} className="card-hover"
-              style={{ padding: "12px 14px", cursor: "pointer", borderLeft: "3px solid " + (saves > 0 ? B.green : spread >= 25 ? B.orange : B.border) }}>
+              style={{ padding: "12px 14px", cursor: "pointer" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 240px", minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

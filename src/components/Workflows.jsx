@@ -31,7 +31,7 @@ function WorkflowBuilder({D,userName}){
       <div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Recent Workflow Runs</div>
       {runs.length===0&&<Card style={{textAlign:"center",padding:20,color:B.textDim}}><div style={{fontSize:13}}>No workflow runs yet.</div></Card>}
       {runs.map(r=>{const wf=workflows.find(w=>w.id===r.workflow_id);return(
-        <Card key={r.id} style={{padding:"10px 14px",marginBottom:6,borderLeft:"3px solid "+(r.status==="completed"?B.green:r.status==="waiting"?B.orange:r.status==="failed"?B.red:B.cyan)}}>
+        <Card key={r.id} style={{padding:"10px 14px",marginBottom:6}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div><span style={{fontSize:12,fontWeight:600,color:B.text}}>{wf?.name||"Unknown"}</span><span style={{fontSize:10,color:B.textDim,marginLeft:8}}>{r.trigger_type}</span></div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -47,7 +47,7 @@ function WorkflowBuilder({D,userName}){
       {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
       {!loading&&workflows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:36,marginBottom:8}}>⚡</div><div style={{fontSize:14,fontWeight:600,marginBottom:4}}>No workflows yet</div><div style={{fontSize:12}}>Create your first automation to get started.</div></Card>}
       {workflows.map(wf=>{const triggerNode=wf.nodes?.find(n=>n.type==="trigger");const actionNodes=(wf.nodes||[]).filter(n=>n.type==="action");const recentRuns=runs.filter(r=>r.workflow_id===wf.id).length;
-        return(<Card key={wf.id} style={{padding:"14px 16px",marginBottom:8,borderLeft:"3px solid "+(wf.active?B.green:B.textDim),opacity:wf.active?1:0.7}}>
+        return(<Card key={wf.id} style={{padding:"14px 16px",marginBottom:8,opacity:wf.active?1:0.7}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
             <div style={{flex:"1 1 240px",minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>

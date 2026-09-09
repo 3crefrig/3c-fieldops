@@ -71,8 +71,11 @@ export async function loadWOSignature(woId){
 // btnPrimary is the near-black/white primary button — the "expensive" Shopify move.
 // Cyan stays the brand/accent (matches the real logo); green/red/orange keep their
 // approval/alert/pending semantics app-wide.
-export const DARK={bg:"#111214",surface:"#1B1D20",surfaceActive:"#24262A",border:"#2C2F33",text:"#F4F5F5",textMuted:"#9A9FA6",textDim:"#6B7178",cyan:"#4DD6F0",cyanDark:"#2AB8D6",cyanGlow:"rgba(77,214,240,0.12)",red:"#FF6B66",orange:"#F5A623",green:"#5AD48A",purple:"#A78BFA",greenGlow:"rgba(90,212,138,0.14)",orangeGlow:"rgba(245,166,35,0.14)",btnPrimary:"#F4F5F5",btnPrimaryText:"#111214"};
-export const LIGHT={bg:"#F6F6F7",surface:"#FFFFFF",surfaceActive:"#F1F2F3",border:"#E1E3E5",text:"#1A1A1A",textMuted:"#616A75",textDim:"#8A9097",cyan:"#0B7F9E",cyanDark:"#096B85",cyanGlow:"rgba(11,127,158,0.10)",red:"#B42318",orange:"#B54708",green:"#0A7A3D",purple:"#7C3AED",greenGlow:"rgba(10,122,61,0.10)",orangeGlow:"rgba(181,71,8,0.10)",btnPrimary:"#1A1A1A",btnPrimaryText:"#FFFFFF"};
+// 2026-09-09 refresh: neutrals carry a faint cool tint from the brand cyan instead of
+// pure gray (tinted grays read as designed; pure gray reads as default), one step more
+// contrast between page and surface, and hairlines a touch softer.
+export const DARK={bg:"#0F1215",surface:"#181C20",surfaceActive:"#21262B",border:"#293036",text:"#F1F4F6",textMuted:"#9AA4AE",textDim:"#6C7681",cyan:"#4DD6F0",cyanDark:"#2AB8D6",cyanGlow:"rgba(77,214,240,0.12)",red:"#FF6B66",orange:"#F5A623",green:"#5AD48A",purple:"#A78BFA",greenGlow:"rgba(90,212,138,0.14)",orangeGlow:"rgba(245,166,35,0.14)",btnPrimary:"#F4F5F5",btnPrimaryText:"#111214"};
+export const LIGHT={bg:"#F3F5F7",surface:"#FFFFFF",surfaceActive:"#EDF0F3",border:"#DCE1E6",text:"#161A1E",textMuted:"#5B6672",textDim:"#83919C",cyan:"#0B7F9E",cyanDark:"#096B85",cyanGlow:"rgba(11,127,158,0.10)",red:"#B42318",orange:"#B54708",green:"#0A7A3D",purple:"#7C3AED",greenGlow:"rgba(10,122,61,0.10)",orangeGlow:"rgba(181,71,8,0.10)",btnPrimary:"#1A1A1A",btnPrimaryText:"#FFFFFF"};
 let _theme=localStorage.getItem("fieldops-theme")||"dark";
 export let B=_theme==="light"?{...LIGHT}:{...DARK};
 export function setTheme(t){_theme=t;localStorage.setItem("fieldops-theme",t);Object.assign(B,t==="light"?LIGHT:DARK);}
@@ -191,7 +194,18 @@ button{transition:filter .15s ease,transform .1s ease}
 button:hover:not(:disabled){filter:brightness(1.12)}
 button:active:not(:disabled){transform:scale(.97)}
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid ${B.cyan}66;outline-offset:1px;border-radius:4px}
+button:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid ${B.cyan}88;outline-offset:2px}
 body{font-variant-numeric:tabular-nums}
+/* Browser-owned surfaces carry the palette too: selection, caret, scrollbars. */
+::selection{background:${B.cyan}55;color:${B.text}}
+input,textarea,[contenteditable]{caret-color:${B.cyan}}
+*{scrollbar-width:thin;scrollbar-color:${B.border} transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:${B.border};border-radius:4px;border:2px solid transparent;background-clip:padding-box}
+*::-webkit-scrollbar-thumb:hover{background:${B.textDim};background-clip:padding-box}
+/* Stat tiles: 3-up on phones with a tighter value, instead of two towering cards per row. */
+@media(max-width:640px){.stat-card{flex:1 1 30%!important;min-width:104px!important;padding:12px 12px!important}.stat-card .stat-label{font-size:10.5px!important;margin-bottom:4px!important}.stat-card .stat-value{font-size:20px!important}}
 /* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
    wins where supported so the bottom of the app isn't hidden behind mobile/tablet
    browser toolbars — otherwise trailing buttons become unreachable when scrolling. */
@@ -207,10 +221,6 @@ body{font-variant-numeric:tabular-nums}
 .card-hover:hover{box-shadow:0 2px 12px rgba(0,0,0,0.15)}
 .card-hover:active{transform:scale(0.985)}
 .tab-content{animation:fadeIn .2s ease-out;-webkit-overflow-scrolling:touch}
-.tab-content::-webkit-scrollbar{width:6px}
-.tab-content::-webkit-scrollbar-track{background:transparent}
-.tab-content::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.3);border-radius:3px}
-.tab-content::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.5)}
 .modal-card{max-height:85vh;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 @supports(max-height:100dvh){.modal-card{max-height:85dvh}}
 @media(max-width:480px){.modal-card{padding:18px!important;width:100%!important;border-radius:14px!important}}

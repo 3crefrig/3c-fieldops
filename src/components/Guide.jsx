@@ -27,7 +27,7 @@ function TutorialControls({ userRole }) {
     </button>
   );
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 14, borderLeft: "3px solid " + B.green }}>
+    <Card style={{ padding: "16px 18px", marginBottom: 14 }}>
       <div style={{ fontSize: 14, fontWeight: 800, color: B.text }}>🎓 Interactive Tutorial</div>
       <div style={{ fontSize: 12, color: B.textMuted, margin: "4px 0 12px", lineHeight: 1.5 }}>
         Guided tours walk you through each page step by step. Tips mode adds tappable ⦿ dots that explain individual controls. Settings apply to this device.
@@ -250,7 +250,7 @@ function HelpGuide({ userRole, userName }) {
 
   return (
     <div>
-      <Card style={{ padding: "16px 18px", marginBottom: 14, borderLeft: "3px solid " + B.cyan }}>
+      <Card style={{ padding: "16px 18px", marginBottom: 14 }}>
         <div style={{ fontSize: 17, fontWeight: 800, color: B.text }}>📘 Guide {userName ? "— " + (userName.split(" ")[0]) : ""}</div>
         <div style={{ fontSize: 12.5, color: B.textMuted, marginTop: 4, lineHeight: 1.5 }}>
           A quick how-to for everything you’ll use, tailored to your <strong style={{ color: B.cyan }}>{roleLabel}</strong> access. Tap a section to expand. New here? Start with <em>Getting Started</em>.

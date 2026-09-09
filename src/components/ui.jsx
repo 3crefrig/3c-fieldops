@@ -6,7 +6,7 @@ import { B, F, M, IS, LS, BP, BS, haptic, getTheme , openPO, openEquipment} from
 const LOGO_LIGHT="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png";
 const LOGO_DARK="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/logo-dark.png";               // full lockup w/ NC outline — login screen
 const LOGO_DARK_COMPACT="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/logo-dark-compact.png"; // tight 3C+banner crop — header
-export function Logo({size,onClick}){const dark=getTheme()==="dark";const h=size==="large"?(dark?128:56):(dark?38:32);const src=dark?(size==="large"?LOGO_DARK:LOGO_DARK_COMPACT):LOGO_LIGHT;return(<img src={src} alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
+export function Logo({size,onClick}){const dark=getTheme()==="dark";const h=size==="large"?(dark?128:56):size==="compact"?(dark?28:24):(dark?38:32);const src=dark?(size==="large"?LOGO_DARK:LOGO_DARK_COMPACT):LOGO_LIGHT;return(<img src={src} alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
 // Minimal inline SVG icon set (Lucide-style strokes) — used by the mobile bottom
 // bar instead of emoji. currentColor themes automatically.
@@ -21,9 +21,30 @@ export function Icon({name,size=20,color="currentColor",strokeWidth=2}){
     book:[<path key="a" d="M4 4a2 2 0 0 1 2-2h14v18H6a2 2 0 0 0-2 2z"/>,<path key="b" d="M20 16H6a2 2 0 0 0-2 2"/>],
     wrench:[<path key="a" d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7z"/>],
     dot:[<circle key="a" cx="12" cy="12" r="3"/>],
+    search:[<circle key="a" cx="11" cy="11" r="7"/>,<path key="b" d="M20 20l-3.5-3.5"/>],
+    bell:[<path key="a" d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/>,<path key="b" d="M10 20a2 2 0 0 0 4 0"/>],
+    sun:[<circle key="a" cx="12" cy="12" r="4"/>,<path key="b" d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>],
+    moon:[<path key="a" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>],
+    user:[<circle key="a" cx="12" cy="8" r="4"/>,<path key="b" d="M4 21a8 8 0 0 1 16 0"/>],
+    pin:[<path key="a" d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/>,<circle key="b" cx="12" cy="10" r="2.2"/>],
+    alert:[<path key="a" d="M12 3l10 18H2z"/>,<path key="b" d="M12 10v4M12 17.5v.5"/>],
+    logout:[<path key="a" d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"/>,<path key="b" d="M14 8l4 4-4 4M18 12H9"/>],
+    plus:[<path key="a" d="M12 5v14M5 12h14"/>],
+    x:[<path key="a" d="M6 6l12 12M18 6L6 18"/>],
+    chevron:[<path key="a" d="M6 9l6 6 6-6"/>],
+    checksquare:[<rect key="a" x="4" y="4" width="16" height="16" rx="3"/>,<path key="b" d="M8 12l3 3 5-6"/>],
+    repeat:[<path key="a" d="M17 2l4 4-4 4"/>,<path key="b" d="M3 11V9a4 4 0 0 1 4-4h14"/>,<path key="c" d="M7 22l-4-4 4-4"/>,<path key="d" d="M21 13v2a4 4 0 0 1-4 4H3"/>],
+    map:[<path key="a" d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/>,<path key="b" d="M9 4v14M15 6v14"/>],
+    receipt:[<path key="a" d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/>,<path key="b" d="M9 8h6M9 12h6"/>],
+    building:[<rect key="a" x="4" y="3" width="16" height="18" rx="1"/>,<path key="b" d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/>],
   };
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{P[name]||P.dot}</svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{flexShrink:0}}>{P[name]||P.dot}</svg>;
 }
+// Inline icon + text for card meta lines ("customer", "location", "overdue") — replaces
+// the emoji glyphs that rendered differently on every phone.
+export function IconText({name,children,color,size=11,style}){return <span style={{display:"inline-flex",alignItems:"center",gap:4,color,verticalAlign:"middle",...style}}><Icon name={name} size={size}/>{children}</span>;}
+// 32px square icon button used across the header (theme, bell, sign out on phones).
+export function IconButton({name,onClick,label,active,size=16,style,children}){return <button type="button" onClick={onClick} aria-label={label} title={label} style={{width:34,height:34,display:"inline-flex",alignItems:"center",justifyContent:"center",background:active?B.cyanGlow:B.bg,border:"1px solid "+(active?B.cyan+"66":B.border),borderRadius:8,color:active?B.cyan:B.textMuted,cursor:"pointer",padding:0,position:"relative",flexShrink:0,...style}}><Icon name={name} size={size}/>{children}</button>;}
 
 
 // Paste-to-scan: lets desktop users hit Win+Shift+S / Cmd+Shift+4 and press
@@ -87,7 +108,7 @@ export function PdfPreviewModal({url,downloadUrl,title,filename,onClose}){
 // the delta/pill, not the number — the Shopify restraint that makes it read premium).
 export function Badge({color,children}){return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:999,background:color+"1c",color,fontSize:11,fontWeight:650,fontFamily:F,letterSpacing:0.2}}>{children}</span>;}
 export function Card({children,onClick,style}){return <div onClick={onClick} className={onClick?"card-hover":""} style={{background:B.surface,borderRadius:12,padding:18,border:"1px solid "+B.border,cursor:onClick?"pointer":"default",boxShadow:"0 1px 0 rgba(26,26,26,.05)",transition:"border-color .2s, box-shadow .2s, transform .15s",...style}} onMouseEnter={e=>{if(onClick){e.currentTarget.style.borderColor=B.cyan+"70";e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.10)";}}} onMouseLeave={e=>{e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="0 1px 0 rgba(26,26,26,.05)";}}>{children}</div>;}
-export function StatCard({label,value,icon,color,delta}){return <Card style={{flex:"1 1 130px",minWidth:130,padding:"16px 18px"}}><div style={{fontSize:11,color:B.textMuted,fontWeight:600,marginBottom:6}}>{label}</div><div style={{fontSize:24,fontWeight:650,color:B.text,fontFamily:F,lineHeight:1,letterSpacing:-0.4}}>{value}</div>{delta!=null&&<div style={{fontSize:10.5,fontWeight:650,marginTop:6,color:delta>=0?B.green:B.red}}>{delta>=0?"▲":"▼"} {Math.abs(delta)}% <span style={{color:B.textDim,fontWeight:400}}>vs prior</span></div>}</Card>;}
+export function StatCard({label,value,icon,color,delta}){return <div className="stat-card" style={{flex:"1 1 130px",minWidth:130,padding:"16px 18px",background:B.surface,borderRadius:12,border:"1px solid "+B.border,boxShadow:"0 1px 0 rgba(26,26,26,.05)",boxSizing:"border-box"}}><div className="stat-label" style={{fontSize:11,color:B.textMuted,fontWeight:600,marginBottom:6}}>{label}</div><div className="stat-value" style={{fontSize:24,fontWeight:650,color:B.text,fontFamily:F,lineHeight:1,letterSpacing:-0.4}}>{value}</div>{delta!=null&&<div style={{fontSize:10.5,fontWeight:650,marginTop:6,color:delta>=0?B.green:B.red}}>{delta>=0?"▲":"▼"} {Math.abs(delta)}% <span style={{color:B.textDim,fontWeight:400}}>vs prior</span></div>}</div>;}
 export function Modal({title,onClose,children,wide}){return <div style={{position:"fixed",inset:0,zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",animation:"fadeIn .15s ease-out",padding:"max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))",boxSizing:"border-box"}}><div className="modal-card" style={{background:B.surface,borderRadius:14,padding:28,width:"92%",maxWidth:wide?620:440,overflowY:"auto",border:"1px solid "+B.border,boxShadow:"0 20px 60px rgba(0,0,0,0.4)",animation:"modalIn .2s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text,letterSpacing:-0.2}}>{title}</h3><button onClick={onClose} aria-label="Close" style={{background:B.bg,border:"1px solid "+B.border,color:B.textMuted,width:28,height:28,borderRadius:8,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=B.surfaceActive} onMouseLeave={e=>e.currentTarget.style.background=B.bg}>×</button></div>{children}</div></div>;}
 export function Toast({msg}){useEffect(()=>{if(msg)haptic(30);},[msg]);if(!msg)return null;return <div style={{position:"fixed",top:16,right:16,zIndex:2000,background:B.cyan,color:B.bg,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:700,boxShadow:"0 4px 16px rgba(0,0,0,0.25)",animation:"toastIn .25s ease-out"}}>✓ {msg}</div>;}
 export function CustomSelect({value,onChange,options,placeholder,style:sx}){
@@ -131,31 +152,31 @@ export function GlobalSearch({data,onNavigateWO,setTab}){
   const results=!query?null:(()=>{
     const r=[];const cap=8;
     const matches=(...fields)=>fields.some(v=>v&&String(v).toLowerCase().includes(query));
-    (data?.wos||[]).forEach(w=>{if(r.length>=cap*4)return;if(matches(w.wo_id,w.title,w.customer,w.customer_wo,w.location,w.assignee))r.push({kind:"wo",icon:"📋",title:w.wo_id+" — "+w.title,sub:[w.customer,w.status,w.assignee].filter(Boolean).join(" · "),color:w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange,onClick:()=>{if(onNavigateWO)onNavigateWO(w.id);setOpen(false);setQ("");}});});
-    (data?.pos||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.po_id,p.description,p.requested_by))r.push({kind:"po",icon:"🧾",title:p.po_id+" — $"+parseFloat(p.amount||0).toFixed(0),sub:(p.description||"").slice(0,60)+" · "+p.status,color:p.status==="approved"?B.green:p.status==="rejected"?B.red:B.orange,onClick:()=>{openPO(p.po_id);setOpen(false);setQ("");}});});
-    (data?.customers||[]).forEach(c=>{if(r.length>=cap*4)return;if(matches(c.name,c.contact_name,c.email,c.phone))r.push({kind:"customer",icon:"👤",title:c.name,sub:[c.contact_name,c.phone].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{setTab&&setTab("customers");setOpen(false);setQ("");}});});
-    (data?.equipment||[]).forEach(e=>{if(r.length>=cap*4)return;if(matches(e.model,e.manufacturer,e.serial_number,e.asset_tag,e.customer_name))r.push({kind:"equipment",icon:"🔧",title:(e.model||"Equipment")+(e.asset_tag?" · "+e.asset_tag:""),sub:[e.customer_name,e.manufacturer,e.serial_number].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{openEquipment(e.id);setOpen(false);setQ("");}});});
-    (data?.projects||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.name,p.customer,p.location))r.push({kind:"project",icon:"🏗️",title:p.name,sub:[p.customer,p.status].filter(Boolean).join(" · "),color:B.orange,onClick:()=>{setTab&&setTab("projects");setOpen(false);setQ("");}});});
+    (data?.wos||[]).forEach(w=>{if(r.length>=cap*4)return;if(matches(w.wo_id,w.title,w.customer,w.customer_wo,w.location,w.assignee))r.push({kind:"wo",icon:"clipboard",title:w.wo_id+" — "+w.title,sub:[w.customer,w.status,w.assignee].filter(Boolean).join(" · "),color:w.status==="completed"?B.green:w.status==="in_progress"?B.cyan:B.orange,onClick:()=>{if(onNavigateWO)onNavigateWO(w.id);setOpen(false);setQ("");}});});
+    (data?.pos||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.po_id,p.description,p.requested_by))r.push({kind:"po",icon:"receipt",title:p.po_id+" — $"+parseFloat(p.amount||0).toFixed(0),sub:(p.description||"").slice(0,60)+" · "+p.status,color:p.status==="approved"?B.green:p.status==="rejected"?B.red:B.orange,onClick:()=>{openPO(p.po_id);setOpen(false);setQ("");}});});
+    (data?.customers||[]).forEach(c=>{if(r.length>=cap*4)return;if(matches(c.name,c.contact_name,c.email,c.phone))r.push({kind:"customer",icon:"user",title:c.name,sub:[c.contact_name,c.phone].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{setTab&&setTab("customers");setOpen(false);setQ("");}});});
+    (data?.equipment||[]).forEach(e=>{if(r.length>=cap*4)return;if(matches(e.model,e.manufacturer,e.serial_number,e.asset_tag,e.customer_name))r.push({kind:"equipment",icon:"wrench",title:(e.model||"Equipment")+(e.asset_tag?" · "+e.asset_tag:""),sub:[e.customer_name,e.manufacturer,e.serial_number].filter(Boolean).join(" · "),color:B.cyan,onClick:()=>{openEquipment(e.id);setOpen(false);setQ("");}});});
+    (data?.projects||[]).forEach(p=>{if(r.length>=cap*4)return;if(matches(p.name,p.customer,p.location))r.push({kind:"project",icon:"building",title:p.name,sub:[p.customer,p.status].filter(Boolean).join(" · "),color:B.orange,onClick:()=>{setTab&&setTab("projects");setOpen(false);setQ("");}});});
     const order={wo:0,po:1,customer:2,equipment:3,project:4};
     return r.sort((a,b)=>(order[a.kind]||9)-(order[b.kind]||9)).slice(0,20);
   })();
   const grouped=results?results.reduce((acc,r)=>{(acc[r.kind]=acc[r.kind]||[]).push(r);return acc;},{}):null;
   const groupLabel={wo:"Work Orders",po:"Purchase Orders",customer:"Customers",equipment:"Equipment",project:"Projects"};
   const mob=typeof window!=="undefined"&&window.innerWidth<768;
-  return(<div ref={ref} style={{position:"relative",flex:mob?"1 1 100%":"0 1 auto",minWidth:0,order:mob?5:0}}>
-    <div style={{display:"flex",alignItems:"center",gap:6,background:B.bg,border:"1px solid "+B.border,borderRadius:8,padding:"5px 10px",minWidth:mob?0:180,maxWidth:mob?"none":280}}>
-      <span style={{color:B.textDim,fontSize:12}}>🔍</span>
-      <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>q&&setOpen(true)} placeholder="Search WO, PO, customer…" style={{background:"transparent",border:"none",outline:"none",color:B.text,fontSize:16,fontFamily:F,flex:1,minWidth:0,padding:0}}/>
+  return(<div ref={ref} style={{position:"relative",flex:mob?"1 1 auto":"0 1 auto",minWidth:0}}>
+    <div style={{display:"flex",alignItems:"center",gap:6,background:B.bg,border:"1px solid "+B.border,borderRadius:8,padding:mob?"6px 10px":"5px 10px",minWidth:mob?0:180,maxWidth:mob?"none":280,color:B.textDim}}>
+      <Icon name="search" size={14}/>
+      <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>q&&setOpen(true)} placeholder={mob?"Search…":"Search WO, PO, customer…"} style={{background:"transparent",border:"none",outline:"none",color:B.text,fontSize:16,fontFamily:F,flex:1,minWidth:0,padding:0}}/>
       {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{background:"none",border:"none",color:B.textDim,fontSize:14,cursor:"pointer",padding:0,lineHeight:1}}>×</button>}
     </div>
     {open&&query&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,minWidth:mob?0:320,maxWidth:mob?"none":420,background:B.surface,border:"1px solid "+B.border,borderRadius:10,boxShadow:"0 12px 40px rgba(0,0,0,0.4)",maxHeight:420,overflowY:"auto",zIndex:300}}>
       {results.length===0?<div style={{padding:"16px 14px",fontSize:12,color:B.textDim,textAlign:"center"}}>No matches for "{q}"</div>:
       Object.keys(grouped).map(k=><div key={k}>
         <div style={{padding:"8px 12px 4px",fontSize:10,fontWeight:600,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4}}>{groupLabel[k]||k}</div>
-        {grouped[k].map((r,i)=><div key={i} onClick={r.onClick} style={{padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderLeft:"3px solid "+r.color,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=B.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <span style={{fontSize:14,flexShrink:0}}>{r.icon}</span>
+        {grouped[k].map((r,i)=><div key={i} onClick={r.onClick} style={{padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=B.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <span style={{color:B.textMuted,display:"inline-flex"}}><Icon name={r.icon} size={15}/></span>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:700,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
+            <div style={{fontSize:12,fontWeight:700,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}><span style={{width:6,height:6,borderRadius:3,background:r.color,flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</span></div>
             {r.sub&&<div style={{fontSize:10,color:B.textDim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</div>}
           </div>
         </div>)}

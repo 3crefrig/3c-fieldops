@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument, scannedWOToRow, findExistingByCustomerWO} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage, PdfPreviewModal, previewPdfDoc} from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage, PdfPreviewModal, previewPdfDoc, Icon, IconText} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
 import { ActivityLog } from "./ActivityLog";
@@ -39,7 +39,7 @@ function EquipmentInlinePicker({customerName,equipment,onPick,onScan,onAdd,onCan
           <span>{EQ_LABELS[e.equipment_type]||e.equipment_type}</span>
           {e.serial_number&&<span> · SN: <span style={{fontFamily:M}}>{e.serial_number}</span></span>}
           {e.asset_tag&&<span> · Tag: <span style={{fontFamily:M,color:B.cyan}}>{e.asset_tag}</span></span>}
-          {(e.location||e.location_detail)&&<span> · 📍 {e.location}{e.location_detail?" — "+e.location_detail:""}</span>}
+          {(e.location||e.location_detail)&&<span> · {e.location}{e.location_detail?" — "+e.location_detail:""}</span>}
         </div>
       </button>)}
       {filtered.length>10&&<div style={{fontSize:10,color:B.textDim,textAlign:"center",padding:"4px 0"}}>+ {filtered.length-10} more — refine search</div>}
@@ -174,7 +174,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
     if(inserted?.id)await link(inserted.id);
   };
   if(linked){
-    return(<Card style={{maxWidth:640,marginBottom:12,borderLeft:"3px solid "+B.cyan}}>
+    return(<Card style={{maxWidth:640,marginBottom:12}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
         <div style={{minWidth:0,flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -448,7 +448,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
 
     {/* Job Intelligence Card */}
     {wo.customer&&<div style={{maxWidth:640,marginBottom:12}}>
-      <Card style={{borderLeft:"3px solid "+B.cyan,cursor:"pointer"}} onClick={async()=>{
+      <Card style={{cursor:"pointer"}} onClick={async()=>{
         if(jobIntel){setIntelOpen(!intelOpen);return;}
         setIntelOpen(true);setIntelLoading(true);
         try{const resp=await fnFetch("job-intelligence",{customer_name:wo.customer,location:wo.location||"",building:wo.building||"",equipment_id:wo.equipment_id||null,wo_title:wo.title});
@@ -481,7 +481,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         }catch(e){console.error("Parts predict error:",e);}setPartsLoading(false);
       }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>🔮 Suggest Parts</button>
       :partsLoading?<Card style={{textAlign:"center",padding:14}}><span style={{fontSize:12,color:B.orange}}>Predicting parts needed...</span></Card>
-      :partsPred&&<Card style={{borderLeft:"3px solid "+B.orange}}>
+      :partsPred&&<Card style={{}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <span style={{fontSize:13,fontWeight:700,color:B.text}}>🔮 Predicted Parts</span>
           <button onClick={()=>setPartsPred(null)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer"}}>Clear</button>
@@ -552,7 +552,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
     </Card>
 
     {/* PREVIOUS NOTES — from past WOs on same equipment/location */}
-    {previousNotes.length>0&&<Card style={{maxWidth:640,marginBottom:12,borderLeft:"3px solid "+B.cyan}}>
+    {previousNotes.length>0&&<Card style={{maxWidth:640,marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
         <span style={LS}>Previous Notes <span style={{color:B.cyan,fontWeight:700}}>{wo.equipment_id?"on this unit":"at this location"}</span></span>
         <span style={{fontSize:10,color:B.textDim}}>{previousNotes.length} from {new Set(previousNotes.map(n=>n.wo_id)).size} prior visit{new Set(previousNotes.map(n=>n.wo_id)).size!==1?"s":""}</span>
@@ -1087,7 +1087,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
       {canEdit&&<button data-tip="Create a new work order. It shows up on the assigned tech’s My Day immediately, with a push alert." data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
       {canEdit&&isMgr&&<button data-tip="Import a stack of customer-issued work orders (Duke TMS printouts): scan photos or a multi-page PDF, review, create them all at once." onClick={()=>setBatching(true)} style={{...BS,padding:"7px 10px",fontSize:11}}>📷 Scan Batch</button>}
-      {canEdit&&<button data-tip="Bulk mode: select several jobs, then set them Active or Pending in one go." onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim}}>{bulkMode?"Cancel":"☑ Bulk"}</button>}
+      {canEdit&&<button data-tip="Bulk mode: select several jobs, then set them Active or Pending in one go." onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim,display:"inline-flex",alignItems:"center",gap:5}}>{bulkMode?"Cancel":<><Icon name="checksquare" size={13}/> Bulk</>}</button>}
     </div>
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
       <span style={{fontSize:11,fontWeight:700,color:B.cyan}}>{bulkSel.length} selected</span>
@@ -1109,15 +1109,14 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
           await onUpdateWO({...wo,status:st});}}><Card style={{padding:"14px 16px",marginBottom:6}}>
           <div style={{display:"flex",gap:12}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
-            <div style={{width:3,borderRadius:2,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>
             <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.cyan}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.cyan}>Project</Badge>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:7,height:7,borderRadius:4,background:PC[wo.priority]||B.textDim,flexShrink:0}}/><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.cyan}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.cyan}>Project</Badge>}</div>
               <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
-              <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{wo.customer&&<span>{"👤 "+wo.customer}</span>}{wo.location&&<span>{" · 📍 "+wo.location}</span>}</div>
+              <div style={{fontSize:11,color:B.textDim,marginTop:3,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>{wo.customer&&<IconText name="user">{wo.customer}</IconText>}{wo.location&&<IconText name="pin">{wo.location}</IconText>}</div>
               <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,flexWrap:"wrap"}}>
                 {woHrs>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>{fmtHours(woHrs)}</span>}
-                {noTime&&<span style={{fontSize:9,color:B.orange,fontWeight:600}}>⚠ No time logged</span>}
-                {overdue&&<span style={{fontSize:9,color:B.red,fontWeight:600}}>⚠ Overdue {wo.due_date}</span>}
+                {noTime&&<IconText name="alert" size={10} color={B.orange} style={{fontSize:10,fontWeight:600}}>No time logged</IconText>}
+                {overdue&&<IconText name="alert" size={10} color={B.red} style={{fontSize:10,fontWeight:600}}>Overdue {fmtDate(wo.due_date,{month:"numeric",day:"numeric"})}</IconText>}
                 {wo.date_completed&&<span style={{fontSize:10,color:B.green}}>{"Completed "+fmtDate(wo.date_completed)}</span>}
                 {wo.crew&&wo.crew.length>0&&<span style={{fontSize:10,color:B.textDim}}>{[wo.assignee,...wo.crew].filter(Boolean).filter(n=>n!=="Unassigned").join(", ")}</span>}
                 {!wo.crew?.length&&wo.assignee&&wo.assignee!=="Unassigned"&&<span style={{fontSize:10,color:B.textDim}}>{wo.assignee}</span>}
@@ -1158,7 +1157,7 @@ function TMSQueue({orders,wlp}){
   const totalNeeded=list.filter(w=>!w.tms_entered).length;
   const totalMissingCustWO=list.filter(w=>!w.customer_wo).length;
   return(<div>
-    <Card style={{padding:14,marginBottom:12,background:B.orange+"11",borderLeft:"3px solid "+B.orange}}>
+    <Card style={{padding:14,marginBottom:12,background:B.orange+"11"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{fontSize:14,fontWeight:700,color:B.text}}>📥 TMS Queue — Batch Entry</div>
@@ -1173,7 +1172,7 @@ function TMSQueue({orders,wlp}){
     </Card>
     {visible.length===0&&<Card style={{textAlign:"center",padding:24}}><div style={{fontSize:24,marginBottom:6}}>✅</div><div style={{fontSize:13,color:B.textDim}}>All customer WOs entered in TMS</div></Card>}
     <div style={{display:"flex",flexDirection:"column",gap:4}}>
-      {visible.map(wo=>{const localV=localVals[wo.id]??(wo.customer_wo||"");const dirty=localV.trim()!==(wo.customer_wo||"");const sv=saving[wo.id];return(<Card key={wo.id} style={{padding:"10px 12px",borderLeft:"3px solid "+(wo.tms_entered?B.green:(wo.customer_wo?B.cyan:B.orange))}}>
+      {visible.map(wo=>{const localV=localVals[wo.id]??(wo.customer_wo||"");const dirty=localV.trim()!==(wo.customer_wo||"");const sv=saving[wo.id];return(<Card key={wo.id} style={{padding:"10px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <div style={{flexShrink:0,minWidth:0,flex:"0 0 220px"}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>

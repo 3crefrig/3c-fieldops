@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch , openPO, gotoTab} from "../shared";
+import { IconButton } from "./ui";
 
 // Read B at call time so stage colors follow the active (dark/light) theme.
 const getPhotoStages=()=>[{key:"before",label:"Before",icon:"📸",color:B.orange},{key:"during",label:"During",icon:"🔧",color:B.cyan},{key:"after",label:"After",icon:"✅",color:B.green},{key:"general",label:"General",icon:"📷",color:B.textDim}];
@@ -88,7 +89,7 @@ export function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickReje
     if(t.startsWith("vendor_bill")){gotoTab("audit");setOpen(false);return;}
   };
   return(<div ref={bellRef} style={{position:"relative"}}>
-    <button onClick={()=>setOpen(!open)} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",position:"relative"}}>🔔{unread>0&&<span style={{position:"absolute",top:-4,right:-4,background:B.red,color:"#fff",fontSize:9,fontWeight:700,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{unread}</span>}</button>
+    <IconButton name="bell" onClick={()=>setOpen(!open)} label={unread>0?unread+" unread notifications":"Notifications"} active={open}>{unread>0&&<span style={{position:"absolute",top:-5,right:-5,background:B.red,color:"#fff",fontSize:9,fontWeight:700,borderRadius:999,minWidth:16,height:16,padding:"0 4px",display:"flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box",border:"2px solid "+B.surface}}>{unread>99?"99+":unread}</span>}</IconButton>
     {open&&<div style={{position:"absolute",right:0,top:30,width:300,background:B.surface,border:"1px solid "+B.border,borderRadius:8,zIndex:999,maxHeight:350,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid "+B.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:B.text}}>Notifications</span>{unread>0&&<button onClick={async()=>{await onMarkRead();setOpen(false);}} style={{background:B.cyanGlow,border:"1px solid "+B.cyan+"44",borderRadius:5,color:B.cyan,fontSize:11,fontWeight:600,cursor:"pointer",padding:"3px 10px"}}>Mark all read</button>}</div>
       {notifications.length===0&&<div style={{padding:20,textAlign:"center",color:B.textDim,fontSize:11}}>No notifications</div>}
