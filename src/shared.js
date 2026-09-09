@@ -288,3 +288,64 @@ export const scanTotal=(x)=>{
   const sum=items.reduce((a,li)=>a+(parseFloat(li?.amount)||((parseFloat(li?.quantity)||1)*(parseFloat(li?.unit_price)||0))),0);
   return sum>0?sum:null;
 };
+
+// --- Batch WO import: a stack of customer-issued work orders (Duke TMS printouts) ---
+// scan-document's work_order_batch type returns one entry per work order; these
+// helpers turn each entry into an editable import row that matches how the office
+// already keys Duke jobs (7-digit customer_wo, 4-digit building, "209 CR" rooms).
+// Assignment is deliberately NOT read off the printout: Duke's "Resource Name" is
+// their own mechanic. The manager picks the tech/crew for the whole batch.
+const _normName=(s)=>String(s||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+// Map the printed header to one of our customer records. Duke prints several headers for
+// the same account: "DUMC", "Medical Center", "School of Medicine" all bill to School of
+// Medicine; the campus side is Facilities Maintenance (FMD). A bare "Duke" is ambiguous → "".
+export const matchCustomerName=(raw,customers)=>{
+  const n=_normName(raw);const list=(customers||[]).map(c=>c&&c.name).filter(Boolean);
+  if(!n||!list.length)return "";
+  const find=(pred)=>list.find(c=>pred(_normName(c)))||"";
+  if(/\b(dumc|medical center|school of medicine|som)\b/.test(n))return find(c=>c.includes("school of medicine"))||find(c=>c.includes("duke"));
+  if(/\bduke\b/.test(n)&&/(facilit|\bfmd\b|\bfm\b)/.test(n))return find(c=>c.includes("facilities"))||find(c=>c.includes("duke"));
+  return find(c=>c===n)||(n.length>=6?(find(c=>n.includes(c))||find(c=>c.includes(n))):"")||"";
+};
+// Duke prints "Building: 7530 - Sands Bldg" and "Area/Room: 4th floor- 460CR"; older
+// printouts run them together as "7549-209 CR". Normalise to building "7530", room "460 CR".
+export const splitScannedLocation=(location,building)=>{
+  let loc=String(location||"").trim(),bldg=String(building||"").trim();
+  const m=loc.match(/^(\d{4})\s*[-\/]\s*(.+)$/);
+  if(m&&(!bldg||bldg===m[1])){bldg=m[1];loc=m[2].trim();}
+  const b=bldg.match(/^(\d{4})\b/);if(b)bldg=b[1];
+  loc=loc.replace(/^\d+(st|nd|rd|th)\s*floor\s*[-–:]?\s*/i,"").trim();
+  loc=loc.replace(/\b(\d+)\s*(CR|FR|WR)\b/i,(_,r,t)=>r+" "+t.toUpperCase());
+  return{location:loc,building:bldg};
+};
+export const scannedWOToRow=(x,{customers,defaultCustomer,defaultAssignee,defaultCrew}={})=>{
+  x=x||{};
+  const{location,building}=splitScannedLocation(x.location,x.building);
+  const custWO=String(x.customer_wo||"").replace(/\s+/g,"").trim();
+  const type=/^pm/i.test(String(x.work_type||""))?"PM":"CM";
+  const title=String(x.title||"").trim()||(type==="PM"?"PM":"")||custWO;
+  const lines=[];
+  const desc=String(x.description||"").trim();if(desc)lines.push(desc);
+  const meta=[x.pm_number&&("PM# "+x.pm_number),x.frequency].filter(Boolean).join(" · ");if(meta)lines.push(meta);
+  const asset=[x.asset_no&&("Asset "+x.asset_no),x.asset_desc,[x.manufacturer,x.model].filter(Boolean).join(" "),x.serial&&("SN "+x.serial)].filter(Boolean).join(" — ");if(asset)lines.push(asset);
+  const where=[x.building_name,x.floor].filter(Boolean).join(" · ");if(where)lines.push(where);
+  const contact=[x.contact_name,x.contact_phone].filter(Boolean).join(" ");if(contact)lines.push("Contact: "+contact);
+  const p=String(x.priority||"").toLowerCase();
+  return{
+    include:true,page:x.page||null,
+    customer:matchCustomerName(x.customer_name,customers)||defaultCustomer||"",
+    customer_wo:custWO,title,notes:lines.join("\n"),building,location,wo_type:type,
+    priority:["high","medium","low"].includes(p)?p:"medium",
+    due_date:/^\d{4}-\d{2}-\d{2}$/.test(String(x.due_date||""))?x.due_date:"",
+    assignee:defaultAssignee||"Unassigned",
+    crew:Array.isArray(defaultCrew)?[...defaultCrew]:[],
+    confidence:typeof x.confidence==="number"?x.confidence:null,
+    lowFields:Array.isArray(x.low_confidence_fields)?x.low_confidence_fields:[],
+    scannedCustomer:String(x.customer_name||""),
+  };
+};
+// The customer's WO number is the natural key for imported jobs — same number = same job.
+export const findExistingByCustomerWO=(custWO,wos)=>{
+  const k=String(custWO||"").replace(/\s+/g,"").toLowerCase();if(!k)return null;
+  return (wos||[]).find(w=>String((w&&w.customer_wo)||"").replace(/\s+/g,"").toLowerCase()===k)||null;
+};

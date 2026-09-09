@@ -17,6 +17,7 @@ const corsHeaders = {
 
 const VALID_DOCUMENT_TYPES = [
   "work_order",
+  "work_order_batch",
   "vendor_invoice",
   "purchase_receipt",
   "pickup_ticket",
@@ -69,6 +70,66 @@ Extract the following fields from this work order document:
   "work_type": "PM or CM (preventive maintenance or corrective maintenance)",
   "work_type_confidence": 0.0
 }`;
+
+
+    case "work_order_batch":
+      return `${shared}
+This document contains ONE OR MORE customer-issued work orders — typically a stack of Duke
+University TMS printouts scanned as a multi-page PDF, or a photo of a single printout. Find EVERY
+distinct work order and return them as an array.
+
+Duke prints two layouts; both carry "TMS WO#" (a 7-digit number) and "WO Type":
+1. PM printout — header "DUMC - Engineering & Operations / PM - Preventive Maintenance Work Order".
+   Fields: TMS WO#, Print Date, Date Due, PM#, Frequency (Semi-Annual, Quarterly...), a bold one-line
+   PM description under the PM# row (e.g. "Water filter for ice machine - N.Duke - SA"), Shop, Site,
+   BLDG#, BLDG Name, Floor/Level, Room/Area, Special Instructions, an Assets block (Asset No, Desc,
+   Manuf, Model No, Serial No), Assignments (ignore — that is Duke's own mechanic), Tasks (Task #, Desc,
+   Shut Down Required) and a numbered Instructions list.
+2. CM printout — header "DUMC ENGINEERING & OPERATIONS / Maintenance Shop Work Order" with a barcode.
+   Fields: TMS WO#, Date, Time, Shop, Priority (Routine / Urgent / Emergency), WO Type, Asset,
+   Description, Additional Information, Comments, Site, Building ("7530 - Sands Bldg"), Floor/Level,
+   Area/Room ("4th floor- 460CR"), Customer Contact Information (Name, Office Phone, Pager/Cell).
+   The Completion Information / Handling Information section at the bottom is blank — ignore it.
+
+Return exactly this shape:
+{
+  "work_orders": [
+    {
+      "page": 1,
+      "customer_name": "issuing organization header as printed (e.g. 'DUMC - Engineering & Operations')",
+      "customer_wo": "the TMS WO# — 7 digits, never a 3C number like WO-1520",
+      "title": "PM: the bold PM description line. CM: the Description field. Max ~90 chars.",
+      "description": "PM: task description + Special Instructions + the full numbered Instructions list. CM: Additional Information + Comments (everything not already in title).",
+      "building": "4-digit building number only (BLDG# 7513, or the number before the dash in 'Building: 7530 - Sands Bldg')",
+      "building_name": "BLDG Name / the text after the dash, else null",
+      "floor": "Floor/Level value, else null",
+      "location": "Room/Area or Area/Room value with any repeated floor prefix removed ('4th floor- 460CR' → '460CR')",
+      "work_type": "PM or CM (from WO Type)",
+      "priority": "Emergency or Urgent → high; Routine → medium; PM printouts (no priority) → medium",
+      "due_date": "Date Due as YYYY-MM-DD (PM printouts). CM printouts show only the issue Date — leave due_date null for those.",
+      "issued_date": "Print Date or Date as YYYY-MM-DD, else null",
+      "pm_number": "PM# value, else null",
+      "frequency": "Frequency value, else null",
+      "asset_no": "Asset No, else null",
+      "asset_desc": "asset Desc, else null",
+      "manufacturer": "Manuf, else null",
+      "model": "Model No, else null",
+      "serial": "Serial No, else null",
+      "contact_name": "Customer Contact name, else null",
+      "contact_phone": "Office or cell phone digits, else null",
+      "confidence": 0.0,
+      "low_confidence_fields": ["field names you are unsure about"]
+    }
+  ]
+}
+
+Rules for this batch:
+- One entry per distinct TMS WO#. A work order that spans two pages is ONE entry (first page number). Two pages with different TMS WO#s are two entries.
+- Do NOT invent work orders; skip cover sheets, blank pages, and anything that is not a work order.
+- Room suffixes CR / FR / WR mean cold room / freezer room / warm room — keep them in location.
+- Convert M/D/YYYY dates to YYYY-MM-DD.
+- "confidence" is your overall 0-1 confidence for that entry; list any shaky fields in low_confidence_fields.
+- Return ONLY the JSON object.`;
 
     case "vendor_invoice":
       return `${shared}
@@ -304,7 +365,9 @@ serve(async (req) => {
         model: "claude-haiku-4-5-20251001",
         // Invoices/tickets can run dozens of line items — give them headroom.
         max_tokens:
-          documentType === "vendor_invoice" || documentType === "pickup_ticket"
+          documentType === "work_order_batch"
+            ? 8000
+            : documentType === "vendor_invoice" || documentType === "pickup_ticket"
             ? 4000
             : 1200,
         messages: [

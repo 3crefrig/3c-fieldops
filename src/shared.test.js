@@ -15,6 +15,7 @@ import {
   calcWOHours, fmtHours,
   woOverdue, woReadyToInvoice, isInvoiceExcludedCustomer,
   genPO, genAgreementNum,
+  matchCustomerName, splitScannedLocation, scannedWOToRow, findExistingByCustomerWO,
 } from "./shared";
 
 afterEach(() => setAppSettingsCache({})); // never leak settings between tests
@@ -140,5 +141,71 @@ describe("id generators", () => {
   test("genAgreementNum: AGR-YYMM-## format", () => {
     expect(genAgreementNum([])).toBe("AGR-" + pfx + "-01");
     expect(genAgreementNum([{ agreement_num: "AGR-" + pfx + "-04" }])).toBe("AGR-" + pfx + "-05");
+  });
+});
+
+// ── Batch WO import (Duke TMS printouts) ──────────────────────────────────
+describe("scanned WO import", () => {
+  const SOM = "Duke University School Of Medicine", FMD = "Duke University Facilities Maintenance Department";
+  const customers = [{ name: FMD }, { name: SOM }, { name: "Acme Biotech" }];
+  test("DUMC / Medical Center headers bill to School of Medicine; FMD stays separate", () => {
+    expect(matchCustomerName("DUMC - Engineering & Operations", customers)).toBe(SOM);
+    expect(matchCustomerName("Duke Medical Center", customers)).toBe(SOM);
+    expect(matchCustomerName("Duke FMD", customers)).toBe(FMD);
+    expect(matchCustomerName("Duke University Facilities Management", customers)).toBe(FMD);
+    expect(matchCustomerName("Acme Biotech, Inc.", customers)).toBe("Acme Biotech");
+    expect(matchCustomerName("Duke", customers)).toBe(""); // ambiguous → caller's default
+    expect(matchCustomerName(null, customers)).toBe("");
+  });
+  test("building/room normalisation matches how Duke jobs are keyed", () => {
+    expect(splitScannedLocation("4th floor- 460CR", "7530 - Sands Bldg")).toEqual({ location: "460 CR", building: "7530" });
+    expect(splitScannedLocation("7549-209 CR", "")).toEqual({ location: "209 CR", building: "7549" });
+    expect(splitScannedLocation("All floors - hallways", "7513")).toEqual({ location: "All floors - hallways", building: "7513" });
+    expect(splitScannedLocation("", "")).toEqual({ location: "", building: "" });
+  });
+  test("CM printout → import row; Duke's mechanic on the printout is ignored", () => {
+    const r = scannedWOToRow({
+      page: 2, customer_name: "DUMC - Engineering & Operations", customer_wo: "2457528",
+      title: "Cold room isn't staying at 4 degrees C", description: "Cold room is currently over 10 degrees C.",
+      building: "7530 - Sands Bldg", building_name: "Sands Bldg", floor: "4th floor", location: "4th floor- 460CR",
+      work_type: "CM", priority: "medium", due_date: null, assignee: "Coates, Hunter",
+      contact_name: "Julie Kent", contact_phone: "9196845634", confidence: 0.92,
+    }, { customers, defaultAssignee: "Javier Aquino", defaultCrew: ["Alex Clapp"] });
+    expect(r.customer).toBe(SOM);
+    expect(r.customer_wo).toBe("2457528");
+    expect(r.building).toBe("7530");
+    expect(r.location).toBe("460 CR");
+    expect(r.wo_type).toBe("CM");
+    expect(r.due_date).toBe("");
+    expect(r.assignee).toBe("Javier Aquino");
+    expect(r.crew).toEqual(["Alex Clapp"]);
+    expect(r.notes).toContain("Sands Bldg · 4th floor");
+    expect(r.notes).toContain("Contact: Julie Kent 9196845634");
+    expect(r.include).toBe(true);
+  });
+  test("PM printout → import row keeps asset + PM meta and the due date", () => {
+    const r = scannedWOToRow({
+      customer_name: "DUMC - Engineering & Operations", customer_wo: "2406455", title: "Water filter for ice machine - N.Duke - SA",
+      description: "1. Perform Safety Risk Analysis", building: "7513", location: "All floors - hallways", work_type: "PM",
+      due_date: "2026-06-01", pm_number: "2652", frequency: "Semi-Annual", asset_no: "109321", asset_desc: "Water Filter for Ice Machines",
+      manufacturer: "Filterite", model: "LN 01003", serial: "LC1",
+    }, { customers, defaultCustomer: SOM });
+    expect(r.wo_type).toBe("PM");
+    expect(r.due_date).toBe("2026-06-01");
+    expect(r.priority).toBe("medium");
+    expect(r.assignee).toBe("Unassigned");
+    expect(r.notes).toContain("PM# 2652 · Semi-Annual");
+    expect(r.notes).toContain("Asset 109321 — Water Filter for Ice Machines — Filterite LN 01003 — SN LC1");
+  });
+  test("empty title falls back to PM / customer WO#", () => {
+    expect(scannedWOToRow({ work_type: "PM", customer_wo: "1" }).title).toBe("PM");
+    expect(scannedWOToRow({ work_type: "CM", customer_wo: "2448341" }).title).toBe("2448341");
+  });
+  test("duplicates are keyed on the customer WO#", () => {
+    const wos = [{ wo_id: "WO-1520", customer_wo: "2448340" }, { wo_id: "WO-1500", customer_wo: null }];
+    expect(findExistingByCustomerWO("2448340", wos).wo_id).toBe("WO-1520");
+    expect(findExistingByCustomerWO(" 2448 340", wos).wo_id).toBe("WO-1520");
+    expect(findExistingByCustomerWO("2448341", wos)).toBeNull();
+    expect(findExistingByCustomerWO("", wos)).toBeNull();
   });
 });
