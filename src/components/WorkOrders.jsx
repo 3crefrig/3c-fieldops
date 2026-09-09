@@ -1042,8 +1042,8 @@ function SwipeCard({wo,onStatusChange,children}){
   const tm=(e)=>{if(!startRef.current)return;const dx=e.touches[0].clientX-startRef.current.x;const dy=Math.abs(e.touches[0].clientY-startRef.current.y);if(dy>dx*0.7){startRef.current=null;setSwipeX(0);return;}if(dx>10)setSwipeX(Math.min(dx,150));};
   const te=()=>{if(swipeX>80&&nextStatus){haptic(30);const prevStatus=wo.status;onStatusChange(nextStatus);setUndoMsg({prev:prevStatus,next:nextStatus});clearTimeout(undoTimer.current);undoTimer.current=setTimeout(()=>setUndoMsg(null),5000);}setSwipeX(0);startRef.current=null;};
   const undo=()=>{if(undoMsg){onStatusChange(undoMsg.prev);setUndoMsg(null);clearTimeout(undoTimer.current);}};
-  return(<div ref={ref} onTouchStart={ts} onTouchMove={tm} onTouchEnd={te} style={{position:"relative",overflow:"hidden"}}>
-    {nextStatus&&swipeX>10&&<div style={{position:"absolute",left:0,top:0,bottom:0,width:swipeX,background:nextColor+"30",display:"flex",alignItems:"center",justifyContent:"center",transition:swipeX===0?"width .2s":"none"}}><span style={{fontSize:12,fontWeight:700,color:nextColor,whiteSpace:"nowrap"}}>{nextLabel}</span></div>}
+  return(<div ref={ref} onTouchStart={ts} onTouchMove={tm} onTouchEnd={te} style={{position:"relative",overflow:"hidden",borderRadius:8}}>
+    {nextStatus&&swipeX>10&&<div style={{position:"absolute",left:0,top:0,bottom:0,width:swipeX,background:nextColor+"30",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"8px 0 0 8px",transition:swipeX===0?"width .2s":"none"}}><span style={{fontSize:12,fontWeight:700,color:nextColor,whiteSpace:"nowrap"}}>{nextLabel}</span></div>}
     <div style={{transform:"translateX("+swipeX+"px)",transition:swipeX===0?"transform .2s":"none"}}>{children}</div>
     {undoMsg&&<div style={{position:"absolute",bottom:4,right:4,background:B.surface,border:"1px solid "+B.border,borderRadius:6,padding:"6px 12px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 4px 12px rgba(0,0,0,0.3)",animation:"toastIn .2s ease-out",zIndex:10}}><span style={{fontSize:11,color:B.textMuted}}>Changed to {undoMsg.next}</span><button onClick={undo} style={{background:"none",border:"none",color:B.cyan,fontSize:11,fontWeight:700,cursor:"pointer"}}>Undo</button></div>}
   </div>);
@@ -1101,19 +1101,25 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:0}}>
       {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
-      {flt.length>0&&<div style={{border:"1px solid "+B.border,borderRadius:8,overflow:"hidden",background:B.surface}}>{flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
+      {flt.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
         <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{
           // Swiping to "completed" opens the Review & Sign flow instead of raw-completing —
           // the old direct write skipped the signature and could fire an accidental auto-invoice.
           if(st==="completed"){setSel(wo);setStartComplete(true);return;}
-          await onUpdateWO({...wo,status:st});}}><div className="list-row" style={{padding:"12px 16px",background:B.surface,borderBottom:"1px solid "+B.border}}>
-          <div style={{display:"flex",gap:12}}>
+          await onUpdateWO({...wo,status:st});}}><div className="ticket" style={{padding:"12px 14px",background:B.surface,border:"1px solid "+B.border,borderRadius:8}}>
+          <div style={{display:"flex",gap:14}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
+            {/* Ticket stub: the job number is the thing every printed service ticket puts first. */}
+            <div className="ticket-stub" onClick={()=>setSel(wo)} style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.border,cursor:"pointer",minWidth:0}}>
+              <span style={{display:"flex",alignItems:"center",gap:5,fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.textDim}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:6,height:6,borderRadius:3,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>WO</span>
+              <span className="ticket-num" style={{fontFamily:M,fontSize:22,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5}}>{String(wo.wo_id||"").replace(/^WO-/,"")}</span>
+              {wo.customer_wo&&<span title={"Customer WO# "+wo.customer_wo} style={{fontFamily:M,fontSize:10.5,color:B.cyan,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>#{wo.customer_wo}</span>}
+            </div>
             <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:7,height:7,borderRadius:4,background:PC[wo.priority]||B.textDim,flexShrink:0}}/><span style={{fontFamily:M,fontSize:11.5,fontWeight:600,color:B.textMuted}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:11.5,color:B.cyan}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.cyan}>Project</Badge>}</div>
-              <div style={{fontSize:14.5,fontWeight:600,color:B.text,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",letterSpacing:-0.1}}>{wo.title}</div>
+              <div style={{fontSize:15,fontWeight:600,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",letterSpacing:-0.15,lineHeight:1.25}}>{wo.title}</div>
               <div style={{fontSize:12,color:B.textMuted,marginTop:4,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>{wo.customer&&<IconText name="user">{wo.customer}</IconText>}{wo.location&&<IconText name="pin">{wo.location}</IconText>}</div>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,flexWrap:"wrap"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8,flexWrap:"wrap"}}>
+                <Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.cyan}>Project</Badge>}
                 {woHrs>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>{fmtHours(woHrs)}</span>}
                 {noTime&&<IconText name="alert" size={10} color={B.orange} style={{fontSize:10,fontWeight:600}}>No time logged</IconText>}
                 {overdue&&<IconText name="alert" size={10} color={B.red} style={{fontSize:10,fontWeight:600}}>Overdue {fmtDate(wo.due_date,{month:"numeric",day:"numeric"})}</IconText>}

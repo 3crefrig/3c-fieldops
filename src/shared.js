@@ -225,6 +225,10 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 .card-hover{transition:border-color .15s,background .15s}
 .card-hover:hover{border-color:${B.textDim}66!important}
 .card-hover:active{background:${B.surfaceActive}}
+/* Job tickets: separated cards with a perforated stub; hover lifts the edge only. */
+.ticket{transition:border-color .15s}
+.ticket:hover{border-color:${B.textDim}66}
+@media(max-width:640px){.ticket-stub{width:62px!important;padding-right:8px!important}.ticket-num{font-size:19px!important}}
 /* Ledger rows: one panel, hairlines between rows, nothing after the last. */
 .list-row{transition:background .12s}
 .list-row:hover{background:${B.surfaceActive}}

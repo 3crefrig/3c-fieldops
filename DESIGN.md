@@ -6,7 +6,7 @@ Proposed 2026-09-09 on branch `feature/redesign-v2`; craft bar: Linear. Operate 
 
 ## World
 
-A service log, not a card wall. Work is read as rows inside one panel; state is a small tag with a dot; one accent (brand cyan) marks what is active or a link. Depth is a hairline, never a shadow. Nothing glows.
+Job tickets, not generic cards. Every work order is a separated ticket whose number leads (a large mono job number in a stub column with a dashed perforation edge, the way printed NCR service tickets are laid out); state is a small tag with a dot; one accent (brand cyan) marks what is active, a link, and the 2px rule across the top of the app. Depth is a hairline, never a shadow. Nothing glows. Secondary lists (Week Plan overdue/day rows) are ledger rows inside their day panel.
 
 ## Tokens (`src/shared.js`)
 
@@ -35,8 +35,9 @@ Radii: 5 tags · 6 inputs/buttons · 8 panels/cards · 10 modals · 999 counters
 
 - **Badge** = tag: 5px dot + word, 11/600, 5px radius, `color+"16"` fill. Never a pill, never an outline.
 - **Card** = panel: surface, hairline, 8px, padding 16, no shadow; clickable cards change border color on hover.
-- **StatCard** and any tile with `className="stat-card"` fuse into a **stat strip**: the parent paints the hairline color with a 1px gap (works for flex rows and grids). Label 11 uppercase, value 22/600 tabular.
-- **List rows** use `className="list-row"` inside a bordered 8px panel: `borderBottom` hairline, hover `surfaceActive`, last row borderless. Work orders (`WOList`), Week Plan overdue/day rows follow this.
+- **StatCard** and any tile with `className="stat-card"` fuse into a **stat strip**: the parent paints the hairline color with a 1px gap (works for flex rows and grids). Label 11 uppercase, value 22/700 JetBrains Mono tabular (nameplate numerals).
+- **Job ticket** (`WOList`): `className="ticket"` card, 8px gap between tickets; stub `.ticket-stub` 80px (62px on phones) with priority dot + "WO" label, `.ticket-num` 22px mono 700 (19px on phones), customer WO# in cyan mono; dashed hairline between stub and body; body = title 15/600, meta 12 muted, tags row last; controls column right.
+- **Ledger rows** (`className="list-row"`) inside a bordered panel for secondary lists (Week Plan overdue/day rows): hairline between rows, hover `surfaceActive`, last row borderless.
 - **Icons**: inline SVG `Icon` set (1.5–2px strokes); `IconText` for meta lines; `IconButton` 34px squares in the header. No emoji as icons.
 - **Navigation**: text tabs; the active tab is `text` with a 2px cyan underline; no tinted backgrounds. Phone bottom bar unchanged.
 - **Inputs/buttons**: 6px radius, 42px min height, hairline; primary is near-black/white.

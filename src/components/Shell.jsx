@@ -47,7 +47,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
   return(<div className="app-root" style={{background:B.bg,fontFamily:F,color:B.text,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <GlobalStyles/>
     {/* Phones: one row — logo · search · theme · bell · sign-out. The old header wrapped into three rows and ate a third of the screen. */}
-    <div style={{background:B.surface,padding:isMobile?"8px 10px":"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid "+B.border,flexWrap:isMobile?"nowrap":"wrap",gap:8}}>
+    <div style={{background:B.surface,padding:isMobile?"8px 10px":"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:"2px solid "+B.cyan,borderBottom:"1px solid "+B.border,flexWrap:isMobile?"nowrap":"wrap",gap:8}}>
       <Logo size={isMobile?"compact":undefined} onClick={()=>setTab(tabs[0]?.key)}/>
       {searchData&&<div data-tour="global-search" data-tip="Search jumps straight to any work order, PO, customer, or piece of equipment. Ctrl+K opens it from anywhere." style={{display:"flex",alignItems:"center",minWidth:0,flex:"0 1 auto"}}><GlobalSearch data={searchData} onNavigateWO={onNavigateWO} setTab={setTab}/></div>}
       <div style={{display:"flex",alignItems:"center",gap:isMobile?6:10,flexShrink:0}}>
