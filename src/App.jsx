@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, genAgreementNum, nextInvoiceNumDB, setAppSettingsCache, getAppSetting} from "./shared";
-import { Logo, Spinner } from "./components/ui";
+import { Logo, Spinner, Icon } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
 import { CustomerPortal } from "./components/CustomerPortal";
@@ -393,7 +393,7 @@ class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={hasError:false,error:null};}
   static getDerivedStateFromError(error){return{hasError:true,error};}
   componentDidCatch(error,info){console.error("App crash:",error,info);}
-  render(){if(this.state.hasError){return<div style={{minHeight:"100vh",background:"#101214",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow',sans-serif",color:"#E8EAED",padding:40,textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⚠️</div><h1 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Something went wrong</h1><p style={{fontSize:14,color:"#8B929A",marginBottom:20,maxWidth:400}}>The app encountered an unexpected error. Try refreshing the page.</p><button onClick={()=>{this.setState({hasError:false,error:null});window.location.reload();}} style={{padding:"12px 24px",borderRadius:8,border:"none",background:"#00D4F5",color:"#101214",fontSize:14,fontWeight:700,cursor:"pointer"}}>Refresh App</button><pre style={{marginTop:20,fontSize:10,color:"#5E656E",maxWidth:500,overflow:"auto",textAlign:"left"}}>{this.state.error?.message}</pre></div>;}return this.props.children;}
+  render(){if(this.state.hasError){return<div style={{minHeight:"100vh",background:"#101214",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow',sans-serif",color:"#E8EAED",padding:40,textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}><Icon name="alert" size={40}/></div><h1 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Something went wrong</h1><p style={{fontSize:14,color:"#8B929A",marginBottom:20,maxWidth:400}}>The app encountered an unexpected error. Try refreshing the page.</p><button onClick={()=>{this.setState({hasError:false,error:null});window.location.reload();}} style={{padding:"12px 24px",borderRadius:8,border:"none",background:"#00D4F5",color:"#101214",fontSize:14,fontWeight:700,cursor:"pointer"}}>Refresh App</button><pre style={{marginTop:20,fontSize:10,color:"#5E656E",maxWidth:500,overflow:"auto",textAlign:"left"}}>{this.state.error?.message}</pre></div>;}return this.props.children;}
 }
 
 export default function AppRouter(){

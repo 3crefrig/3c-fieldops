@@ -496,7 +496,7 @@ function WOPdfModal({wo,customer,equipment,timeEntries,lineItems,pos,photos,refL
       const doc=await buildWOPdfFitted(d);
       onPreview(doc,"Service Ticket "+(wo.wo_id||""));
       onClose();
-    }catch(e){console.error(e);onToast&&onToast("⚠️ PDF failed: "+e.message);}
+    }catch(e){console.error(e);onToast&&onToast("PDF failed: "+e.message);}
     setBusy(false);
   };
   return(<Modal title="Service Ticket PDF" onClose={onClose}>

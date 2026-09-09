@@ -113,7 +113,7 @@ export function ListFilterBar({ filter, placeholder, showing, minToFacet = 8 }) 
 
       {useful.map((f) => (
         <div key={f.key} style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-          <span style={{ fontSize: 9.5, color: B.textDim, fontWeight: 700, letterSpacing: .5, textTransform: "uppercase", marginRight: 2 }}>{f.label}</span>
+          <span style={{ fontSize:10.5, color: B.textDim, fontWeight: 700, letterSpacing: .5, textTransform: "uppercase", marginRight: 2 }}>{f.label}</span>
           {f.options.slice(0, f.selected ? 99 : 6).map((o) => (
             <button key={o.v} onClick={() => pick(f.key, o.v)} title={o.v}
               style={chipStyle(f.selected === o.v, f.accent)}>

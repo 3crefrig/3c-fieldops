@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, fmtHours, todayLocal, localDateStr, genAgreementNum, openWO, importRetry} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, CustomSelect, Icon } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
 const FREQ_LABELS={weekly:"Weekly",biweekly:"Every 2 Weeks",monthly:"Monthly",quarterly:"Quarterly",biannual:"Every 6 Months",annual:"Annual"};
@@ -33,7 +33,7 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
   return(<div>
     <Toast msg={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Agreement Tiers (Internal)</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Agreement Tiers (Internal)</h3>
       <button onClick={openNew} style={{...BP,fontSize:12}}>+ New Tier</button>
     </div>
     <div style={{fontSize:11,color:B.textDim,marginBottom:14,padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
@@ -449,11 +449,12 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
 
   return(<div style={{animation:"fadeIn .2s ease-out"}}>
     <Toast msg={toast}/>
-    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,cursor:"pointer",fontFamily:F,fontSize:13,fontWeight:600,marginBottom:12,padding:0}}>← Back to Agreements</button>
+    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,cursor:"pointer",fontFamily:F,fontSize:13,fontWeight:500,marginBottom:12,padding:"6px 0"}}>← Back to Agreements</button>
 
     <Card style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div>
+          <div style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan,marginBottom:4}}>AGREEMENT</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontWeight:700,fontSize:16,color:B.text}}>{a.agreement_num}</span><Badge color={STATUS_COLORS[a.status]}>{STATUS_LABELS[a.status]}</Badge></div>
           <div style={{fontSize:14,fontWeight:600,color:B.textMuted,marginTop:4}}>{a.customer_name}</div>
           {a.tier_name&&<div style={{fontSize:11,color:B.cyan,marginTop:2}}>Tier: {a.tier_name} (internal)</div>}
@@ -466,12 +467,12 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
     </Card>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8,marginBottom:12}}>
-      <StatCard label="Monthly Rate" value={"$"+(a.monthly_rate||0).toFixed(0)} icon="💰" color={B.green}/>
-      <StatCard label="Annual Value" value={"$"+(a.annual_value||0).toFixed(0)} icon="📊" color={B.cyan}/>
+      <StatCard label="Monthly Rate" value={"$"+(a.monthly_rate||0).toFixed(0)} icon="dollar" color={B.green}/>
+      <StatCard label="Annual Value" value={"$"+(a.annual_value||0).toFixed(0)} icon="chart" color={B.cyan}/>
       <StatCard label="Visits Done" value={a.visits_completed+"/"+(a.visits_per_year||"?")} icon="✓" color={B.cyan}/>
-      <StatCard label="Days Left" value={daysRemaining>0?daysRemaining:"Expired"} icon="📅" color={daysRemaining<=30?B.orange:B.green}/>
-      <StatCard label="Service Hours" value={fmtHours(totalHours)} icon="⏱" color={B.orange}/>
-      <StatCard label="Parts Cost" value={"$"+totalCost.toFixed(0)} icon="🔧" color={B.cyan}/>
+      <StatCard label="Days Left" value={daysRemaining>0?daysRemaining:"Expired"} icon="calendar" color={daysRemaining<=30?B.orange:B.green}/>
+      <StatCard label="Service Hours" value={fmtHours(totalHours)} icon="clock" color={B.orange}/>
+      <StatCard label="Parts Cost" value={"$"+totalCost.toFixed(0)} icon="wrench" color={B.cyan}/>
     </div>
 
     {/* Terms */}
@@ -549,14 +550,14 @@ function AgreementDashboard({D,A,userRole,userName}){
   return(<div>
     <Toast msg={toast}/>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Active Agreements" value={active.length} icon="📋" color={B.green}/>
-      <StatCard label="Annual Revenue" value={"$"+annualRevenue.toLocaleString()} icon="💰" color={B.cyan}/>
-      <StatCard label="Expiring Soon" value={expiringSoon} icon="⚠️" color={expiringSoon>0?B.orange:B.textDim}/>
-      <StatCard label="Retention Rate" value={renewalRate+"%"} icon="📊" color={renewalRate>=70?B.green:B.orange}/>
+      <StatCard label="Active Agreements" value={active.length} icon="clipboard" color={B.green}/>
+      <StatCard label="Annual Revenue" value={"$"+annualRevenue.toLocaleString()} icon="dollar" color={B.cyan}/>
+      <StatCard label="Expiring Soon" value={expiringSoon} icon="alert" color={expiringSoon>0?B.orange:B.textDim}/>
+      <StatCard label="Retention Rate" value={renewalRate+"%"} icon="chart" color={renewalRate>=70?B.green:B.orange}/>
     </div>
 
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Service Agreements</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Service Agreements</h3>
       <div style={{display:"flex",gap:6}}>
         {canEdit&&<button onClick={()=>setManageTiers(true)} style={{...BS,fontSize:11,padding:"6px 12px"}}>Manage Tiers</button>}
         {canEdit&&<button onClick={()=>setCreating(true)} style={{...BP,fontSize:12}}>+ New Agreement</button>}
@@ -565,7 +566,7 @@ function AgreementDashboard({D,A,userRole,userName}){
 
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {agreements.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}>
-        <div style={{fontSize:20,marginBottom:6}}>📋</div>
+        <div style={{fontSize:20,marginBottom:6}}><Icon name="clipboard" size={18}/></div>
         <div style={{fontSize:13}}>No service agreements yet.</div>
         {canEdit&&<div style={{marginTop:8,fontSize:11,color:B.textMuted}}>Start by creating tiers (Bronze/Silver/Gold), then create agreements for customers.</div>}
       </Card>}

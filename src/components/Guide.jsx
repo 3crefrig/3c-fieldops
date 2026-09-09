@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { B, F, M, IS, BS } from "../shared";
-import { Card } from "./ui";
+import { Card, Icon } from "./ui";
 import { TOURS, tutorialPrefs, startTour } from "./Tutorial";
 
 // Interactive-tutorial controls: hosted here (every role can reach the Guide tab)
@@ -28,7 +28,7 @@ function TutorialControls({ userRole }) {
   );
   return (
     <Card style={{ padding: "16px 18px", marginBottom: 14 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: B.text }}>🎓 Interactive Tutorial</div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: B.text }}>Interactive Tutorial</div>
       <div style={{ fontSize: 12, color: B.textMuted, margin: "4px 0 12px", lineHeight: 1.5 }}>
         Guided tours walk you through each page step by step. Tips mode adds tappable ⦿ dots that explain individual controls. Settings apply to this device.
       </div>
@@ -44,7 +44,7 @@ function TutorialControls({ userRole }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "14px 0 8px" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: B.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>Take a tour</span>
-        <span style={{ fontSize: 10.5, fontFamily: M, color: doneCount === catalog.length ? B.green : B.textDim }}>{doneCount}/{catalog.length} completed{doneCount === catalog.length ? " 🎉" : ""}</span>
+        <span style={{ fontSize: 10.5, fontFamily: M, color: doneCount === catalog.length ? B.green : B.textDim }}>{doneCount}/{catalog.length} completed{doneCount === catalog.length ? " " : ""}</span>
       </div>
       <div style={{ height: 4, borderRadius: 2, background: B.bg, overflow: "hidden", marginBottom: 10 }}>
         <div style={{ width: (catalog.length ? (doneCount / catalog.length) * 100 : 0) + "%", height: "100%", background: B.green, borderRadius: 2, transition: "width .4s ease" }} />
@@ -69,18 +69,18 @@ function TutorialControls({ userRole }) {
 // tied to the real tab names so it matches what the user is looking at.
 const SECTIONS = [
   {
-    id: "start", title: "Getting Started", icon: "🚀", audience: "all",
+    id: "start", title: "Getting Started", icon: "", audience: "all",
     intro: "A two-minute setup so the app works like a real app on your phone.",
     steps: [
       ["Sign in", "Tap “Sign in with Google” and choose your 3C email (the one your admin added). Use that exact account every time."],
       ["Add to your home screen", "iPhone (Safari): Share → Add to Home Screen. Android (Chrome): ⋮ menu → Install app. Now it opens full-screen and can send you alerts."],
       ["Turn on job alerts", "When the “Turn on job alerts” bar appears, tap Enable, then Allow. You’ll get a buzz when work is assigned to you or a deadline is near."],
-      ["Find anything fast", "Use the 🔍 search at the top to jump to a work order, PO, customer, or piece of equipment."],
-      ["Light or dark", "Tap the ☀️/🌙 button (top-right) to switch themes. Pull down on any list to refresh."],
+      ["Find anything fast", "Use the search at the top to jump to a work order, PO, customer, or piece of equipment."],
+      ["Light or dark", "Tap the sun/moon button (top-right) to switch themes. Pull down on any list to refresh."],
     ],
   },
   {
-    id: "myday", title: "Your Day & Work Orders", icon: "📋", audience: "technician",
+    id: "myday", title: "Your Day & Work Orders", icon: "clipboard", audience: "technician",
     intro: "Everything you need for the jobs assigned to you.",
     steps: [
       ["My Day", "The “My Day” tab shows your active jobs, today’s hours, and anything that still needs time logged. Start here every morning."],
@@ -90,26 +90,26 @@ const SECTIONS = [
     ],
   },
   {
-    id: "time", title: "Logging Your Hours", icon: "⏱", audience: "technician",
+    id: "time", title: "Logging Your Hours", icon: "clock", audience: "technician",
     intro: "Log time as you go so nothing gets missed at day’s end.",
     steps: [
-      ["Quick Log", "Tap the floating ⏱ button (bottom-right of My Day). Pick the work order, enter hours and a short note, and save."],
+      ["Quick Log", "Tap the floating button (bottom-right of My Day). Pick the work order, enter hours and a short note, and save."],
       ["From a work order", "Open a job and add time right on it — this also flips a Pending job to In Progress automatically."],
       ["Review your hours", "The “Hours” tab lists everything you’ve logged; tap an entry to edit."],
       ["End-of-day check", "If it’s after 3pm and you have under 4 hours logged, My Day reminds you — don’t forget to log before you leave."],
     ],
   },
   {
-    id: "photos", title: "Photos, Receipts & Parts", icon: "📷", audience: "technician",
+    id: "photos", title: "Photos, Receipts & Parts", icon: "camera", audience: "technician",
     intro: "Document the work and capture what you bought.",
     steps: [
       ["Add photos", "On a work order, use the camera button to snap before/after photos. They’re compressed and saved automatically."],
-      ["Scan a receipt", "When creating a purchase, tap “📷 Scan Receipt” — the app reads the vendor, amount, and items for you. Double-check before saving."],
+      ["Scan a receipt", "When creating a purchase, tap “Scan Receipt” — the app reads the vendor, amount, and items for you. Double-check before saving."],
       ["Request a PO", "Need parts? Open the work order and request a Purchase Order. Leave the price blank if you don’t know it — a manager fills it in before approving."],
     ],
   },
   {
-    id: "complete", title: "Completing a Job", icon: "✅", audience: "technician",
+    id: "complete", title: "Completing a Job", icon: "check", audience: "technician",
     intro: "Close out work orders cleanly.",
     steps: [
       ["Do the work write-up", "Fill in what you performed and any field notes on the work order before completing."],
@@ -118,7 +118,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: "equipmentkb", title: "Equipment & Knowledge Base", icon: "🔧", audience: "technician",
+    id: "equipmentkb", title: "Equipment & Knowledge Base", icon: "wrench", audience: "technician",
     intro: "Look things up in the field.",
     steps: [
       ["Equipment", "The “Equipment” tab lists customer units — model, serial, warranty, and service history. Search by model, serial, or asset tag."],
@@ -127,7 +127,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: "inbox", title: "Service Requests (Inbox)", icon: "📬", audience: "manager",
+    id: "inbox", title: "Service Requests (Inbox)", icon: "inbox", audience: "manager",
     intro: "Turn incoming emails into work orders.",
     steps: [
       ["Scan the inbox", "In “Requests”, tap Scan Inbox to pull new service emails. The app reads each one and drafts a work order (2-hour cooldown between scans)."],
@@ -136,19 +136,19 @@ const SECTIONS = [
     ],
   },
   {
-    id: "managewo", title: "Assigning & Managing Work Orders", icon: "🗂", audience: "manager",
+    id: "managewo", title: "Assigning & Managing Work Orders", icon: "file", audience: "manager",
     intro: "Keep the board moving.",
     steps: [
       ["All work orders", "The “Work Orders” tab shows everything. Filter by status/customer and use bulk actions on multiple orders."],
       ["Narrowing a long list", "Under the status buttons there’s a search box and a row of chips built from whatever is currently on screen — each customer and tech with a count beside it. With 112 jobs waiting on TMS entry, one tap on “Duke School Of Medicine 75” leaves just those. The counts also tell you the shape of the backlog before you tap anything. Your choice sticks when you come back."],
-      ["Import a stack of Duke WOs", "On Work Orders, tap “📷 Scan Batch”. Feed it photos or one multi-page PDF of Duke TMS printouts (PM or CM layout). It reads every work order, flags any TMS WO# already in the system, and you create the rest in one tap after a quick review."],
+      ["Import a stack of Duke WOs", "On Work Orders, tap “Scan Batch”. Feed it photos or one multi-page PDF of Duke TMS printouts (PM or CM layout). It reads every work order, flags any TMS WO# already in the system, and you create the rest in one tap after a quick review."],
       ["Assign a tech", "Open a WO and set the assignee — the tech gets a push (or an email if they haven’t enabled push)."],
       ["Week Plan", "Use “Week Plan” to see and balance the crew’s schedule across the week."],
       ["Repeat failures", "The Overview flags equipment/locations with 3+ corrective jobs in 90 days so you can plan a replacement."],
     ],
   },
   {
-    id: "pos", title: "Purchase Orders & RFQs", icon: "🧾", audience: "manager",
+    id: "pos", title: "Purchase Orders & RFQs", icon: "receipt", audience: "manager",
     intro: "Approve spend and request vendor pricing.",
     steps: [
       ["Approve/reject POs", "In “PO Mgmt”, set an amount if the tech left it blank, then Approve or Reject. The requester gets notified."],
@@ -159,7 +159,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: "pricebook", title: "Price Book & Supply Audit", icon: "🏷", audience: "manager",
+    id: "pricebook", title: "Price Book & Supply Audit", icon: "tag", audience: "manager",
     intro: "What every part costs, who charged it, and whether the bill is right.",
     steps: [
       ["It fills itself in", "Every pickup ticket and vendor bill a tech scans writes its line items into the Price Book automatically. Nobody types a catalog — it accumulates from work you already do at the counter."],
@@ -172,7 +172,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: "billing", title: "Billing & Invoices", icon: "💰", audience: "manager",
+    id: "billing", title: "Billing & Invoices", icon: "dollar", audience: "manager",
     intro: "Get paid for completed work.",
     steps: [
       ["Billing export", "The “Billing” tab exports timesheets/customer summaries (Excel + email)."],
@@ -181,7 +181,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: "projects", title: "Projects", icon: "🏗️", audience: "manager",
+    id: "projects", title: "Projects", icon: "building", audience: "manager",
     intro: "Run larger multi-part jobs.",
     steps: [
       ["Project detail", "Open a project for chambers, milestones, parts, photos, drawings, notes, team, POs, and invoices."],
@@ -190,7 +190,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: "reports", title: "Reports, Customers & More", icon: "📈", audience: "manager",
+    id: "reports", title: "Reports, Customers & More", icon: "chart", audience: "manager",
     intro: "The numbers and the relationships.",
     steps: [
       ["Overview / KPIs", "The Overview tab has first-time-fix rate, utilization, revenue, AR, and 8-week trends."],
@@ -201,16 +201,16 @@ const SECTIONS = [
     ],
   },
   {
-    id: "users", title: "Users & Onboarding", icon: "👤", audience: "manager",
+    id: "users", title: "Users & Onboarding", icon: "user", audience: "manager",
     intro: "Add and manage people.",
     steps: [
       ["Add a user", "In “Users”, tap + New User. Enter their name, exact Google email, and role. New technicians get a welcome email automatically."],
-      ["Resend onboarding", "Use the “✉ Onboard” button next to anyone to (re)send the getting-started email."],
+      ["Resend onboarding", "Use the “Onboard” button next to anyone to (re)send the getting-started email."],
       ["Activate / deactivate", "Deactivate someone to block login without deleting their history."],
     ],
   },
   {
-    id: "adminextra", title: "Admin: Proposals, PM & Settings", icon: "⚙️", audience: "admin",
+    id: "adminextra", title: "Admin: Proposals, PM & Settings", icon: "settings", audience: "admin",
     intro: "Owner/admin-only tools.",
     steps: [
       ["Proposals", "The “Proposals” tab generates branded proposals (AI-assisted) you can send for e-approval."],
@@ -220,13 +220,13 @@ const SECTIONS = [
     ],
   },
   {
-    id: "alerts", title: "Notifications & Alerts", icon: "🔔", audience: "all",
+    id: "alerts", title: "Notifications & Alerts", icon: "bell", audience: "all",
     intro: "How the app reaches you.",
     steps: [
       ["Push notifications", "After you tap Enable + Allow, you get a phone notification when work is assigned or a PO decision is made — even with the app closed."],
       ["Email fallback", "If a tech hasn’t enabled push, the same alert arrives as a “[3C Alert]” email instead."],
       ["Keep alert emails tidy", "In Gmail, make a filter for “subject: [3C Alert]” → apply a label + skip inbox, so alerts land in their own folder."],
-      ["The bell", "The 🔔 at the top shows recent notifications; managers can quick-approve POs right from it."],
+      ["The bell", "The at the top shows recent notifications; managers can quick-approve POs right from it."],
     ],
   },
 ];
@@ -251,7 +251,7 @@ function HelpGuide({ userRole, userName }) {
   return (
     <div>
       <Card style={{ padding: "16px 18px", marginBottom: 14 }}>
-        <div style={{ fontSize: 17, fontWeight: 800, color: B.text }}>📘 Guide {userName ? "— " + (userName.split(" ")[0]) : ""}</div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: B.text }}>Guide {userName ? "— " + (userName.split(" ")[0]) : ""}</div>
         <div style={{ fontSize: 12.5, color: B.textMuted, marginTop: 4, lineHeight: 1.5 }}>
           A quick how-to for everything you’ll use, tailored to your <strong style={{ color: B.cyan }}>{roleLabel}</strong> access. Tap a section to expand. New here? Start with <em>Getting Started</em>.
         </div>
@@ -265,7 +265,7 @@ function HelpGuide({ userRole, userName }) {
           return (
             <Card key={s.id} style={{ padding: 0, overflow: "hidden" }}>
               <div onClick={() => setOpen(isOpen && !query ? null : s.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", cursor: "pointer", userSelect: "none" }}>
-                <span style={{ fontSize: 18 }}>{s.icon}</span>
+                {s.icon&&<span style={{ display: "inline-flex", color: B.textMuted }}><Icon name={s.icon} size={18}/></span>}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: B.text }}>{s.title}</div>
                   <div style={{ fontSize: 11, color: B.textDim, marginTop: 1 }}>{s.intro}</div>

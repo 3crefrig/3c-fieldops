@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { B, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch , openPO, gotoTab} from "../shared";
-import { IconButton } from "./ui";
+import { B, F, BS, SUPABASE_URL, SUPABASE_ANON_KEY, sb , fnFetch , openPO, gotoTab} from "../shared";
+import { IconButton, Icon } from "./ui";
 
 // Read B at call time so stage colors follow the active (dark/light) theme.
-const getPhotoStages=()=>[{key:"before",label:"Before",icon:"📸",color:B.orange},{key:"during",label:"During",icon:"🔧",color:B.cyan},{key:"after",label:"After",icon:"✅",color:B.green},{key:"general",label:"General",icon:"📷",color:B.textDim}];
+const getPhotoStages=()=>[{key:"before",label:"Before",icon:"camera",color:B.orange},{key:"during",label:"During",icon:"wrench",color:B.cyan},{key:"after",label:"After",icon:"check",color:B.green},{key:"general",label:"General",icon:"camera",color:B.textDim}];
 
 export function CameraUpload({woId,woName,onUploaded,userName,inputId,equipmentId,showStageSelector}){
   const fileRef=useRef(null);
@@ -41,11 +41,11 @@ export function CameraUpload({woId,woName,onUploaded,userName,inputId,equipmentI
   };
   return(<div>
     {showStageSelector&&<div style={{display:"flex",gap:4,marginBottom:8}}>
-      {photoStages.map(s=><button key={s.key} onClick={()=>setStage(s.key)} style={{flex:1,padding:"6px 4px",borderRadius:4,border:"1px solid "+(stage===s.key?s.color:B.border),background:stage===s.key?s.color+"18":"transparent",color:stage===s.key?s.color:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"'Barlow',sans-serif",textAlign:"center"}}>{s.icon} {s.label}</button>)}
+      {photoStages.map(s=><button key={s.key} onClick={()=>setStage(s.key)} style={{flex:1,padding:"6px 4px",borderRadius:4,border:"1px solid "+(stage===s.key?s.color:B.border),background:stage===s.key?s.color+"18":"transparent",color:stage===s.key?s.color:B.textDim,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F,textAlign:"center"}}>{s.label}</button>)}
     </div>}
     <input ref={fileRef} id={inputId} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
     <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{...BS,width:"100%",padding:14,opacity:uploading?.6:1}}>
-      <div style={{fontSize:24,marginBottom:4}}>📷</div>
+      <div style={{fontSize:24,marginBottom:4}}><Icon name="camera" size={22}/></div>
       <div style={{fontSize:12}}>{uploading?"Uploading to Drive...":(showStageSelector?"Take "+photoStages.find(s=>s.key===stage)?.label+" Photo":"Tap to Take Photo or Choose from Gallery")}</div>
     </button>
   </div>);
@@ -58,12 +58,12 @@ export function PhotoTimeline({photos}){
   const grouped={};stages.forEach(s=>{grouped[s]=photos.filter(p=>(p.photo_stage||"general")===s);});
   const hasStaged=grouped.before.length>0||grouped.during.length>0||grouped.after.length>0;
   if(!hasStaged)return null; // Don't show timeline if no staged photos
-  const stageInfo={before:{label:"Before",color:B.orange,icon:"📸"},during:{label:"During",color:B.cyan,icon:"🔧"},after:{label:"After",color:B.green,icon:"✅"}};
+  const stageInfo={before:{label:"Before",color:B.orange,icon:"camera"},during:{label:"During",color:B.cyan,icon:"wrench"},after:{label:"After",color:B.green,icon:"check"}};
   return(<div style={{marginTop:8}}>
     <div style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",marginBottom:8}}>Photo Timeline</div>
     {["before","during","after"].map(s=>{const items=grouped[s];if(items.length===0)return null;const info=stageInfo[s];
       return<div key={s} style={{marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12}}>{info.icon}</span><span style={{fontSize:11,fontWeight:700,color:info.color}}>{info.label}</span><div style={{flex:1,height:1,background:info.color+"33"}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{display:"inline-flex",color:info.color}}><Icon name={info.icon} size={12}/></span><span style={{fontSize:11,fontWeight:700,color:info.color}}>{info.label}</span><div style={{flex:1,height:1,background:info.color+"33"}}/></div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingLeft:20}}>
           {items.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:6,overflow:"hidden",border:"2px solid "+info.color+"44"}}>
             {p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:80,height:80,objectFit:"cover",display:"block"}}/>:<div style={{width:80,height:80,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:10,color:B.textDim}}>{p.filename}</div>}
@@ -89,14 +89,14 @@ export function NotifBell({notifications,onMarkRead,onQuickApprovePO,onQuickReje
     if(t.startsWith("vendor_bill")){gotoTab("audit");setOpen(false);return;}
   };
   return(<div ref={bellRef} style={{position:"relative"}}>
-    <IconButton name="bell" onClick={()=>setOpen(!open)} label={unread>0?unread+" unread notifications":"Notifications"} active={open}>{unread>0&&<span style={{position:"absolute",top:-5,right:-5,background:B.red,color:"#fff",fontSize:9,fontWeight:700,borderRadius:999,minWidth:16,height:16,padding:"0 4px",display:"flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box",border:"2px solid "+B.surface}}>{unread>99?"99+":unread}</span>}</IconButton>
+    <IconButton name="bell" onClick={()=>setOpen(!open)} label={unread>0?unread+" unread notifications":"Notifications"} active={open}>{unread>0&&<span style={{position:"absolute",top:-5,right:-5,background:B.red,color:"#fff",fontSize:10.5,fontWeight:700,borderRadius:999,minWidth:16,height:16,padding:"0 4px",display:"flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box",border:"2px solid "+B.surface}}>{unread>99?"99+":unread}</span>}</IconButton>
     {open&&<div style={{position:"absolute",right:0,top:30,width:300,background:B.surface,border:"1px solid "+B.border,borderRadius:8,zIndex:999,maxHeight:350,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid "+B.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:B.text}}>Notifications</span>{unread>0&&<button onClick={async()=>{await onMarkRead();setOpen(false);}} style={{background:B.cyanGlow,border:"1px solid "+B.cyan+"44",borderRadius:5,color:B.cyan,fontSize:11,fontWeight:600,cursor:"pointer",padding:"3px 10px"}}>Mark all read</button>}</div>
       {notifications.length===0&&<div style={{padding:20,textAlign:"center",color:B.textDim,fontSize:11}}>No notifications</div>}
       {notifications.slice(0,20).map(n=><div key={n.id} onClick={()=>tapNotif(n)} style={{padding:"8px 14px",borderBottom:"1px solid "+B.border,background:n.read?"transparent":B.cyanGlow,cursor:n.message?.match(/WO-\d+/)?"pointer":"default"}}>
         <div style={{fontSize:11,fontWeight:700,color:n.read?B.textDim:B.text}}>{n.title}</div>
         <div style={{fontSize:10,color:B.textDim}}>{n.message}</div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}><span style={{fontSize:9,color:B.textDim}}>{new Date(n.created_at).toLocaleString()}</span>{n.message?.match(/WO-\d+/)&&<span style={{fontSize:9,color:B.cyan}}>Tap to view →</span>}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}><span style={{fontSize:10.5,color:B.textDim}}>{new Date(n.created_at).toLocaleString()}</span>{n.message?.match(/WO-\d+/)&&<span style={{fontSize:10.5,color:B.cyan}}>Tap to view →</span>}</div>
         {isManager&&n.type==="po_requested"&&!n.read&&<div style={{display:"flex",gap:4,marginTop:6}}><button onClick={async(e)=>{e.stopPropagation();if(onQuickApprovePO)await onQuickApprovePO(n);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:B.green,color:B.bg,fontSize:10,fontWeight:700,cursor:"pointer"}}>Approve</button><button onClick={async(e)=>{e.stopPropagation();if(onQuickRejectPO)await onQuickRejectPO(n);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:B.red,color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>Reject</button></div>}
       </div>)}
     </div>}

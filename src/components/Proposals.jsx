@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PSC, PSL, cleanText, fmtDate , fnFetch , openWO, importRetry} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, Icon } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 
 // ── Email Picker for "Start from Email" ──────────────────────
@@ -130,7 +130,7 @@ function OptionPanel({tiers,setTiers,parts,setParts,label,setLabel,optDesc,setOp
         <input value={p.description} onChange={e=>updatePart(i,"description",e.target.value)} placeholder="Part" style={{...IS,padding:7,fontSize:11}}/>
         <input value={p.quantity||""} onChange={e=>updatePart(i,"quantity",e.target.value)} type="number" placeholder="Qty" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/>
         <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:10,color:B.textDim}}>$</span><input value={p.unit_cost||""} onChange={e=>updatePart(i,"unit_cost",e.target.value)} type="number" placeholder="Cost" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
-        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:7,fontSize:11,fontFamily:M,width:40}}/><span style={{fontSize:9,color:B.textDim}}>%</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:7,fontSize:11,fontFamily:M,width:40}}/><span style={{fontSize:10.5,color:B.textDim}}>%</span></div>
         <button onClick={()=>removePart(i)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:2}}>×</button>
       </div>)}
       {parts.length>0&&<div style={{textAlign:"right",fontSize:11,fontFamily:M,color:B.orange,fontWeight:700}}>Parts: ${partsTotal.toFixed(2)}</div>}
@@ -310,7 +310,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
     {step===1&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
       {/* Start from Email button */}
       <button onClick={()=>setShowEmailPicker(true)} style={{...BS,width:"100%",padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,borderStyle:"dashed"}}>
-        <span style={{fontSize:16}}>📧</span>
+        <span style={{fontSize:16}}><Icon name="mail" size={14}/></span>
         <span style={{fontSize:13,fontWeight:600}}>Start from Email</span>
         <span style={{fontSize:11,color:B.textDim}}> — auto-fill from a service request</span>
       </button>
@@ -323,7 +323,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
       <div><label style={LS}>Scope Description *</label><textarea value={scope} onChange={e=>setScope(e.target.value)} rows={4} style={{...IS,resize:"vertical"}} placeholder="Describe the work in detail — what needs to be done, equipment involved, special requirements..."/></div>
       <SnippetSelector onAppend={(text)=>{setScope(prev=>prev?(prev+"\n\n"+text):text);setSelectedSnippets(prev=>[...prev,text]);}}/>
       <button onClick={()=>setIncludeEstimate(!includeEstimate)} style={{...BS,width:"100%",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:10,borderStyle:includeEstimate?"solid":"dashed",borderColor:includeEstimate?B.green:B.border,background:includeEstimate?B.green+"12":"transparent"}}>
-        <span style={{fontSize:18}}>{includeEstimate?"✅":"💰"}</span>
+        <span style={{fontSize:18}}>{includeEstimate?"":""}</span>
         <div style={{textAlign:"left"}}><div style={{fontSize:14,fontWeight:700,color:includeEstimate?B.green:B.text}}>{includeEstimate?"Pricing Added":"Add Pricing & Estimate"}</div><div style={{fontSize:11,color:B.textDim}}>{includeEstimate?"Labor, parts, and totals attached — click to collapse":"Add labor costs, equipment pricing, and totals to this proposal"}</div></div>
       </button>
       {includeEstimate&&<Card style={{padding:16}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate saved");}} onCancel={()=>setIncludeEstimate(false)} initial={estimate}/></Card>}
@@ -332,8 +332,8 @@ function ProposalBuilder({customers,users,userName,onClose}){
 
     {/* Step 2: AI Generate */}
     {step===2&&<div style={{textAlign:"center",padding:20}}>
-      <div style={{fontSize:48,marginBottom:16}}>🤖</div>
-      <h3 style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:8}}>Ready to Generate</h3>
+      <div style={{fontSize:48,marginBottom:16}}></div>
+      <h3 style={{fontSize:16,fontWeight:600,color:B.text,marginBottom:8}}>Ready to Generate</h3>
       <p style={{fontSize:13,color:B.textMuted,marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>
         AI will draft a professional proposal for <strong>{cust}</strong> based on your scope description.
         {estimate&&" It will reference your $"+estimate.grand_total?.toFixed(2)+" estimate."}
@@ -579,7 +579,7 @@ function ProposalEditModal({prop,est:initialEst,customers,users,onSave,onClose})
       <div><label style={LS}>Proposal Content</label><textarea value={content} onChange={e=>setContent(e.target.value)} rows={14} style={{...IS,resize:"vertical",fontSize:13,lineHeight:1.6,fontFamily:F,minHeight:250}}/></div>
       <div><label style={LS}>Expiry Date</label><input value={expiry} onChange={e=>setExpiry(e.target.value)} type="date" style={IS}/></div>
       <button onClick={()=>setShowEstimate(!showEstimate)} style={{...BS,width:"100%",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:10,borderStyle:showEstimate?"solid":"dashed",borderColor:showEstimate?B.green:B.border,background:showEstimate?B.green+"12":"transparent"}}>
-        <span style={{fontSize:18}}>{showEstimate?"✅":"💰"}</span>
+        <span style={{fontSize:18}}>{showEstimate?"":""}</span>
         <div style={{textAlign:"left"}}><div style={{fontSize:14,fontWeight:700,color:showEstimate?B.green:B.text}}>{showEstimate?(estimate?"Edit Pricing":"Add Pricing"):"Add Pricing & Estimate"}</div><div style={{fontSize:11,color:B.textDim}}>{showEstimate?"Click to collapse":"Add labor costs, equipment pricing, and totals"}</div></div>
       </button>
       {showEstimate&&<Card style={{padding:16}}><EstimateBuilder customers={customers} users={users} onSave={(data)=>{setEstimate(data);msg("Estimate updated");}} onCancel={()=>setShowEstimate(false)} initial={estimate}/></Card>}
@@ -614,18 +614,18 @@ function ProposalDashboard({D,A,userName}){
 
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Total Proposals" value={proposals.length} icon="📋" color={B.cyan}/>
+      <StatCard label="Total Proposals" value={proposals.length} icon="clipboard" color={B.cyan}/>
       <StatCard label="Approval Rate" value={approvalRate+"%"} icon="✓" color={approvalRate>=50?B.green:B.orange}/>
-      <StatCard label="Quoted Value" value={"$"+totalQuoted.toLocaleString(undefined,{minimumFractionDigits:0})} icon="💰" color={B.green}/>
-      <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="⏳" color={B.orange}/>
+      <StatCard label="Quoted Value" value={"$"+totalQuoted.toLocaleString(undefined,{minimumFractionDigits:0})} icon="dollar" color={B.green}/>
+      <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="clock" color={B.orange}/>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Proposals</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Proposals</h3>
       <button onClick={()=>setView("create")} style={{...BP,fontSize:12}}>+ New Proposal</button>
     </div>
 
     {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
-    {!loading&&proposals.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📋</div><div style={{fontSize:13}}>No proposals yet. Create your first one.</div></Card>}
+    {!loading&&proposals.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}><Icon name="clipboard" size={22}/></div><div style={{fontSize:13}}>No proposals yet. Create your first one.</div></Card>}
 
     {proposals.map(prop=>{const est=estimates.find(e=>e.id===prop.estimate_id);return(
       <Card key={prop.id} style={{padding:"14px 16px",marginBottom:8}}>
@@ -650,7 +650,7 @@ function ProposalDashboard({D,A,userName}){
             {(prop.status==="draft"||prop.status==="sent")&&<button onClick={()=>setEditing(prop)} style={{...BS,padding:"5px 10px",fontSize:11}}>Edit</button>}
             {prop.status==="draft"&&<button onClick={()=>sendProposal(prop)} style={{...BP,padding:"5px 12px",fontSize:11}}>Send</button>}
             {prop.status==="approved"&&A&&<button onClick={async()=>{const r=await A.createWO({title:prop.title||"Proposal work",customer:prop.customer_name||"",priority:"medium",wo_type:"CM",due_date:"TBD",assignee:"Unassigned",notes:("From proposal "+(prop.proposal_num||"")+(prop.scope_of_work?"\n\n"+prop.scope_of_work:"")).slice(0,2000)});msg("Work order created from "+(prop.proposal_num||"proposal"));if(r&&r.wo_id)openWO(r.wo_id);}} title="Create a work order pre-filled from this approved proposal" style={{...BP,padding:"5px 12px",fontSize:11,background:B.green}}>{"\u2192"} WO</button>}
-            <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/#/proposal/"+prop.approval_token);msg("Link copied!");}} style={{...BS,padding:"5px 10px",fontSize:11}}>🔗</button>
+            <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/#/proposal/"+prop.approval_token);msg("Link copied!");}} style={{...BS,padding:"5px 10px",fontSize:11}}><Icon name="link" size={12}/></button>
             <button onClick={()=>del(prop.id)} style={{...BS,padding:"5px 10px",fontSize:11,color:B.red,borderColor:B.red+"40"}}>✕</button>
           </div>
         </div>
@@ -681,7 +681,7 @@ function ProposalPortal({token}){
 
   if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
-  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"✅":"📝"}</div><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"":""}</div><h2 style={{fontSize:22,fontWeight:600,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
 
   const isExpired=prop.expires_at&&new Date(prop.expires_at)<new Date();
   const alreadyActioned=prop.status==="approved"||prop.status==="rejected";
@@ -690,7 +690,7 @@ function ProposalPortal({token}){
     <div style={{background:B.surface,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Proposal</div></div>
     <div style={{maxWidth:700,margin:"0 auto",padding:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-        <div><h2 style={{fontSize:20,fontWeight:700,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
+        <div><h2 style={{fontSize:20,fontWeight:600,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
         <Badge color={PSC[prop.status]||B.textDim}>{prop.status}</Badge>
       </div>
 

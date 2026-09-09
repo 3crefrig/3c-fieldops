@@ -88,10 +88,10 @@ function PartDetail({ part, vendors, onClose, onChanged }) {
     <Modal title={part.part_no} onClose={onClose} wide>
       <div style={{ fontSize: 13, color: B.textMuted, marginBottom: 14 }}>{part.description || "No description"}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-        <StatCard label="Avg paid" value={money(part.avg_paid)} icon="💵" color={B.cyan} />
-        <StatCard label="Range" value={money(part.min_price) + " – " + money(part.max_price)} icon="↕" color={pct(part.own_spread_pct) > 25 ? B.orange : B.textDim} />
-        <StatCard label="Buys" value={part.buys || 0} icon="🧾" color={B.textDim} />
-        {part.best_alternative != null && <StatCard label="Best elsewhere" value={money(part.best_alternative)} icon="🔍" color={B.green} />}
+        <StatCard label="Avg paid" value={money(part.avg_paid)} icon="dollar" color={B.cyan} />
+        <StatCard label="Range" value={money(part.min_price) + " – " + money(part.max_price)} icon="chart" color={pct(part.own_spread_pct) > 25 ? B.orange : B.textDim} />
+        <StatCard label="Buys" value={part.buys || 0} icon="receipt" color={B.textDim} />
+        {part.best_alternative != null && <StatCard label="Best elsewhere" value={money(part.best_alternative)} icon="search" color={B.green} />}
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -153,7 +153,7 @@ export function PriceBook({ userRole }) {
     return [...r].sort((a, b) => (Number(b[key]) || -1) - (Number(a[key]) || -1));
   }, [rows, view, q]);
 
-  if (!isMgr) return <EmptyState icon="🔒" title="Managers only" sub="Part cost data is restricted." />;
+  if (!isMgr) return <EmptyState icon="lock" title="Managers only" sub="Part cost data is restricted." />;
   if (rows === null) return <Spinner />;
 
   const totalPoints = rows.reduce((s, r) => s + (r.buys || 0), 0);
@@ -163,10 +163,10 @@ export function PriceBook({ userRole }) {
   return (<div>
     <Toast msg={toast} />
     <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-      <StatCard label="Parts tracked" value={rows.length} icon="📦" color={B.cyan} />
-      <StatCard label="Price points" value={totalPoints} icon="🏷" color={B.textDim} />
-      <StatCard label="Wide price swings" value={wide.length} icon="⚠️" color={wide.length ? B.orange : B.textDim} />
-      <StatCard label="Cheaper elsewhere" value={cheaper.length} icon="🔍" color={cheaper.length ? B.green : B.textDim} />
+      <StatCard label="Parts tracked" value={rows.length} icon="box" color={B.cyan} />
+      <StatCard label="Price points" value={totalPoints} icon="tag" color={B.textDim} />
+      <StatCard label="Wide price swings" value={wide.length} icon="alert" color={wide.length ? B.orange : B.textDim} />
+      <StatCard label="Cheaper elsewhere" value={cheaper.length} icon="search" color={cheaper.length ? B.green : B.textDim} />
     </div>
 
     <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
@@ -181,7 +181,7 @@ export function PriceBook({ userRole }) {
         Nothing to compare yet. Open a part and add a <b>Reference</b> price — what another supply house charges — and the gap shows up here.
       </div>}
 
-    {filtered.length === 0 ? <EmptyState icon="📦" title="No parts match" sub="Prices land here automatically when a pickup ticket or vendor bill is scanned." /> : (
+    {filtered.length === 0 ? <EmptyState icon="box" title="No parts match" sub="Prices land here automatically when a pickup ticket or vendor bill is scanned." /> : (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.slice(0, 200).map(r => {
           const spread = pct(r.own_spread_pct), saves = pct(r.pct_cheaper_elsewhere);

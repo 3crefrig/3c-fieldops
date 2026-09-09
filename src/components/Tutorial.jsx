@@ -47,10 +47,10 @@ export const TOURS={
   // The Basics — offered before anything else on a brand-new device. Every step
   // targets chrome that exists on every tab, so it can run from anywhere.
   _welcome:{title:"The Basics",steps:[
-    {title:"Welcome to 3C FieldOps 👋",body:"This app runs the whole shop — jobs, hours, parts, paperwork. This 60-second tour shows you how to get around; each page then offers its own short tour when you first open it."},
+    {title:"Welcome to 3C FieldOps",body:"This app runs the whole shop — jobs, hours, parts, paperwork. This 60-second tour shows you how to get around; each page then offers its own short tour when you first open it."},
     {target:"global-search",title:"Search finds everything",body:"Job numbers, customers, purchase orders, equipment — type a few letters and jump straight there. On a keyboard, Ctrl+K opens it from anywhere."},
     {title:"Tabs are grouped",body:"The buttons across the top (or the bar at the bottom on your phone) switch pages. Start with the first tab each morning — it's built to show what needs your attention."},
-    {title:"The bell keeps you posted",body:"🔔 collects everything aimed at you: new assignments, approvals, overdue work. Tap an alert and it takes you to the thing itself."},
+    {title:"The bell keeps you posted",body:"collects everything aimed at you: new assignments, approvals, overdue work. Tap an alert and it takes you to the thing itself."},
     {title:"Help is always on",body:"The Guide tab holds written how-tos, these tours (replay any time), and a Tips mode that puts tappable ⦿ dots on controls. If you're ever lost, start there."},
   ]},
   today:{title:"My Day",roles:["technician"],steps:[
@@ -108,8 +108,8 @@ export const TOURS={
   pos:{title:"Purchase Orders",roles:["manager","admin"],steps:[
     {target:"po-new",title:"Create instantly",body:"Parts run? Create the PO here — you're auto-assigned as its tech, and more techs can be attached on the card."},
     {title:"The approval lane",body:"Pending POs show an inline amount box + Approve right on the card — set the real amount and approve in one motion. Small POs under your threshold skip approval automatically."},
-    {title:"Approve from anywhere",body:"PO requests also land in the 🔔 bell with Approve / Reject buttons — you never have to come to this tab just to unblock a tech at the counter."},
-    {title:"Counter tickets",body:"The 🧾 button snaps the supply-house ticket at pickup. Those tickets power the Supply Audit's 3-way match against vendor bills."},
+    {title:"Approve from anywhere",body:"PO requests also land in the bell with Approve / Reject buttons — you never have to come to this tab just to unblock a tech at the counter."},
+    {title:"Counter tickets",body:"The button snaps the supply-house ticket at pickup. Those tickets power the Supply Audit's 3-way match against vendor bills."},
     {title:"Paperwork",body:"PO Form makes a signed-looking PDF for vendors that require one; Preview shows it without downloading."},
   ]},
   invoices:{title:"Invoices",roles:["manager","admin"],steps:[
@@ -208,8 +208,8 @@ export function TutorialLayer({tab,role}){
 
 // ── Invite chip (never blocks the page) ──────────────────────────────────
 function InviteChip({title,onStart,onSkip,onNever}){
-  return(<div style={{position:"fixed",left:"50%",transform:"translateX(-50%)",bottom:"max(84px, calc(64px + env(safe-area-inset-bottom)))",zIndex:1180,background:B.surface,border:"1px solid "+B.cyan+"55",borderRadius:12,boxShadow:"0 8px 30px rgba(0,0,0,.35)",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,maxWidth:"min(94vw,460px)",animation:"fadeIn .25s ease-out"}}>
-    <span style={{fontSize:18}}>👋</span>
+  return(<div style={{position:"fixed",left:"50%",transform:"translateX(-50%)",bottom:"max(84px, calc(64px + env(safe-area-inset-bottom)))",zIndex:1180,background:B.surface,border:"1px solid "+B.cyan+"55",borderRadius:8,boxShadow:"0 8px 30px rgba(0,0,0,.35)",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,maxWidth:"min(94vw,460px)",animation:"fadeIn .25s ease-out"}}>
+    <span style={{fontSize:18}}></span>
     <span style={{fontSize:12,color:B.text,fontWeight:600,whiteSpace:"nowrap"}}>Quick tour of {title}?</span>
     <button onClick={onStart} style={{...BP,padding:"6px 12px",fontSize:11}}>Show me</button>
     <button onClick={onSkip} style={{...BS,padding:"6px 10px",fontSize:11}}>Skip</button>
@@ -254,10 +254,10 @@ function TourOverlay({tour,step,setStep,onClose}){
   return(<div style={{position:"fixed",inset:0,zIndex:1200}}>
     {/* dim layer — a spotlight ring is punched out around the target via box-shadow */}
     {rect
-      ?<div style={{position:"fixed",top:rect.top-pad,left:rect.left-pad,width:rect.width+pad*2,height:rect.height+pad*2,borderRadius:10,boxShadow:"0 0 0 9999px rgba(0,0,0,.62)",border:"2px solid "+B.cyan,pointerEvents:"none",transition:"all .25s ease",zIndex:1201}}/>
+      ?<div style={{position:"fixed",top:rect.top-pad,left:rect.left-pad,width:rect.width+pad*2,height:rect.height+pad*2,borderRadius:8,boxShadow:"0 0 0 9999px rgba(0,0,0,.62)",border:"2px solid "+B.cyan,pointerEvents:"none",transition:"all .25s ease",zIndex:1201}}/>
       :<div onClick={()=>onClose(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.62)",zIndex:1201}}/>}
     {rect&&<div onClick={()=>onClose(false)} style={{position:"fixed",inset:0,zIndex:1200}}/>}
-    <div style={{...cardStyle,background:B.surface,border:"1px solid "+B.border,borderRadius:14,boxShadow:"0 16px 50px rgba(0,0,0,.5)",padding:"16px 18px",fontFamily:F,animation:"fadeIn .2s ease-out"}}>
+    <div style={{...cardStyle,background:B.surface,border:"1px solid "+B.border,borderRadius:8,boxShadow:"0 16px 50px rgba(0,0,0,.5)",padding:"16px 18px",fontFamily:F,animation:"fadeIn .2s ease-out"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
         <div style={{fontSize:14,fontWeight:700,color:B.text}}>{s.title}</div>
         <button onClick={()=>onClose(false)} title="Close tour (Esc)" style={{background:"none",border:"none",color:B.textDim,fontSize:16,cursor:"pointer",lineHeight:1,padding:2}}>✕</button>
@@ -312,7 +312,7 @@ function HotspotLayer({tab}){
     {spots.map(s=><button key={s.id} onClick={(e)=>{e.stopPropagation();setOpenTip(openTip&&openTip.id===s.id?null:{...s});}}
       title="What's this?"
       style={{position:"fixed",top:s.y,left:s.x,width:14,height:14,borderRadius:"50%",background:B.cyan,border:"2px solid "+B.bg,cursor:"pointer",zIndex:1150,padding:0,animation:"tutPulse 2s ease-in-out infinite"}}/>)}
-    {openTip&&<div style={{position:"fixed",top:Math.min(openTip.y+20,window.innerHeight-120),left:Math.max(10,Math.min(openTip.x-140,window.innerWidth-300)),width:280,zIndex:1151,background:B.surface,border:"1px solid "+B.cyan+"55",borderRadius:10,boxShadow:"0 10px 30px rgba(0,0,0,.4)",padding:"10px 12px",fontSize:12,color:B.text,lineHeight:1.5,fontFamily:F}}
+    {openTip&&<div style={{position:"fixed",top:Math.min(openTip.y+20,window.innerHeight-120),left:Math.max(10,Math.min(openTip.x-140,window.innerWidth-300)),width:280,zIndex:1151,background:B.surface,border:"1px solid "+B.cyan+"55",borderRadius:8,boxShadow:"0 10px 30px rgba(0,0,0,.4)",padding:"10px 12px",fontSize:12,color:B.text,lineHeight:1.5,fontFamily:F}}
       onClick={()=>setOpenTip(null)}>{openTip.text}</div>}
   </>);
 }

@@ -12,7 +12,7 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
   const del=async(c)=>{if(!window.confirm("Delete customer "+c.name+"?"))return;await onDelete(c.id);msg("Deleted "+c.name);};
   const getCustStats=(cName)=>{const cWOs=(wos||[]).filter(w=>w.customer===cName);const cTime=(time||[]).filter(t=>cWOs.some(w=>w.id===t.wo_id));const cHrs=cTime.reduce((s,t)=>s+parseFloat(t.hours||0),0);const cPOs=(pos||[]).filter(p=>cWOs.some(w=>w.id===p.wo_id)&&p.status==="approved");const cSpend=cPOs.reduce((s,p)=>s+parseFloat(p.amount||0),0);const activeWOs=cWOs.filter(w=>w.status!=="completed").length;return{totalWOs:cWOs.length,activeWOs,hours:cHrs,spend:cSpend};};
   return(<div><Toast msg={toast}/>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Customers</h3>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:600,color:B.text}}>Customers</h3>
     <button data-tip="Add a customer once — rates, markup, and payment terms saved here flow into every invoice automatically." onClick={openNew} style={{...BP,marginBottom:14,fontSize:12}}>+ Add Customer</button>
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {(customers||[]).length===0&&<div style={{textAlign:"center",padding:40,color:B.textDim}}>No customers yet</div>}
@@ -50,14 +50,14 @@ function CustomerMgmt({customers,onAdd,onUpdate,onDelete,wos,time,pos}){
           <div><div style={{fontSize:12,fontWeight:600,color:B.text}}>Auto-generate invoice on job completion</div><div style={{fontSize:10,color:B.textDim,marginTop:2}}>When enabled, a draft invoice is created when all WOs for this customer are completed. Disable for TMS-entry-only customers.</div></div>
         </div>
         <div style={{padding:"10px 12px",background:B.bg,border:"1px solid "+B.border,borderRadius:8}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><label style={{...LS,margin:0}}>Labor Rate Tiers</label><span style={{fontSize:9,color:B.textDim}}>Used on this customer's invoices</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><label style={{...LS,margin:0}}>Labor Rate Tiers</label><span style={{fontSize:10.5,color:B.textDim}}>Used on this customer's invoices</span></div>
           {laborTiers.map((t,i)=><div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
             <input value={t.name} onChange={e=>setLaborTiers(ts=>ts.map((x,j)=>j===i?{...x,name:e.target.value}:x))} placeholder="Tier name (e.g. Senior Technician)" style={{...IS,flex:1,padding:"7px 10px",fontSize:12}}/>
             <div style={{position:"relative"}}><span style={{position:"absolute",left:8,top:8,fontSize:12,color:B.textDim,fontFamily:M}}>$</span><input value={t.rate} onChange={e=>setLaborTiers(ts=>ts.map((x,j)=>j===i?{...x,rate:e.target.value}:x))} type="number" step="5" placeholder="rate" style={{...IS,width:90,padding:"7px 10px 7px 18px",fontFamily:M,fontSize:12}}/></div>
             <button onClick={()=>setLaborTiers(ts=>ts.filter((_,j)=>j!==i))} style={{background:"none",border:"1px solid "+B.border,borderRadius:6,color:B.red+"cc",fontSize:14,cursor:"pointer",width:34,flexShrink:0}}>×</button>
           </div>)}
           <button onClick={()=>setLaborTiers(ts=>[...ts,{name:"",rate:""}])} style={{...BS,fontSize:11,padding:"6px 12px",marginTop:2}}>+ Add tier</button>
-          <div style={{fontSize:9,color:B.textDim,marginTop:6}}>First tier receives the job's logged hours by default on new invoices. Leave empty to use the company default ({getCustomerTiers(null).map(t=>t.name+" $"+t.rate).join(", ")}).</div>
+          <div style={{fontSize:10.5,color:B.textDim,marginTop:6}}>First tier receives the job's logged hours by default on new invoices. Leave empty to use the company default ({getCustomerTiers(null).map(t=>t.name+" $"+t.rate).join(", ")}).</div>
         </div>
         <div style={{display:"flex",gap:8}}><button onClick={()=>setShowForm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":(editing?"Save":"Add Customer")}</button></div>
       </div>

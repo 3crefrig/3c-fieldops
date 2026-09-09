@@ -25,7 +25,7 @@ function EquipmentInlinePicker({customerName,equipment,onPick,onScan,onAdd,onCan
       <input value={query} onChange={e=>setQuery(e.target.value)}
         placeholder={noUnits?(customerName?"No equipment on file for "+customerName:"No equipment — add one below"):("Search "+(equipment||[]).length+" unit"+((equipment||[]).length!==1?"s":"")+(customerName?" for "+customerName:"")+"...")}
         style={{...IS,flex:1,minWidth:160,padding:"8px 12px",fontSize:12}} disabled={noUnits}/>
-      <button type="button" onClick={onScan} style={{...BS,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>📷 Scan</button>
+      <button type="button" onClick={onScan} style={{...BS,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>Scan</button>
       <button type="button" onClick={onAdd} style={{...BP,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>+ Quick Add</button>
       {onCancel&&<button type="button" onClick={onCancel} style={{...BS,padding:"8px 10px",fontSize:11}}>×</button>}
     </div>
@@ -81,10 +81,10 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
   };
   return(<Modal title="Quick Add Equipment" onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {!wo.customer&&<div style={{padding:"8px 10px",background:B.orange+"15",border:"1px solid "+B.orange+"40",borderRadius:6,fontSize:11,color:B.orange}}>⚠️ Set this WO's customer first — equipment must belong to a customer.</div>}
+      {!wo.customer&&<div style={{padding:"8px 10px",background:B.orange+"15",border:"1px solid "+B.orange+"40",borderRadius:6,fontSize:11,color:B.orange}}>Set this WO's customer first — equipment must belong to a customer.</div>}
       {wo.customer&&<div style={{fontSize:11,color:B.textMuted}}>For <strong style={{color:B.text}}>{f.customer_name}</strong></div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:9,textTransform:"none"}}>(customer's name)</span></label>
+        <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:10.5,textTransform:"none"}}>(customer's name)</span></label>
           <input value={f.equipment_number} onChange={e=>set("equipment_number",e.target.value)} placeholder="e.g. WIC-04, Cooler #3" style={IS} autoFocus/>
         </div>
         <div><label style={LS}>Type</label>
@@ -94,7 +94,7 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div><label style={LS}>Asset Tag <span style={{color:B.textDim,fontWeight:400,fontSize:9,textTransform:"none"}}>(physical barcode)</span></label>
+        <div><label style={LS}>Asset Tag <span style={{color:B.textDim,fontWeight:400,fontSize:10.5,textTransform:"none"}}>(physical barcode)</span></label>
           <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Optional" style={IS}/>
         </div>
         <div><label style={LS}>Manufacturer</label>
@@ -110,7 +110,7 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div><label style={LS}>Location <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>{wo.location?"(from WO)":""}</span></label>
+        <div><label style={LS}>Location <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>{wo.location?"(from WO)":""}</span></label>
           <input value={f.location} onChange={e=>set("location",e.target.value)} placeholder="Building / Site" style={IS}/>
         </div>
         <div><label style={LS}>Room / Detail</label>
@@ -152,12 +152,12 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   const customerEquipment=(equipment||[]).filter(e=>!wo.customer||e.customer_name===wo.customer);
   const link=async(equipmentId)=>{
     try{await sb().from("work_orders").update({equipment_id:equipmentId}).eq("id",wo.id);await reloadWOs();msg("Equipment linked");setPicking(false);}
-    catch(e){console.error(e);msg("⚠️ Failed to link");}
+    catch(e){console.error(e);msg("Failed to link");}
   };
   const unlink=async()=>{
     if(!window.confirm("Unlink equipment from this work order?"))return;
     try{await sb().from("work_orders").update({equipment_id:null}).eq("id",wo.id);await reloadWOs();msg("Equipment unlinked");}
-    catch(e){console.error(e);msg("⚠️ Failed to unlink");}
+    catch(e){console.error(e);msg("Failed to unlink");}
   };
   const handleScan=async(tag)=>{
     setScanning(false);
@@ -169,7 +169,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   };
   const saveQuickAdd=async(eq)=>{
     const{data:inserted,error}=await sb().from("equipment").insert(eq).select("id").single();
-    if(error){console.error(error);msg("⚠️ Failed to register equipment");throw error;}
+    if(error){console.error(error);msg("Failed to register equipment");throw error;}
     if(reloadTable)await reloadTable("equipment");
     if(inserted?.id)await link(inserted.id);
   };
@@ -192,7 +192,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
             {linked.refrigerant_type&&<span>{linked.refrigerant_type} · </span>}
             <span>{EQ_LABELS[linked.equipment_type]||linked.equipment_type}</span>
           </div>
-          {(linked.location||linked.location_detail)&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>📍 {linked.location}{linked.location_detail?" — "+linked.location_detail:""}</div>}
+          {(linked.location||linked.location_detail)&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>{linked.location}{linked.location_detail?" — "+linked.location_detail:""}</div>}
         </div>
         {canEdit&&<div style={{display:"flex",gap:4,flexShrink:0}}>
           <button type="button" onClick={()=>setPicking(true)} style={{...BS,padding:"5px 10px",fontSize:10}}>Change</button>
@@ -279,10 +279,10 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   useEffect(()=>{loadFieldNoteRows();},[wo.id]);
   const loadPreviousNotes=async()=>{setPreviousNotes([]);try{let priorWOs=[];if(wo.equipment_id){const{data}=await sb().from("work_orders").select("id,wo_id,title,date_completed,created_at").eq("equipment_id",wo.equipment_id).neq("id",wo.id).order("created_at",{ascending:false}).limit(5);priorWOs=data||[];}else if(wo.customer&&wo.location){const{data}=await sb().from("work_orders").select("id,wo_id,title,date_completed,created_at").eq("customer",wo.customer).eq("location",wo.location).neq("id",wo.id).is("equipment_id",null).order("created_at",{ascending:false}).limit(5);priorWOs=data||[];}if(priorWOs.length===0)return;const ids=priorWOs.map(w=>w.id);const{data:notes,error}=await sb().from("wo_field_notes").select("*").in("wo_id",ids).order("created_at",{ascending:false}).limit(20);if(error){console.warn("Previous notes load failed:",error.message);return;}const byWO={};priorWOs.forEach(w=>{byWO[w.id]=w;});setPreviousNotes((notes||[]).map(n=>({...n,wo:byWO[n.wo_id]})));}catch(e){console.warn("Previous notes error:",e);}};
   useEffect(()=>{loadPreviousNotes();},[wo.id,wo.equipment_id,wo.customer,wo.location]);
-  const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("⚠️ Failed to log refrigerant");}setSavingRef(false);};
-  const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("⚠️ Failed to delete");}};
-  const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("⚠️ Failed to stamp");}};
-  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v,nte_approved_by:v===null?null:userName,nte_approved_at:v===null?null:new Date().toISOString()}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("⚠️ Failed to save NTE");}};
+  const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("Failed to log refrigerant");}setSavingRef(false);};
+  const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("Failed to delete");}};
+  const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("Failed to stamp");}};
+  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v,nte_approved_by:v===null?null:userName,nte_approved_at:v===null?null:new Date().toISOString()}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("Failed to save NTE");}};
   const[liDesc,setLiDesc]=useState(""),[liAmt,setLiAmt]=useState(""),[addingLI,setAddingLI]=useState(false),[savingLI,setSavingLI]=useState(false);
   const isProjectWO=!!wo.project_id;
   const woLineItems=(lineItems||[]).filter(li=>li.wo_id===wo.id);
@@ -310,12 +310,12 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;if(cleanText(tD,"Time Description")===null)return;setSaving(true);try{await onAddTime({wo_id:wo.id,hours:h,description:tD.trim(),logged_date:tDate});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");}catch(e){console.error(e);setSaving(false);}};
   const saveTimeEdit=async()=>{if(!editingTime||saving)return;const h=parseFloat(editingTime.hours);if(!h||h<=0)return;setSaving(true);try{await onUpdateTime(editingTime);setSaving(false);setEditingTime(null);msg("Time entry updated");}catch(e){console.error(e);setSaving(false);}};
   const deleteTimeEntry=async(te)=>{if(saving)return;if(!window.confirm("Delete this time entry ("+te.hours+"h)?"))return;setSaving(true);try{await onDeleteTime(te.id);setSaving(false);msg("Time entry deleted");}catch(e){console.error(e);setSaving(false);}};
-  const addFieldNote=async()=>{if(!note.trim()||saving)return;if(cleanText(note,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").insert({wo_id:wo.id,author:userName,body:note.trim()});if(error)throw error;await loadFieldNoteRows();setNote("");msg("Field note added");}catch(e){console.error(e);msg("⚠️ Failed to add note — DB table may not exist yet");}setSaving(false);};
+  const addFieldNote=async()=>{if(!note.trim()||saving)return;if(cleanText(note,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").insert({wo_id:wo.id,author:userName,body:note.trim()});if(error)throw error;await loadFieldNoteRows();setNote("");msg("Field note added");}catch(e){console.error(e);msg("Failed to add note — DB table may not exist yet");}setSaving(false);};
   const canEditNote=(n)=>isManager||n.author===userName;
   const startEditNote=(n)=>{setEditingNoteId(n.id);setEditingNoteText(n.body);};
   const cancelEditNote=()=>{setEditingNoteId(null);setEditingNoteText("");};
-  const saveEditNote=async()=>{if(!editingNoteText.trim()||saving)return;if(cleanText(editingNoteText,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").update({body:editingNoteText.trim(),edited_at:new Date().toISOString(),edited_by:userName}).eq("id",editingNoteId);if(error)throw error;await loadFieldNoteRows();setEditingNoteId(null);setEditingNoteText("");msg("Note updated");}catch(e){console.error(e);msg("⚠️ Failed to update");}setSaving(false);};
-  const deleteFieldNote=async(n)=>{if(!window.confirm("Delete this note?"))return;try{const{error}=await sb().from("wo_field_notes").delete().eq("id",n.id);if(error)throw error;await loadFieldNoteRows();msg("Note deleted");}catch(e){console.error(e);msg("⚠️ Failed to delete");}};
+  const saveEditNote=async()=>{if(!editingNoteText.trim()||saving)return;if(cleanText(editingNoteText,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").update({body:editingNoteText.trim(),edited_at:new Date().toISOString(),edited_by:userName}).eq("id",editingNoteId);if(error)throw error;await loadFieldNoteRows();setEditingNoteId(null);setEditingNoteText("");msg("Note updated");}catch(e){console.error(e);msg("Failed to update");}setSaving(false);};
+  const deleteFieldNote=async(n)=>{if(!window.confirm("Delete this note?"))return;try{const{error}=await sb().from("wo_field_notes").delete().eq("id",n.id);if(error)throw error;await loadFieldNoteRows();msg("Note deleted");}catch(e){console.error(e);msg("Failed to delete");}};
   const[editingDetails,setEditingDetails]=useState(false),[detailsText,setDetailsText]=useState(wo.notes||"");
   const saveDetails=async()=>{if(saving)return;setSaving(true);try{await sb().from("work_orders").update({notes:detailsText}).eq("id",wo.id);await reloadWOs();setSaving(false);setEditingDetails(false);msg("Job details updated");}catch(e){console.error(e);setSaving(false);}};
   const changeStatus=async(newStatus)=>{if(saving)return;if(newStatus==="completed"){openCompleteFlow();return;}setSaving(true);try{await onUpdateWO({...wo,status:newStatus});setSaving(false);msg("Status → "+SL[newStatus]);}catch(e){console.error(e);setSaving(false);}};
@@ -347,12 +347,12 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       refLog={refLog} fieldNotes={fieldNoteRows}
       onClose={()=>setShowPdf(false)} onToast={msg}
       onPreview={(doc,title)=>previewPdfDoc(doc,title,setPdfPreview)}/>}
-    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,fontFamily:F,padding:"8px 0"}}>← Back to Orders</button>
+    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,fontSize:13,fontWeight:500,cursor:"pointer",marginBottom:12,fontFamily:F,padding:"6px 0"}}>← Back to Orders</button>
 
     {/* HEADER — WO ID, title, customer, status */}
     <Card style={{maxWidth:640,marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:12}}>
-        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wo.wo_id}</span><select value={wo.priority} onChange={async e=>{await onUpdateWO({...wo,priority:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+(PC[wo.priority]||B.border)+"44",background:(PC[wo.priority]||B.textDim)+"22",color:PC[wo.priority]||B.textDim,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><select value={wo.wo_type||"CM"} onChange={async e=>{await onUpdateWO({...wo,wo_type:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+((wo.wo_type==="PM"?B.cyan:B.orange))+"44",background:(wo.wo_type==="PM"?B.cyan:B.orange)+"22",color:wo.wo_type==="PM"?B.cyan:B.orange,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="PM">PM</option><option value="CM">CM</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}><h2 style={{margin:0,fontSize:20,fontWeight:700,color:B.text}}>{wo.title}</h2>{isManager&&<button onClick={openEditWO} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:2,flexShrink:0}} title="Edit work order">✎</button>}</div>{isManager?<div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}><select value={wo.customer||""} onChange={async e=>{const v=e.target.value;try{await onUpdateWO({...wo,customer:v||null});msg(v?"Customer → "+v:"Customer cleared");}catch(err){console.error(err);msg("⚠️ Failed to update customer");}}} style={{padding:"3px 8px",borderRadius:4,border:"1px solid "+B.cyan+"44",background:B.cyan+"12",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,maxWidth:"100%",minHeight:32}}><option value="">— No customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>:wo.customer&&<div style={{fontSize:12,color:B.cyan,marginTop:4}}>{wo.customer}{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,marginLeft:6,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>}</div>
+        <div><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan}}>WO</span><span style={{fontFamily:M,fontSize:26,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.6}}>{String(wo.wo_id||"").replace(/^WO-/,"")}</span></div><select value={wo.priority} onChange={async e=>{await onUpdateWO({...wo,priority:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+(PC[wo.priority]||B.border)+"44",background:(PC[wo.priority]||B.textDim)+"22",color:PC[wo.priority]||B.textDim,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><select value={wo.wo_type||"CM"} onChange={async e=>{await onUpdateWO({...wo,wo_type:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+((wo.wo_type==="PM"?B.cyan:B.orange))+"44",background:(wo.wo_type==="PM"?B.cyan:B.orange)+"22",color:wo.wo_type==="PM"?B.cyan:B.orange,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="PM">PM</option><option value="CM">CM</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}><h2 style={{margin:0,fontSize:20,fontWeight:600,color:B.text}}>{wo.title}</h2>{isManager&&<button onClick={openEditWO} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:2,flexShrink:0}} title="Edit work order"><Icon name="edit" size={12}/></button>}</div>{isManager?<div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}><select value={wo.customer||""} onChange={async e=>{const v=e.target.value;try{await onUpdateWO({...wo,customer:v||null});msg(v?"Customer → "+v:"Customer cleared");}catch(err){console.error(err);msg("Failed to update customer");}}} style={{padding:"3px 8px",borderRadius:4,border:"1px solid "+B.cyan+"44",background:B.cyan+"12",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,maxWidth:"100%",minHeight:32}}><option value="">— No customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>:wo.customer&&<div style={{fontSize:12,color:B.cyan,marginTop:4}}>{wo.customer}{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,marginLeft:6,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>}</div>
         <DSBadge ok={woPhotos.length>0}/>
       </div>
       {/* Status bar — big, tappable */}
@@ -406,9 +406,9 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           !wo.nte?<div style={{fontSize:11,color:B.textDim,fontStyle:"italic"}}>Not set — customer may cap spend</div>:
           <><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}><span style={{fontFamily:M,fontSize:17,fontWeight:700,color:nteColor}}>${parseFloat(wo.nte).toLocaleString()}</span><span style={{fontSize:10,color:B.textDim}}>${woSpend.toFixed(0)} used</span></div>
           <div style={{height:6,background:B.bg,borderRadius:3,overflow:"hidden",border:"1px solid "+B.border}}><div style={{width:Math.min(100,ntePct)+"%",height:"100%",background:nteColor,transition:"width .3s"}}/></div>
-          {ntePct>=100&&<div style={{fontSize:10,color:B.red,fontWeight:700,marginTop:4}}>⚠️ Over NTE — request increase before adding more</div>}
+          {ntePct>=100&&<div style={{fontSize:10,color:B.red,fontWeight:700,marginTop:4}}>Over NTE — request increase before adding more</div>}
           {ntePct>=75&&ntePct<100&&<div style={{fontSize:10,color:B.orange,fontWeight:600,marginTop:4}}>Approaching NTE ({Math.round(ntePct)}%)</div>}
-          {wo.nte_approved_by&&<div style={{fontSize:9,color:B.textDim,marginTop:3}}>Last approved by {wo.nte_approved_by}</div>}</>}
+          {wo.nte_approved_by&&<div style={{fontSize:10.5,color:B.textDim,marginTop:3}}>Last approved by {wo.nte_approved_by}</div>}</>}
         </div>
         {/* SLA Timestamps */}
         <div>
@@ -436,8 +436,8 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
 
     {/* BIG ACTION BUTTONS — the main things a tech does */}
     {canEdit&&wo.status!=="completed"&&<div style={{display:"flex",gap:8,marginBottom:12,maxWidth:640}}>
-      <button data-tip="Log hours on this job — logging time on a Pending job automatically flips it to Active." onClick={()=>setShowTime(true)} style={{...BIG,background:B.cyan,color:B.bg}}>⏱ Log Time</button>
-      <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>📷 Photo</button>
+      <button data-tip="Log hours on this job — logging time on a Pending job automatically flips it to Active." onClick={()=>setShowTime(true)} style={{...BIG,background:B.btnPrimary,color:B.btnPrimaryText}}>Log Time</button>
+      <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>Photo</button>
       <button data-tip="Finish the job: confirm hours, add a summary, get the customer’s signature right on your screen." onClick={openCompleteFlow} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
     </div>}
 
@@ -456,16 +456,16 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         }catch(e){console.error("Intel fetch error:",e);}setIntelLoading(false);
       }}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🧠</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>AI Job Brief</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}><Icon name="bulb" size={14}/></span><span style={{fontSize:13,fontWeight:700,color:B.text}}>AI Job Brief</span></div>
           <span style={{fontSize:11,color:B.textDim}}>{intelOpen?"▼":"▶"} {intelLoading?"Loading...":jobIntel?"Tap to "+(intelOpen?"collapse":"expand"):"Tap to generate"}</span>
         </div>
         {intelOpen&&jobIntel&&<div style={{marginTop:12,borderTop:"1px solid "+B.border,paddingTop:12}}>
           <div style={{fontSize:12,color:B.textMuted,marginBottom:8}}>{jobIntel.summary}</div>
           {jobIntel.common_issues&&jobIntel.common_issues.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Common Issues</span>{jobIntel.common_issues.map((issue,i)=><div key={i} style={{fontSize:11,color:B.orange,marginTop:2}}>• {issue}</div>)}</div>}
           {jobIntel.parts_used_previously&&jobIntel.parts_used_previously.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Parts Used Before</span>{jobIntel.parts_used_previously.map((p,i)=><div key={i} style={{fontSize:11,color:B.text,marginTop:2}}>• {p.name}{p.frequency>1?" (×"+p.frequency+")":""}</div>)}</div>}
-          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>⏱ Avg duration: {fmtHours(jobIntel.avg_duration_hours)}</div>}
-          {jobIntel.suggested_approach&&<div style={{fontSize:11,color:B.green,fontStyle:"italic"}}>💡 {jobIntel.suggested_approach}</div>}
-          {jobIntel.customer_notes&&<div style={{fontSize:11,color:B.cyan,marginTop:4}}>📝 {jobIntel.customer_notes}</div>}
+          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>Avg duration: {fmtHours(jobIntel.avg_duration_hours)}</div>}
+          {jobIntel.suggested_approach&&<div style={{fontSize:11,color:B.green,fontStyle:"italic"}}>{jobIntel.suggested_approach}</div>}
+          {jobIntel.customer_notes&&<div style={{fontSize:11,color:B.cyan,marginTop:4}}>{jobIntel.customer_notes}</div>}
         </div>}
         {intelOpen&&intelLoading&&<div style={{marginTop:12,textAlign:"center",padding:12}}><span style={{fontSize:12,color:B.cyan}}>Analyzing customer history...</span></div>}
       </Card>
@@ -479,11 +479,11 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           const resp=await fnFetch("predict-parts",{wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""});
           const data=await resp.json();if(data.success)setPartsPred(data.result);
         }catch(e){console.error("Parts predict error:",e);}setPartsLoading(false);
-      }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>🔮 Suggest Parts</button>
+      }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>Suggest Parts</button>
       :partsLoading?<Card style={{textAlign:"center",padding:14}}><span style={{fontSize:12,color:B.orange}}>Predicting parts needed...</span></Card>
       :partsPred&&<Card style={{}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:13,fontWeight:700,color:B.text}}>🔮 Predicted Parts</span>
+          <span style={{fontSize:13,fontWeight:700,color:B.text}}>Predicted Parts</span>
           <button onClick={()=>setPartsPred(null)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer"}}>Clear</button>
         </div>
         {partsPred.reasoning&&<div style={{fontSize:11,color:B.textMuted,marginBottom:10,fontStyle:"italic"}}>{partsPred.reasoning}</div>}
@@ -518,7 +518,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         ?<p style={{margin:"4px 0 8px",color:B.textDim,fontSize:12,fontStyle:"italic"}}>No field notes yet</p>
         :<div style={{display:"flex",flexDirection:"column",gap:6,margin:"6px 0 10px"}}>
           {wo.field_notes&&wo.field_notes.trim()&&<div style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px dashed "+B.border}}>
-            <div style={{fontSize:9,color:B.textDim,fontWeight:700,textTransform:"uppercase",marginBottom:4,letterSpacing:0.5}}>Legacy notes (read-only)</div>
+            <div style={{fontSize:10.5,color:B.textDim,fontWeight:700,textTransform:"uppercase",marginBottom:4,letterSpacing:0.5}}>Legacy notes (read-only)</div>
             <div style={{fontSize:12,color:B.textMuted,whiteSpace:"pre-wrap",lineHeight:1.5}}>{wo.field_notes}</div>
           </div>}
           {fieldNoteRows.map(n=>{const editing=editingNoteId===n.id;return(<div key={n.id} style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
@@ -526,11 +526,11 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                 <span style={{fontSize:11,color:B.cyan,fontWeight:700}}>{n.author}</span>
                 <span style={{fontSize:10,color:B.textDim,fontFamily:M}}>{new Date(n.created_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-                {n.edited_at&&<span style={{fontSize:9,color:B.textDim,fontStyle:"italic"}} title={"Edited by "+(n.edited_by||"someone")+" on "+new Date(n.edited_at).toLocaleString()}>· edited</span>}
+                {n.edited_at&&<span style={{fontSize:10.5,color:B.textDim,fontStyle:"italic"}} title={"Edited by "+(n.edited_by||"someone")+" on "+new Date(n.edited_at).toLocaleString()}>· edited</span>}
               </div>
               {canEdit&&canEditNote(n)&&!editing&&<div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button onClick={()=>startEditNote(n)} style={{background:"none",border:"none",color:B.cyan,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Edit">✏️</button>
-                <button onClick={()=>deleteFieldNote(n)} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Delete">🗑</button>
+                <button onClick={()=>startEditNote(n)} style={{background:"none",border:"none",color:B.cyan,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Edit"><Icon name="edit" size={12}/></button>
+                <button onClick={()=>deleteFieldNote(n)} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Delete"><Icon name="trash" size={12}/></button>
               </div>}
             </div>
             {editing
@@ -562,7 +562,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
             <span style={{fontFamily:M,fontSize:10,color:B.cyan,fontWeight:700}}>{n.wo?.wo_id}</span>
             <span style={{fontSize:10,color:B.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:240}}>{n.wo?.title}</span>
-            <span style={{fontSize:9,color:B.textDim,fontFamily:M,marginLeft:"auto"}}>{fmtDate(n.created_at?.slice(0,10))}</span>
+            <span style={{fontSize:10.5,color:B.textDim,fontFamily:M,marginLeft:"auto"}}>{fmtDate(n.created_at?.slice(0,10))}</span>
           </div>
           <div style={{fontSize:11,color:B.textMuted,lineHeight:1.5}}><span style={{color:B.cyan,fontWeight:700}}>{n.author}:</span> {n.body}</div>
         </div>)}
@@ -580,7 +580,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
 
       <Toggle label="Time Entries" count={woTime.length} open={showTimeEntries} setOpen={setShowTimeEntries}/>
       {showTimeEntries&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woTime.length===0?<div style={{color:B.textDim,fontSize:12}}>No time logged yet</div>:woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",fontSize:13,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:75}}>{fmtDate(te.logged_date)}</span><span style={{fontFamily:M,color:B.cyan,minWidth:40,fontWeight:700}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<div style={{display:"flex",gap:6}}><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:"4px"}}>✏️</button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:"4px"}}>🗑</button></div>}</div>)}
+        {woTime.length===0?<div style={{color:B.textDim,fontSize:12}}>No time logged yet</div>:woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",fontSize:13,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:75}}>{fmtDate(te.logged_date)}</span><span style={{fontFamily:M,color:B.cyan,minWidth:40,fontWeight:700}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<div style={{display:"flex",gap:6}}><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:"4px"}}><Icon name="edit" size={12}/></button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:"4px"}}><Icon name="trash" size={12}/></button></div>}</div>)}
         {canEdit&&<button onClick={()=>setShowTime(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Log Time</button>}
       </Card>}
 
@@ -608,13 +608,13 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       {showPhotos&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
         {woPhotos.length===0?<div style={{color:B.textDim,fontSize:12}}>No photos yet</div>:<>
           <PhotoTimeline photos={woPhotos}/>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{woPhotos.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,display:"block"}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>📷 {p.filename}</div>}</a>)}</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{woPhotos.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,display:"block"}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>{p.filename}</div>}</a>)}</div>
         </>}
       </Card>}
 
       <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
       {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const isEmpty=parseFloat(po.amount||0)===0;const canRemove=canEdit&&isEmpty;const canEditPO=canEdit;return<div key={po.id} onClick={canEditPO?()=>setEditingPO(po):undefined} title={canEditPO?"Click to edit PO details (description, amount, status, notes, surplus)":undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:canEditPO?"pointer":"default"}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span>{po.surplus_pool&&<span title={po.surplus_notes||"Available to bill on a future job"} style={{marginLeft:8,fontSize:9,padding:"2px 6px",borderRadius:10,background:B.orange+"22",color:B.orange,fontWeight:700}}>Surplus</span>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge>{canEditPO&&<button onClick={(e)=>{e.stopPropagation();setEditingPO(po);}} title="Edit PO" style={{background:"none",border:"1px solid "+B.border,color:B.textDim,fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>✎ Edit</button>}{canRemove&&<button onClick={async(e)=>{e.stopPropagation();if(!window.confirm("Remove empty PO "+po.po_id+" from this work order?\n\nThis PO has $0 charge and will be deleted."))return;const{error}=await sb().from("purchase_orders").delete().eq("id",po.id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");msg("PO "+po.po_id+" removed");}} title="Remove empty PO from this WO" style={{background:"none",border:"1px solid "+B.red+"55",color:B.red+"cc",fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>× Remove</button>}</div></div>})}
+        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const isEmpty=parseFloat(po.amount||0)===0;const canRemove=canEdit&&isEmpty;const canEditPO=canEdit;return<div key={po.id} onClick={canEditPO?()=>setEditingPO(po):undefined} title={canEditPO?"Click to edit PO details (description, amount, status, notes, surplus)":undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:canEditPO?"pointer":"default"}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span>{po.surplus_pool&&<span title={po.surplus_notes||"Available to bill on a future job"} style={{marginLeft:8,fontSize:10.5,padding:"2px 6px",borderRadius:8,background:B.orange+"22",color:B.orange,fontWeight:700}}>Surplus</span>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge>{canEditPO&&<button onClick={(e)=>{e.stopPropagation();setEditingPO(po);}} title="Edit PO" style={{background:"none",border:"1px solid "+B.border,color:B.textDim,fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>Edit</button>}{canRemove&&<button onClick={async(e)=>{e.stopPropagation();if(!window.confirm("Remove empty PO "+po.po_id+" from this work order?\n\nThis PO has $0 charge and will be deleted."))return;const{error}=await sb().from("purchase_orders").delete().eq("id",po.id);if(error){msg("Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");msg("PO "+po.po_id+" removed");}} title="Remove empty PO from this WO" style={{background:"none",border:"1px solid "+B.red+"55",color:B.red+"cc",fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>× Remove</button>}</div></div>})}
         {canEdit&&<div style={{display:"flex",gap:8,marginTop:10}}>
           <button data-tip="Need a part? Request a PO from right here — managers get pinged to approve it, and it stays attached to this job." onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
           <button onClick={()=>setShowReceipt(true)} style={{...BS,flex:1,padding:12}}>Scan Receipt</button>
@@ -627,7 +627,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         <div style={{fontSize:10,color:B.textDim,marginBottom:8}}>EPA 608 tracking — every charge, recovery, or leak on systems ≥50 lbs.</div>
         {refLog.length>0&&<div style={{marginBottom:10}}>{refLog.map(r=>{const actColor=r.action==="added"?B.green:r.action==="recovered"?B.orange:B.red;return<div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12,gap:8}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{padding:"2px 8px",borderRadius:10,background:actColor+"22",color:actColor,fontSize:9,fontWeight:700,textTransform:"uppercase"}}>{r.action}</span><span style={{fontFamily:M,fontWeight:700,color:B.text}}>{r.pounds} lbs</span><span style={{color:B.textDim,fontSize:11}}>{r.refrigerant_type}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{padding:"2px 8px",borderRadius:8,background:actColor+"22",color:actColor,fontSize:10.5,fontWeight:700,textTransform:"uppercase"}}>{r.action}</span><span style={{fontFamily:M,fontWeight:700,color:B.text}}>{r.pounds} lbs</span><span style={{color:B.textDim,fontSize:11}}>{r.refrigerant_type}</span></div>
             <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{r.technician}{r.cylinder_id&&" · Cyl "+r.cylinder_id}{" · "+new Date(r.logged_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}{r.notes&&" · "+r.notes}</div>
           </div>
           {(isManager||r.technician===userName)&&<button onClick={()=>delRefEntry(r.id)} style={{background:"none",border:"none",color:B.red+"88",fontSize:12,cursor:"pointer",padding:"4px 8px"}}>×</button>}
@@ -669,14 +669,14 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       {/* Delete — small, at the bottom, not prominent */}
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         <button onClick={async()=>{if(!window.confirm("Duplicate "+wo.wo_id+"? This creates a new WO with the same details."))return;setSaving(true);const r=await onCreateWO({title:wo.title,priority:wo.priority,assignee:wo.assignee||"Unassigned",due_date:"TBD",notes:wo.notes||"",location:wo.location||"",wo_type:wo.wo_type||"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);msg((r?.wo_id||"WO")+" created — opening it");if(r?.wo_id&&onOpenWO)onOpenWO(r.wo_id);}} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.cyan+"33",background:"transparent",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,minHeight:40}}>Duplicate WO</button>
-        <button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete WO</button>
+        <button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>Delete WO</button>
       </div>
     </div>
 
     {/* MODALS */}
-    {showTime&&(()=>{const elapsedHrs=wo.on_site_at&&wo.resolved_at?Math.round(((new Date(wo.resolved_at)-new Date(wo.on_site_at))/3600000)*4)/4:0;return <Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/>{elapsedHrs>0&&<button onClick={()=>setTH(String(elapsedHrs))} style={{marginTop:6,background:B.cyan+"15",border:"1px solid "+B.cyan+"44",color:B.cyan,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontFamily:F}}>⏱ Use on-site → resolved: {elapsedHrs}h</button>}</div><div><label style={LS}>Description</label><div style={{display:"flex",gap:6}}><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,flex:1,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/><VoiceInput onResult={t=>setTD(prev=>prev?(prev+" "+t):t)} style={{minHeight:44}}/></div></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>;})()}
+    {showTime&&(()=>{const elapsedHrs=wo.on_site_at&&wo.resolved_at?Math.round(((new Date(wo.resolved_at)-new Date(wo.on_site_at))/3600000)*4)/4:0;return <Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/>{elapsedHrs>0&&<button onClick={()=>setTH(String(elapsedHrs))} style={{marginTop:6,background:B.cyan+"15",border:"1px solid "+B.cyan+"44",color:B.cyan,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontFamily:F}}>Use on-site → resolved: {elapsedHrs}h</button>}</div><div><label style={LS}>Description</label><div style={{display:"flex",gap:6}}><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,flex:1,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/><VoiceInput onResult={t=>setTD(prev=>prev?(prev+" "+t):t)} style={{minHeight:44}}/></div></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.btnPrimary,color:B.btnPrimaryText,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>;})()}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>{setShowPO(false);setPoPrefill(null);}} initial={poPrefill} userName={userName} userRole={userRole} userId={(users||[]).find(u=>u.name===userName)?.id}/>}
-    {editingPO&&<Modal title={"Edit PO "+editingPO.po_id} onClose={()=>setEditingPO(null)}><POEditForm po={editingPO} onClose={()=>setEditingPO(null)} onSave={async(u)=>{const{id,...rest}=u;const{error}=await sb().from("purchase_orders").update(rest).eq("id",id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");setEditingPO(null);msg("PO "+u.po_id+" updated");}}/></Modal>}
+    {editingPO&&<Modal title={"Edit PO "+editingPO.po_id} onClose={()=>setEditingPO(null)}><POEditForm po={editingPO} onClose={()=>setEditingPO(null)} onSave={async(u)=>{const{id,...rest}=u;const{error}=await sb().from("purchase_orders").update(rest).eq("id",id);if(error){msg("Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");setEditingPO(null);msg("PO "+u.po_id+" updated");}}/></Modal>}
     {showReceipt&&<Modal title="Scan Receipt / Invoice" onClose={()=>{setShowReceipt(false);setReceiptData(null);}} wide>
       {!receiptData?<div style={{display:"flex",flexDirection:"column",gap:14,alignItems:"center"}}>
         
@@ -720,7 +720,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         <div><label style={LS}>Hours</label><input value={cmpH} onChange={e=>setCmpH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/></div>
         <div><label style={LS}>What was done?</label><input value={cmpD} onChange={e=>setCmpD(e.target.value)} placeholder="Describe the work performed" style={{...IS,padding:14,fontSize:14}}/></div>
         {sigErr&&<div style={{color:B.red,fontSize:13,fontWeight:600,padding:"8px 12px",background:B.red+"11",borderRadius:6}}>{sigErr}</div>}
-        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowComplete(false)} style={{...SEC}}>Cancel</button><button onClick={logTimeAndContinue} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Logging...":"Next →"}</button></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setShowComplete(false)} style={{...SEC}}>Cancel</button><button onClick={logTimeAndContinue} disabled={saving} style={{...BIG,background:B.btnPrimary,color:B.btnPrimaryText,opacity:saving?.6:1}}>{saving?"Logging...":"Next →"}</button></div>
       </>}
       {completeStep===2&&<>
         <div style={{fontSize:12,color:B.textDim,textAlign:"center"}}>{woTime.length>0?"Review time entries — these become the completion notes":isProjectWO&&woLineItems.length>0?"Project line items — no time entries required":""}</div>
@@ -751,18 +751,18 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         <div><label style={LS}>Date</label><input type="date" value={editingTime.logged_date||""} onChange={e=>setEditingTime({...editingTime,logged_date:e.target.value})} style={{...IS,padding:14,fontSize:14}}/></div>
         <div><label style={LS}>Hours</label><input type="number" step="0.25" value={editingTime.hours} onChange={e=>setEditingTime({...editingTime,hours:e.target.value})} style={{...IS,fontFamily:M,padding:14,fontSize:16}}/></div>
         <div><label style={LS}>Description</label><input value={editingTime.description||""} onChange={e=>setEditingTime({...editingTime,description:e.target.value})} style={{...IS,padding:14,fontSize:14}}/></div>
-        <div style={{display:"flex",gap:8}}><button onClick={()=>setEditingTime(null)} style={{...SEC}}>Cancel</button><button onClick={saveTimeEdit} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setEditingTime(null)} style={{...SEC}}>Cancel</button><button onClick={saveTimeEdit} disabled={saving} style={{...BIG,background:B.btnPrimary,color:B.btnPrimaryText,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
       </div>
     </Modal>}
     {showFollowUp&&<Modal title="Job Complete! Need a Follow-up?" onClose={()=>setShowFollowUp(false)}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div style={{textAlign:"center",fontSize:32,marginBottom:4}}>✅</div>
+        <div style={{textAlign:"center",fontSize:32,marginBottom:4}}><Icon name="check" size={30}/></div>
         <div style={{textAlign:"center",fontSize:14,fontWeight:700,color:B.green,marginBottom:4}}>{wo.wo_id} completed successfully</div>
         <div style={{fontSize:12,color:B.textMuted,textAlign:"center"}}>Does this job need a follow-up visit? Need to order parts? Any equipment to replace next time?</div>
         <textarea value={fuNotes} onChange={e=>setFuNotes(e.target.value)} rows={3} placeholder="Describe what needs to happen next..." style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:14}}/>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowFollowUp(false)} style={{...SEC}}>No Follow-up Needed</button>
-          <button onClick={createFollowUp} disabled={saving||!fuNotes.trim()} style={{...BIG,background:B.cyan,color:B.bg,opacity:(saving||!fuNotes.trim())?.5:1}}>{saving?"Creating...":"Create Follow-up WO"}</button>
+          <button onClick={createFollowUp} disabled={saving||!fuNotes.trim()} style={{...BIG,background:B.btnPrimary,color:B.btnPrimaryText,opacity:(saving||!fuNotes.trim())?.5:1}}>{saving?"Creating...":"Create Follow-up WO"}</button>
         </div>
       </div>
     </Modal>}
@@ -848,9 +848,9 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
     if(reloadTable)await reloadTable("equipment");
     if(inserted?.id)setEquipmentId(inserted.id);
   };
-  return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
-    <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:700,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div><input ref={scanRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanWO}/><button onClick={()=>scanRef.current?.click()} disabled={scanning} type="button" style={{...BS,width:"100%",padding:"12px 16px",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanning?.6:1}}>{scanning?"Scanning...":"📷 Scan Document"}</button>{scanning&&<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the document...</div>}</div>
+  return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:13,fontWeight:500,cursor:"pointer",marginBottom:12,fontFamily:F,padding:"6px 0"}}>← Back</button>
+    <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:600,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div><input ref={scanRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanWO}/><button onClick={()=>scanRef.current?.click()} disabled={scanning} type="button" style={{...BS,width:"100%",padding:"12px 16px",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanning?.6:1}}>{scanning?"Scanning...":"Scan Document"}</button>{scanning&&<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the document...</div>}</div>
       <div><label style={LS}>Title {custWO&&<span style={{color:B.textDim,fontWeight:400}}>(optional — defaults to Customer WO#)</span>}</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={custWO?custWO:"Walk-in Cooler Repair — Store #14"} style={IS}/></div>
       <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);if(linkedEq&&linkedEq.customer_name!==e.target.value)setEquipmentId(null);}} style={{...IS,cursor:"pointer"}}><option value="">— Select Customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
       <div><label style={LS}>Customer WO# <span style={{color:B.textDim,fontWeight:400}}>(optional — from customer's TMS)</span></label><input value={custWO} onChange={e=>setCustWO(e.target.value)} placeholder="e.g. TMS-40291" style={IS}/></div>
@@ -878,7 +878,7 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
             :<EquipmentInlinePicker customerName={cust} equipment={customerEquipment} onPick={pickEq} onScan={()=>setEqScanning(true)} onAdd={()=>setEqQuickAdding(true)} compact/>}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Priority</label><select value={pri} onChange={e=>setPri(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div><label style={LS}>Type</label><select value={woType} onChange={e=>setWoType(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="PM">PM (Preventive)</option><option value="CM">CM (Corrective)</option></select></div></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/><div style={{display:"flex",gap:4,marginTop:4}}>{[["Today",0],["Tomorrow",1],["+1 wk",7]].map(([l,d])=><button key={l} onClick={()=>{const dt=new Date();dt.setDate(dt.getDate()+d);setDue(dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0"));}} style={{background:"none",border:"1px solid "+B.border,borderRadius:999,color:B.textDim,fontSize:10,padding:"3px 10px",cursor:"pointer",fontFamily:F}}>{l}</button>)}</div></div><div><label style={LS}>Assignee</label>{isManager?<><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{suggested&&assign==="Unassigned"&&<button onClick={()=>setAssign(suggested.name)} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginTop:4,fontFamily:F}}>Suggest: {suggested.name} ({(allWos||[]).filter(o=>o.assignee===suggested.name&&o.status!=="completed").length} active)</button>}</>:<div style={{...IS,background:B.surfaceActive,color:B.text}}>{userName}</div>}</div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Due</label><input value={due} onChange={e=>setDue(e.target.value)} type="date" style={IS}/><div style={{display:"flex",gap:4,marginTop:4}}>{[["Today",0],["Tomorrow",1],["+1 wk",7]].map(([l,d])=><button key={l} onClick={()=>{const dt=new Date();dt.setDate(dt.getDate()+d);setDue(dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0"));}} style={{background:"none",border:"1px solid "+B.border,borderRadius:6,color:B.textDim,fontSize:10,padding:"3px 10px",cursor:"pointer",fontFamily:F}}>{l}</button>)}</div></div><div><label style={LS}>Assignee</label>{isManager?<><select value={assign} onChange={e=>setAssign(e.target.value)} style={{...IS,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{suggested&&assign==="Unassigned"&&<button onClick={()=>setAssign(suggested.name)} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",marginTop:4,fontFamily:F}}>Suggest: {suggested.name} ({(allWos||[]).filter(o=>o.assignee===suggested.name&&o.status!=="completed").length} active)</button>}</>:<div style={{...IS,background:B.surfaceActive,color:B.text}}>{userName}</div>}</div></div>
       <div><label style={LS}>Additional Crew <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>{crew.map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button onClick={()=>setCrew(crew.filter(x=>x!==t))} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}</div><select onChange={e=>{if(!e.target.value)return;setCrew([...crew,e.target.value]);e.target.value="";}} style={{...IS,cursor:"pointer"}}><option value="">+ Add technician to crew</option>{assignable.filter(u=>u.name!==assign&&!crew.includes(u.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
       <div><label style={LS}>Details</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} placeholder="Describe the work..." style={{...IS,resize:"vertical",lineHeight:1.5}}/></div>
       <div style={{display:"flex",gap:8}}><button onClick={onCancel} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Creating...":"Create"}</button></div>
@@ -979,9 +979,9 @@ function BatchScanWO({onCreateWO,onCancel,users,customers,userName,allWos}){
   const cell={...IS,padding:"6px 8px",fontSize:12,minHeight:0};
   const th={textAlign:"left",fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:.5,padding:"6px 6px",whiteSpace:"nowrap",borderBottom:"1px solid "+B.border};
   const td={padding:"6px 6px",verticalAlign:"top",borderBottom:"1px solid "+B.border};
-  return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
+  return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:13,fontWeight:500,cursor:"pointer",marginBottom:12,fontFamily:F,padding:"6px 0"}}>← Back</button>
     <Card style={{maxWidth:1180}}>
-      <h2 style={{margin:"0 0 6px",fontSize:18,fontWeight:700,color:B.text}}>Import Scanned Work Orders</h2>
+      <h2 style={{margin:"0 0 6px",fontSize:18,fontWeight:600,color:B.text}}>Import Scanned Work Orders</h2>
       <div style={{fontSize:12,color:B.textDim,marginBottom:16,lineHeight:1.5}}>Scan a stack of customer-issued work orders (Duke TMS printouts, PM or CM layout) as photos or one multi-page PDF. The app reads every work order, you review the table, then create them all at once. A TMS WO# that is already in the system is flagged and left unchecked.</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12,padding:"12px 14px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,marginBottom:14}}>
         <div><label style={LS}>Customer <span style={{color:B.textDim,fontWeight:400}}>(default for every row)</span></label><div style={{display:"flex",gap:6}}><select value={defCust} onChange={e=>setDefCust(e.target.value)} style={{...IS,cursor:"pointer",flex:1}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}</select>{rows.length>0&&<button type="button" onClick={()=>applyAll({customer:defCust})} style={{...BS,padding:"6px 10px",fontSize:11,whiteSpace:"nowrap"}}>Apply to all</button>}</div></div>
@@ -989,7 +989,7 @@ function BatchScanWO({onCreateWO,onCancel,users,customers,userName,allWos}){
         <div><label style={LS}>Additional crew <span style={{color:B.textDim,fontWeight:400}}>(applied with Assign to)</span></label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:defCrew.length?6:0}}>{defCrew.map(t=><span key={t} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button type="button" onClick={()=>setDefCrew(defCrew.filter(x=>x!==t))} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}</div><select value="" onChange={e=>{if(!e.target.value)return;setDefCrew([...defCrew,e.target.value]);}} style={{...IS,cursor:"pointer"}}><option value="">+ Add technician</option>{assignable.filter(u=>u.name!==defAssign&&!defCrew.includes(u.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
       </div>
       <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{addFiles(e.target.files);e.target.value="";}}/>
-      <button type="button" onClick={()=>fileRef.current?.click()} disabled={busy} style={{...BP,width:"100%",padding:"12px 16px",fontSize:13,opacity:busy?.6:1}}>{progress?"Reading "+progress.name+" ("+progress.i+" of "+progress.n+")…":rows.length?"📷 Scan More Documents":"📷 Scan Documents (photos or PDF)"}</button>
+      <button type="button" onClick={()=>fileRef.current?.click()} disabled={busy} style={{...BP,width:"100%",padding:"12px 16px",fontSize:13,opacity:busy?.6:1}}>{progress?"Reading "+progress.name+" ("+progress.i+" of "+progress.n+")…":rows.length?"Scan More Documents":"Scan Documents (photos or PDF)"}</button>
       <div style={{fontSize:10,color:progress?B.cyan:B.textDim,marginTop:4,textAlign:"center"}}>{progress?"AI is extracting work orders — a 30-page stack takes about a minute.":"Pick several photos at once, or one PDF with every page. You can also paste a screenshot with Ctrl+V."}</div>
       {errors.length>0&&<div style={{marginTop:10,padding:"8px 12px",background:B.red+"18",border:"1px solid "+B.red+"66",borderRadius:6,fontSize:11,color:B.red}}>{errors.map((e,i)=><div key={i}>{e}</div>)}<button type="button" onClick={()=>setErrors([])} style={{background:"none",border:"none",color:B.red,fontSize:10,cursor:"pointer",padding:0,marginTop:4,fontFamily:F}}>dismiss</button></div>}
       {done&&<div style={{marginTop:12,padding:"10px 14px",background:done.created.length?B.green+"18":B.orange+"18",border:"1px solid "+(done.created.length?B.green:B.orange)+"66",borderRadius:8,fontSize:12}}>
@@ -1010,15 +1010,15 @@ function BatchScanWO({onCreateWO,onCancel,users,customers,userName,allWos}){
           <tbody>{rows.map((r,i)=>{const shaky=r.confidence!=null&&r.confidence<0.7;const flagColor=r.existing?B.red:(r.dupInBatch||shaky)?B.orange:null;const lowSet=new Set(r.lowFields||[]);const mark=(f)=>lowSet.has(f)?{borderColor:B.orange}:null;return(<React.Fragment key={i}>
             <tr style={{background:r.include?"transparent":B.bg,opacity:r.include?1:.7}}>
               <td style={{...td,borderLeft:flagColor?"3px solid "+flagColor:"3px solid transparent"}}><input type="checkbox" checked={!!r.include} onChange={e=>upd(i,{include:e.target.checked})} style={{width:18,height:18,cursor:"pointer"}}/></td>
-              <td style={td}><input value={r.customer_wo} onChange={e=>{const v=e.target.value;const ex=findExistingByCustomerWO(v,allWos);upd(i,{customer_wo:v,existing:ex?ex.wo_id:null});}} placeholder="2448341" style={{...cell,width:88,fontFamily:M,...mark("customer_wo")}}/>{r.existing&&<div style={{fontSize:9,color:B.red,fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>Exists: {r.existing}</div>}{r.dupInBatch&&!r.existing&&<div style={{fontSize:9,color:B.orange,fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>Twice in batch</div>}</td>
+              <td style={td}><input value={r.customer_wo} onChange={e=>{const v=e.target.value;const ex=findExistingByCustomerWO(v,allWos);upd(i,{customer_wo:v,existing:ex?ex.wo_id:null});}} placeholder="2448341" style={{...cell,width:88,fontFamily:M,...mark("customer_wo")}}/>{r.existing&&<div style={{fontSize:10.5,color:B.red,fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>Exists: {r.existing}</div>}{r.dupInBatch&&!r.existing&&<div style={{fontSize:10.5,color:B.orange,fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>Twice in batch</div>}</td>
               <td style={td}><input value={r.title} onChange={e=>upd(i,{title:e.target.value})} style={{...cell,width:"100%",boxSizing:"border-box",...mark("title")}}/><button type="button" onClick={()=>setOpen(o=>({...o,[i]:!o[i]}))} style={{background:"none",border:"none",color:B.cyan,fontSize:10,cursor:"pointer",padding:"2px 0 0",fontFamily:F}}>{open[i]?"▾ hide details":"▸ details"+(r.notes?"":" (empty)")}{r.page?" · p."+r.page:""}{shaky?" · low confidence":""}</button></td>
               <td style={td}><input value={r.building} onChange={e=>upd(i,{building:e.target.value})} placeholder="7549" style={{...cell,width:58,fontFamily:M,...mark("building")}}/></td>
               <td style={td}><input value={r.location} onChange={e=>upd(i,{location:e.target.value})} placeholder="209 CR" style={{...cell,width:110,...mark("location")}}/></td>
               <td style={td}><select value={r.wo_type} onChange={e=>upd(i,{wo_type:e.target.value})} style={{...cell,cursor:"pointer",...mark("work_type")}}><option value="PM">PM</option><option value="CM">CM</option></select></td>
               <td style={td}><select value={r.priority} onChange={e=>upd(i,{priority:e.target.value})} style={{...cell,cursor:"pointer",color:PC[r.priority]||B.text}}><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option></select></td>
               <td style={td}><input type="date" value={r.due_date} onChange={e=>upd(i,{due_date:e.target.value})} style={{...cell,width:130,...mark("due_date")}}/></td>
-              <td style={td}><select value={r.assignee} onChange={e=>upd(i,{assignee:e.target.value})} style={{...cell,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{r.crew?.length>0&&<div style={{fontSize:9,color:B.textDim,marginTop:2}}>+ {r.crew.filter(n=>n!==r.assignee).join(", ")}</div>}</td>
-              <td style={td}><select value={r.customer} onChange={e=>upd(i,{customer:e.target.value})} style={{...cell,cursor:"pointer",width:"100%",borderColor:r.customer?undefined:B.red}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}</select>{r.scannedCustomer&&<div style={{fontSize:9,color:B.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={r.scannedCustomer}>scan: {r.scannedCustomer}</div>}</td>
+              <td style={td}><select value={r.assignee} onChange={e=>upd(i,{assignee:e.target.value})} style={{...cell,cursor:"pointer"}}><option value="Unassigned">Unassigned</option>{assignable.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select>{r.crew?.length>0&&<div style={{fontSize:10.5,color:B.textDim,marginTop:2}}>+ {r.crew.filter(n=>n!==r.assignee).join(", ")}</div>}</td>
+              <td style={td}><select value={r.customer} onChange={e=>upd(i,{customer:e.target.value})} style={{...cell,cursor:"pointer",width:"100%",borderColor:r.customer?undefined:B.red}}><option value="">— Select —</option>{(customers||[]).map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}</select>{r.scannedCustomer&&<div style={{fontSize:10.5,color:B.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={r.scannedCustomer}>scan: {r.scannedCustomer}</div>}</td>
               <td style={td}><button type="button" onClick={()=>remove(i)} aria-label="Remove row" style={{background:"none",border:"none",color:B.textDim,fontSize:14,cursor:"pointer",padding:"2px 4px"}}>×</button></td>
             </tr>
             {open[i]&&<tr><td colSpan={11} style={{...td,paddingTop:0,background:B.bg}}><textarea value={r.notes} onChange={e=>upd(i,{notes:e.target.value})} rows={Math.min(10,Math.max(3,(r.notes||"").split("\n").length))} placeholder="Details / instructions" style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:12,width:"100%",boxSizing:"border-box"}}/>{r.lowFields?.length>0&&<div style={{fontSize:10,color:B.orange,marginTop:4}}>AI wasn't sure about: {r.lowFields.join(", ")}</div>}{r.file&&<div style={{fontSize:10,color:B.textDim,marginTop:2}}>from {r.file}{r.confidence!=null?" · confidence "+Math.round(r.confidence*100)+"%":""}</div>}</td></tr>}
@@ -1042,8 +1042,8 @@ function SwipeCard({wo,onStatusChange,children}){
   const tm=(e)=>{if(!startRef.current)return;const dx=e.touches[0].clientX-startRef.current.x;const dy=Math.abs(e.touches[0].clientY-startRef.current.y);if(dy>dx*0.7){startRef.current=null;setSwipeX(0);return;}if(dx>10)setSwipeX(Math.min(dx,150));};
   const te=()=>{if(swipeX>80&&nextStatus){haptic(30);const prevStatus=wo.status;onStatusChange(nextStatus);setUndoMsg({prev:prevStatus,next:nextStatus});clearTimeout(undoTimer.current);undoTimer.current=setTimeout(()=>setUndoMsg(null),5000);}setSwipeX(0);startRef.current=null;};
   const undo=()=>{if(undoMsg){onStatusChange(undoMsg.prev);setUndoMsg(null);clearTimeout(undoTimer.current);}};
-  return(<div ref={ref} onTouchStart={ts} onTouchMove={tm} onTouchEnd={te} style={{position:"relative",overflow:"hidden",borderRadius:10}}>
-    {nextStatus&&swipeX>10&&<div style={{position:"absolute",left:0,top:0,bottom:0,width:swipeX,background:nextColor+"30",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"10px 0 0 10px",transition:swipeX===0?"width .2s":"none"}}><span style={{fontSize:12,fontWeight:700,color:nextColor,whiteSpace:"nowrap"}}>{nextLabel}</span></div>}
+  return(<div ref={ref} onTouchStart={ts} onTouchMove={tm} onTouchEnd={te} style={{position:"relative",overflow:"hidden",borderRadius:8}}>
+    {nextStatus&&swipeX>10&&<div style={{position:"absolute",left:0,top:0,bottom:0,width:swipeX,background:nextColor+"30",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"8px 0 0 8px",transition:swipeX===0?"width .2s":"none"}}><span style={{fontSize:12,fontWeight:700,color:nextColor,whiteSpace:"nowrap"}}>{nextLabel}</span></div>}
     <div style={{transform:"translateX("+swipeX+"px)",transition:swipeX===0?"transform .2s":"none"}}>{children}</div>
     {undoMsg&&<div style={{position:"absolute",bottom:4,right:4,background:B.surface,border:"1px solid "+B.border,borderRadius:6,padding:"6px 12px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 4px 12px rgba(0,0,0,0.3)",animation:"toastIn .2s ease-out",zIndex:10}}><span style={{fontSize:11,color:B.textMuted}}>Changed to {undoMsg.next}</span><button onClick={undo} style={{background:"none",border:"none",color:B.cyan,fontSize:11,fontWeight:700,cursor:"pointer"}}>Undo</button></div>}
   </div>);
@@ -1086,7 +1086,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
       {canEdit&&<button data-tip="Create a new work order. It shows up on the assigned tech’s My Day immediately, with a push alert." data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
-      {canEdit&&isMgr&&<button data-tip="Import a stack of customer-issued work orders (Duke TMS printouts): scan photos or a multi-page PDF, review, create them all at once." onClick={()=>setBatching(true)} style={{...BS,padding:"7px 10px",fontSize:11}}>📷 Scan Batch</button>}
+      {canEdit&&isMgr&&<button data-tip="Import a stack of customer-issued work orders (Duke TMS printouts): scan photos or a multi-page PDF, review, create them all at once." onClick={()=>setBatching(true)} style={{...BS,padding:"7px 10px",fontSize:11}}>Scan Batch</button>}
       {canEdit&&<button data-tip="Bulk mode: select several jobs, then set them Active or Pending in one go." onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim,display:"inline-flex",alignItems:"center",gap:5}}>{bulkMode?"Cancel":<><Icon name="checksquare" size={13}/> Bulk</>}</button>}
     </div>
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
@@ -1099,21 +1099,27 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
       <input data-tip="Search by job number, title, customer, location, assignee, or the customer’s own WO number." data-tour="wo-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
       {custList.length>1&&<select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,width:"auto",maxWidth:"45%",padding:"8px 10px",fontSize:11,cursor:"pointer"}}><option value="">All Customers</option>{custList.map(c=><option key={c} value={c}>{c}</option>)}</select>}
     </div>
-    <div style={{display:"flex",flexDirection:"column",gap:6}}>
-      {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
-      {flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
+    <div style={{display:"flex",flexDirection:"column",gap:0}}>
+      {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"":""}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
+      {flt.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
         <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{
           // Swiping to "completed" opens the Review & Sign flow instead of raw-completing —
           // the old direct write skipped the signature and could fire an accidental auto-invoice.
           if(st==="completed"){setSel(wo);setStartComplete(true);return;}
-          await onUpdateWO({...wo,status:st});}}><Card style={{padding:"14px 16px",marginBottom:6}}>
-          <div style={{display:"flex",gap:12}}>
+          await onUpdateWO({...wo,status:st});}}><div className="ticket" style={{padding:"12px 14px",background:B.surface,border:"1px solid "+B.border,borderRadius:8}}>
+          <div style={{display:"flex",gap:14}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
+            {/* Ticket stub: the job number is the thing every printed service ticket puts first. */}
+            <div className="ticket-stub" onClick={()=>setSel(wo)} style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.cyan+"66",cursor:"pointer",minWidth:0}}>
+              <span style={{display:"flex",alignItems:"center",gap:5,fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:6,height:6,borderRadius:3,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>WO</span>
+              <span className="ticket-num" style={{fontFamily:M,fontSize:22,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5}}>{String(wo.wo_id||"").replace(/^WO-/,"")}</span>
+              {wo.customer_wo&&<span title={"Customer WO# "+wo.customer_wo} style={{fontFamily:M,fontSize:10.5,color:B.cyan,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>#{wo.customer_wo}</span>}
+            </div>
             <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSel(wo)}>
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:7,height:7,borderRadius:4,background:PC[wo.priority]||B.textDim,flexShrink:0}}/><span style={{fontFamily:M,fontSize:10,color:B.textDim}}>{wo.wo_id}</span>{wo.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.cyan}}>#{wo.customer_wo}</span>}<Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.cyan}>Project</Badge>}</div>
-              <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wo.title}</div>
-              <div style={{fontSize:11,color:B.textDim,marginTop:3,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>{wo.customer&&<IconText name="user">{wo.customer}</IconText>}{wo.location&&<IconText name="pin">{wo.location}</IconText>}</div>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,flexWrap:"wrap"}}>
+              <div style={{fontSize:15,fontWeight:600,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",letterSpacing:-0.15,lineHeight:1.25}}>{wo.title}</div>
+              <div style={{fontSize:12,color:B.textMuted,marginTop:4,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>{wo.customer&&<IconText name="user">{wo.customer}</IconText>}{wo.location&&<IconText name="pin">{wo.location}</IconText>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8,flexWrap:"wrap"}}>
+                <Badge color={SC[wo.status]||B.textDim}>{SL[wo.status]||wo.status}</Badge><Badge color={wo.wo_type==="PM"?B.cyan:B.orange}>{wo.wo_type||"CM"}</Badge>{wo.project_id&&<Badge color={B.cyan}>Project</Badge>}
                 {woHrs>0&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan}}>{fmtHours(woHrs)}</span>}
                 {noTime&&<IconText name="alert" size={10} color={B.orange} style={{fontSize:10,fontWeight:600}}>No time logged</IconText>}
                 {overdue&&<IconText name="alert" size={10} color={B.red} style={{fontSize:10,fontWeight:600}}>Overdue {fmtDate(wo.due_date,{month:"numeric",day:"numeric"})}</IconText>}
@@ -1128,8 +1134,8 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
               <button onClick={async e=>{e.stopPropagation();await onUpdateWO({...wo,tms_entered:!wo.tms_entered});}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:6,border:"1px solid "+(wo.tms_entered?B.green:B.orange),background:wo.tms_entered?B.green+"18":B.orange+"18",color:wo.tms_entered?B.green:B.orange,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,minHeight:36}}><span style={{width:18,height:18,borderRadius:4,border:"2px solid "+(wo.tms_entered?B.green:B.orange),background:wo.tms_entered?B.green:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{wo.tms_entered&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}</span>TMS</button>
             </div>
           </div>
-        </Card></SwipeCard>);})}
-      {visibleCount<flt.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {flt.length})</button>}
+        </div></SwipeCard>);})}</div>}
+      {visibleCount<flt.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:10,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {flt.length})</button>}
     </div></div>);
 }
 
@@ -1160,7 +1166,7 @@ function TMSQueue({orders,wlp}){
     <Card style={{padding:14,marginBottom:12,background:B.orange+"11"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div>
-          <div style={{fontSize:14,fontWeight:700,color:B.text}}>📥 TMS Queue — Batch Entry</div>
+          <div style={{fontSize:14,fontWeight:700,color:B.text}}>TMS Queue — Batch Entry</div>
           <div style={{fontSize:11,color:B.textDim,marginTop:3}}>Rip through customer WO# entry. Type the number, Tab/Enter to save, check the box when you've also entered it in the customer's TMS system.</div>
         </div>
         <div style={{display:"flex",gap:12,fontFamily:M,fontSize:11}}>
@@ -1170,7 +1176,7 @@ function TMSQueue({orders,wlp}){
         </div>
       </div>
     </Card>
-    {visible.length===0&&<Card style={{textAlign:"center",padding:24}}><div style={{fontSize:24,marginBottom:6}}>✅</div><div style={{fontSize:13,color:B.textDim}}>All customer WOs entered in TMS</div></Card>}
+    {visible.length===0&&<Card style={{textAlign:"center",padding:24}}><div style={{fontSize:24,marginBottom:6}}><Icon name="check" size={22}/></div><div style={{fontSize:13,color:B.textDim}}>All customer WOs entered in TMS</div></Card>}
     <div style={{display:"flex",flexDirection:"column",gap:4}}>
       {visible.map(wo=>{const localV=localVals[wo.id]??(wo.customer_wo||"");const dirty=localV.trim()!==(wo.customer_wo||"");const sv=saving[wo.id];return(<Card key={wo.id} style={{padding:"10px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -1236,12 +1242,12 @@ function WOOverview({orders,wlp,pos,time}){
 
   return(<div>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Active" value={active.length} icon="📋" color={B.cyan}/>
+      <StatCard label="Active" value={active.length} icon="clipboard" color={B.cyan}/>
       <StatCard label="Done This Week" value={completedThisWeek.length} icon="✓" color={B.green}/>
-      <StatCard label="Hours" value={fmtHours(thisWeek.reduce((s,o)=>s+calcWOHours(o.id,time),0))} icon="⏱" color={B.orange}/>
-      <StatCard label="Pending POs" value={pendingPOs} icon="📄" color={B.cyan}/>
-      {tmsPending>0&&<StatCard label="TMS Needed" value={tmsPending} icon="⚠️" color={B.orange}/>}
-      {staleWOs.length>0&&<div onClick={()=>setFilter("stale")} style={{cursor:"pointer"}}><StatCard label="Stale (30d+)" value={staleWOs.length} icon="🕐" color={B.red}/></div>}
+      <StatCard label="Hours" value={fmtHours(thisWeek.reduce((s,o)=>s+calcWOHours(o.id,time),0))} icon="clock" color={B.orange}/>
+      <StatCard label="Pending POs" value={pendingPOs} icon="file" color={B.cyan}/>
+      {tmsPending>0&&<StatCard label="TMS Needed" value={tmsPending} icon="alert" color={B.orange}/>}
+      {staleWOs.length>0&&<div onClick={()=>setFilter("stale")} style={{cursor:"pointer"}}><StatCard label="Stale (30d+)" value={staleWOs.length} icon="clock" color={B.red}/></div>}
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontSize:14,fontWeight:700,color:B.text}}>This Week <span style={{fontWeight:400,fontSize:12,color:B.textDim,marginLeft:6}}>{weekLabel}</span></div>
@@ -1251,10 +1257,10 @@ function WOOverview({orders,wlp,pos,time}){
     <ListFilterBar filter={listFilter}
       placeholder={filter==="tms"?"Search the TMS queue by WO#, customer, title, tech…":"Search by WO#, customer, title, tech…"}
       showing={(n,t)=>n+" of "+t+(filter==="tms"?" needing TMS":" orders")}/>
-    {filter==="tms"?<TMSQueue orders={listFilter.result} wlp={wlp}/>:(listFilter.result.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>{listFilter.activeCount>0?"Nothing matches those filters":"No work orders"}</div></Card>:<WOList orders={listFilter.result} {...wlp}/>)}
+    {filter==="tms"?<TMSQueue orders={listFilter.result} wlp={wlp}/>:(listFilter.result.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}><Icon name="inbox" size={22}/></div><div style={{fontSize:13,color:B.textDim}}>{listFilter.activeCount>0?"Nothing matches those filters":"No work orders"}</div></Card>:<WOList orders={listFilter.result} {...wlp}/>)}
     {past.length>0&&<div style={{marginTop:20}}>
       <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📁</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}><Icon name="file" size={14}/></span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
         <span style={{color:B.textDim,fontSize:14}}>{showArchive?"\u25BE":"\u25B8"}</span>
       </button>
       {showArchive&&<div style={{border:"1px solid "+B.border,borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
@@ -1393,7 +1399,7 @@ function TroubleshootAssistant({wo,onClose}){
       {/* RESULTS */}
       {result&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
         {/* Diagnosis header */}
-        <div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        <div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim}}>Diagnosis</span>
             <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:4,background:(urgencyColors[result.urgency]||B.cyan)+"22",color:urgencyColors[result.urgency]||B.cyan,textTransform:"uppercase"}}>{result.urgency} urgency</span>
@@ -1408,7 +1414,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>
 
         {/* Possible causes */}
-        {result.possible_causes?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        {result.possible_causes?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Possible Causes</span>
           {result.possible_causes.map((c,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",fontSize:13,color:B.text}}>
             <span style={{color:B.cyan,fontFamily:M,fontWeight:700,minWidth:18}}>{i+1}.</span>{c}
@@ -1416,7 +1422,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>}
 
         {/* Recommended actions */}
-        {result.recommended_actions?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        {result.recommended_actions?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Recommended Actions</span>
           {result.recommended_actions.map((a,i)=><div key={i} style={{display:"flex",gap:8,padding:"5px 0",fontSize:13,color:B.text,borderBottom:i<result.recommended_actions.length-1?"1px solid "+B.border+"44":"none"}}>
             <span style={{color:B.green,fontSize:14,minWidth:20}}>{"[ ]"}</span><span style={{lineHeight:1.4}}>{a}</span>
@@ -1424,7 +1430,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>}
 
         {/* Parts likely needed */}
-        {result.parts_likely_needed?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        {result.parts_likely_needed?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Parts Likely Needed</span>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {result.parts_likely_needed.map((p,i)=><span key={i} style={{padding:"5px 10px",borderRadius:6,background:B.cyan+"18",color:B.cyan,fontSize:12,fontWeight:600}}>{p}</span>)}
@@ -1432,7 +1438,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>}
 
         {/* Safety warnings */}
-        {result.safety_warnings?.length>0&&<div style={{background:B.red+"11",border:"2px solid "+B.red+"44",borderRadius:10,padding:"14px 16px"}}>
+        {result.safety_warnings?.length>0&&<div style={{background:B.red+"11",border:"2px solid "+B.red+"44",borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.red,display:"block",marginBottom:8}}>Safety Warnings</span>
           {result.safety_warnings.map((w,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",fontSize:13,color:B.red,fontWeight:600}}>
             <span>{"!!!"}</span>{w}

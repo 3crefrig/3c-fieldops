@@ -80,10 +80,10 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
   return(<div>
     {/* Stats */}
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="This Week" value={weekWOs.length} icon="📋" color={B.cyan}/>
-      <StatCard label="PM Jobs" value={pmCount} icon="🔁" color={B.green}/>
-      <StatCard label="CM Jobs" value={cmCount} icon="🔧" color={B.orange}/>
-      {overdueWOs.length>0&&<StatCard label="Overdue" value={overdueWOs.length} icon="🚨" color={B.red}/>}
+      <StatCard label="This Week" value={weekWOs.length} icon="clipboard" color={B.cyan}/>
+      <StatCard label="PM Jobs" value={pmCount} icon="repeat" color={B.green}/>
+      <StatCard label="CM Jobs" value={cmCount} icon="wrench" color={B.orange}/>
+      {overdueWOs.length>0&&<StatCard label="Overdue" value={overdueWOs.length} icon="alert" color={B.red}/>}
     </div>
 
     {/* Controls */}
@@ -104,8 +104,8 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         <span style={{display:"inline-flex",color:B.red}}><Icon name="alert" size={15}/></span>
         <span style={{fontSize:13,fontWeight:700,color:B.red}}>Overdue ({overdueWOs.length})</span>
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {overdueWOs.slice(0,10).map(w=><div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"6px 10px",background:B.red+"08",borderRadius:4,border:"1px solid "+B.red+"22",cursor:onOpenWO?"pointer":"default",minHeight:36}}>
+      <div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+B.border,borderRadius:6,overflow:"hidden"}}>
+        {overdueWOs.slice(0,10).map(w=><div key={w.id} className="list-row" onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"8px 10px",background:B.bg,borderBottom:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default",minHeight:38}}>
           <div style={{flex:1,minWidth:0,display:"flex",alignItems:"baseline",gap:6}}><span style={{fontFamily:M,fontWeight:700,color:B.red,fontSize:11,flexShrink:0}}>{w.wo_id}</span><span style={{fontSize:11,color:B.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.title}</span></div>
           <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,whiteSpace:"nowrap"}}><span style={{fontSize:10,color:B.textDim}}>{(w.assignee||"").split(" ")[0]}</span><span style={{fontSize:10,color:B.red,fontWeight:600}}>Due {fmtDate(w.due_date,{month:"numeric",day:"numeric"})}</span></div>
         </div>)}
@@ -119,7 +119,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         <span style={{fontSize:13,fontWeight:700,color:B.cyan}}>Batch Opportunities</span>
         <span style={{fontSize:10,color:B.textDim}}>Jobs at the same location this week</span>
       </div>
-      {routeGroups.slice(0,5).map((g,i)=>{const open=openGroup===i;return(<div key={i} style={{background:B.cyan+"08",borderRadius:4,border:"1px solid "+B.cyan+"22",marginBottom:4,overflow:"hidden"}}>
+      {routeGroups.slice(0,5).map((g,i)=>{const open=openGroup===i;return(<div key={i} style={{background:B.bg,borderRadius:6,border:"1px solid "+B.border,marginBottom:6,overflow:"hidden"}}>
         <div onClick={()=>setOpenGroup(open?null:i)} title="Show the jobs in this batch" style={{padding:"8px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,minHeight:40}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:600,color:B.text}}>{g.customer} — {g.location||"No location"}</div>
@@ -128,7 +128,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
           <span style={{fontSize:10,color:B.cyan,fontWeight:700,flexShrink:0}}>{open?"Hide":"View jobs"} {open?"▾":"▸"}</span>
         </div>
         {open&&<div style={{display:"flex",flexDirection:"column",gap:4,padding:"0 10px 8px"}}>
-          {g.wos.map(w=><div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",background:B.bg,borderRadius:4,border:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default",minHeight:36}}>
+          {g.wos.map(w=><div key={w.id} className="list-row" onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"8px 10px",background:B.surface,borderRadius:6,border:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default",minHeight:38}}>
             <div style={{flex:1,minWidth:0}}>
               <span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:11}}>{w.wo_id}</span>
               <span style={{fontSize:11,color:B.text,marginLeft:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.title}</span>
@@ -148,7 +148,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         const dayName=DAY_NAMES[d.getDay()];
         const shortDate=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
 
-        return(<Card key={dateStr} style={{padding:"12px 16px"}}>
+        return(<Card key={dateStr} style={{padding:"12px 16px",boxShadow:isToday?"inset 0 2px 0 "+B.cyan:"none"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dayWOs.length>0?8:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:14,fontWeight:700,color:isToday?B.cyan:B.text}}>{dayName}</span>
@@ -158,16 +158,16 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
             <span style={{fontSize:12,fontFamily:M,fontWeight:700,color:dayWOs.length>0?B.green:B.textDim}}>{dayWOs.length} job{dayWOs.length!==1?"s":""}</span>
             {onAddSchedule&&<button data-tip="Put something on the schedule for this day — supply run, meeting, time off. Managers can book any tech; techs book themselves." onClick={()=>{setAddFor(localDateStr(d));setSchWho(userName);}} title="Add to this day's schedule" style={{background:"none",border:"1px solid "+B.border,borderRadius:6,color:B.textMuted,fontSize:11,fontWeight:700,cursor:"pointer",padding:"2px 9px",marginLeft:6}}>+</button>}
           </div>
-          {daySched(localDateStr(d)).map(e=><div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",marginBottom:4,background:B.surfaceActive,border:"1px dashed "+B.border,borderRadius:8}}>
+          {daySched(localDateStr(d)).map(e=><div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",marginBottom:6,background:B.surfaceActive,border:"1px dashed "+B.border,borderRadius:6}}>
             {e.time&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,color:B.cyan,flexShrink:0}}>{e.time}</span>}
             <span style={{fontSize:11.5,fontWeight:600,color:B.text,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.task}{e.location&&<span style={{color:B.textDim,fontWeight:400}}> · {e.location}</span>}</span>
-            {canAssignOthers&&e.assigned_to&&<span style={{fontSize:9.5,fontWeight:650,padding:"2px 8px",borderRadius:999,background:B.cyan+"14",color:B.cyan,flexShrink:0}}>{e.assigned_to.split(" ")[0]}</span>}
+            {canAssignOthers&&e.assigned_to&&<span style={{fontSize:10.5,fontWeight:650,padding:"2px 8px",borderRadius:6,background:B.cyan+"14",color:B.cyan,flexShrink:0}}>{e.assigned_to.split(" ")[0]}</span>}
             {(canAssignOthers||e.created_by===userName)&&onDeleteSchedule&&<button onClick={()=>onDeleteSchedule(e.id)} title="Remove" style={{background:"none",border:"none",color:B.textDim,cursor:"pointer",fontSize:12,padding:0,flexShrink:0}}>×</button>}
           </div>)}
-          {dayWOs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {dayWOs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+B.border,borderRadius:6,overflow:"hidden"}}>
             {dayWOs.map(w=>{
               const priColor=w.priority==="high"?B.red:w.priority==="medium"?B.orange:B.green;
-              return(<div key={w.id} onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default"}}>
+              return(<div key={w.id} className="list-row" onClick={()=>go(w)} title={onOpenWO?"Open "+w.wo_id:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",background:B.bg,borderBottom:"1px solid "+B.border,cursor:onOpenWO?"pointer":"default"}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:11}}>{w.wo_id}</span>
