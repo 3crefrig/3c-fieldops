@@ -148,7 +148,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         const dayName=DAY_NAMES[d.getDay()];
         const shortDate=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
 
-        return(<Card key={dateStr} style={{padding:"12px 16px"}}>
+        return(<Card key={dateStr} style={{padding:"12px 16px",boxShadow:isToday?"inset 0 2px 0 "+B.cyan:"none"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dayWOs.length>0?8:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:14,fontWeight:700,color:isToday?B.cyan:B.text}}>{dayName}</span>

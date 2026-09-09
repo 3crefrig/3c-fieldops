@@ -296,8 +296,8 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
             {/* 240px basis: on a phone the button cluster can't fit beside this,
                 so it wraps to its own line instead of squeezing the text to
                 one-word-per-line. */}
-            <div className="ticket-stub" style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.border,minWidth:0}}>
-              <span style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.textDim}}>PO</span>
+            <div className="ticket-stub" style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.cyan+"66",minWidth:0}}>
+              <span style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan}}>PO</span>
               <span className="ticket-num" style={{fontFamily:M,fontSize:20,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5,overflow:"hidden",textOverflow:"ellipsis"}}>{String(po.po_id||"").replace(/^PO-?/i,"")}</span>
             </div>
             <div style={{flex:"1 1 240px",minWidth:0}}>

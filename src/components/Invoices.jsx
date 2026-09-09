@@ -617,8 +617,8 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
         {invoices.slice(0,visibleCount).map(inv=>{const st=getStatus(inv);const days=daysOut(inv.date_issued);const ac=agingColor(days);return(
           <Card key={inv.id} style={{padding:"12px 14px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-              <div className="ticket-stub" style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.border,minWidth:0}}>
-                <span style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.textDim}}>INV</span>
+              <div className="ticket-stub" style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.cyan+"66",minWidth:0}}>
+                <span style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan}}>INV</span>
                 <span className="ticket-num" style={{fontFamily:M,fontSize:20,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5}}>{inv.invoice_num}</span>
               </div>
               <div style={{flex:1,minWidth:0}}>

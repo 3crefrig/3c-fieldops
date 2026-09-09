@@ -236,6 +236,7 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 .list-row{transition:background .12s}
 .list-row:hover{background:${B.surfaceActive}}
 .list-row:last-child{border-bottom:none!important}
+.cal-cell:hover{background:${B.surfaceActive}!important}
 /* Stat strip (desktop): sibling stat tiles fuse into one panel with vertical hairlines. */
 div:has(> .stat-card){gap:1px!important;border:1px solid ${B.border};border-radius:8px;overflow:hidden;background:${B.border}}
 .stat-card{border:none!important;border-radius:0!important;box-shadow:none!important;background:${B.surface}!important}

@@ -1110,8 +1110,8 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
           <div style={{display:"flex",gap:14}}>
             {bulkMode&&<button onClick={e=>{e.stopPropagation();toggleBulk(wo.id);}} style={{width:22,height:22,borderRadius:4,border:"2px solid "+(bulkSel.includes(wo.id)?B.cyan:B.border),background:bulkSel.includes(wo.id)?B.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>{bulkSel.includes(wo.id)&&<span style={{color:B.bg,fontSize:12,fontWeight:700}}>✓</span>}</button>}
             {/* Ticket stub: the job number is the thing every printed service ticket puts first. */}
-            <div className="ticket-stub" onClick={()=>setSel(wo)} style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.border,cursor:"pointer",minWidth:0}}>
-              <span style={{display:"flex",alignItems:"center",gap:5,fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.textDim}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:6,height:6,borderRadius:3,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>WO</span>
+            <div className="ticket-stub" onClick={()=>setSel(wo)} style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.cyan+"66",cursor:"pointer",minWidth:0}}>
+              <span style={{display:"flex",alignItems:"center",gap:5,fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan}}><span title={"Priority: "+(wo.priority||"medium")} style={{width:6,height:6,borderRadius:3,background:PC[wo.priority]||B.textDim,flexShrink:0}}/>WO</span>
               <span className="ticket-num" style={{fontFamily:M,fontSize:22,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5}}>{String(wo.wo_id||"").replace(/^WO-/,"")}</span>
               {wo.customer_wo&&<span title={"Customer WO# "+wo.customer_wo} style={{fontFamily:M,fontSize:10.5,color:B.cyan,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>#{wo.customer_wo}</span>}
             </div>

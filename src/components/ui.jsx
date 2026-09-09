@@ -32,6 +32,8 @@ export function Icon({name,size=20,color="currentColor",strokeWidth=2}){
     plus:[<path key="a" d="M12 5v14M5 12h14"/>],
     x:[<path key="a" d="M6 6l12 12M18 6L6 18"/>],
     chevron:[<path key="a" d="M6 9l6 6 6-6"/>],
+    chevronLeft:[<path key="a" d="M15 5l-7 7 7 7"/>],
+    chevronRight:[<path key="a" d="M9 5l7 7-7 7"/>],
     checksquare:[<rect key="a" x="4" y="4" width="16" height="16" rx="3"/>,<path key="b" d="M8 12l3 3 5-6"/>],
     check:[<path key="a" d="M5 12l4 4 10-10"/>],
     camera:[<path key="a" d="M4 8h3l2-3h6l2 3h3v11H4z"/>,<circle key="b" cx="12" cy="13" r="3.5"/>],

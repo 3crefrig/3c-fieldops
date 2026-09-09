@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, fmtHours, fmtDate, openWO } from "../shared";
-import { Card, Badge, Modal, Toast } from "./ui";
+import { Card, Badge, Modal, Toast, Icon, IconButton } from "./ui";
 
 /*
  * Company calendar — jobs due, hours logged, company events, and the crew
@@ -45,7 +45,7 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
   // Calendar grid
   const y=month.getFullYear(),m=month.getMonth();
   const firstDay=new Date(y,m,1).getDay();const daysInMonth=new Date(y,m+1,0).getDate();
-  const days=[];for(let i=0;i<firstDay;i++)days.push(null);for(let d=1;d<=daysInMonth;d++)days.push(d);
+  const days=[];for(let i=0;i<firstDay;i++)days.push(null);for(let d=1;d<=daysInMonth;d++)days.push(d);while(days.length%7)days.push(null); // pad the last week so the grid stays rectangular
   const pad=d=>String(d).padStart(2,"0");
   // Local date, not UTC — toISOString() rolls over to tomorrow after ~8pm ET and mis-highlights "today".
   const today=new Date();const todayStr=today.getFullYear()+"-"+pad(today.getMonth()+1)+"-"+pad(today.getDate());
@@ -121,46 +121,52 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
     {/* One row on phones: ← Sep 2026 → Today [+ Event]; the wrapping full-width Add Event was the last mobile eyesore. */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:compact?"nowrap":"wrap",gap:compact?6:8}}>
       <div style={{display:"flex",alignItems:"center",gap:compact?6:8,flex:compact?1:"none",minWidth:0}}>
-        <button onClick={()=>setMonth(new Date(y,m-1))} style={{...BS,padding:compact?"6px 10px":"6px 12px",fontSize:14,flexShrink:0}}>←</button>
-        <span style={{fontSize:compact?15:16,fontWeight:700,color:B.text,fontFamily:F,minWidth:compact?0:150,flex:compact?1:"none",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{month.toLocaleString("default",{month:compact?"short":"long",year:"numeric"})}</span>
-        <button onClick={()=>setMonth(new Date(y,m+1))} style={{...BS,padding:compact?"6px 10px":"6px 12px",fontSize:14,flexShrink:0}}>→</button>
-        {!isCurrentMonth&&<button onClick={()=>setMonth(new Date())} style={{...BS,padding:compact?"6px 8px":"6px 12px",fontSize:12,color:B.cyan,borderColor:B.cyan+"55",flexShrink:0}}>Today</button>}
+        <span style={{fontSize:compact?17:20,fontWeight:600,color:B.text,fontFamily:F,letterSpacing:-0.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flex:compact?1:"none",marginRight:4}}>{month.toLocaleString("default",{month:compact?"short":"long",year:"numeric"})}</span>
+        <IconButton name="chevronLeft" onClick={()=>setMonth(new Date(y,m-1))} label="Previous month"/>
+        <IconButton name="chevronRight" onClick={()=>setMonth(new Date(y,m+1))} label="Next month"/>
+        {!isCurrentMonth&&<button onClick={()=>setMonth(new Date())} style={{...BS,padding:compact?"6px 8px":"6px 12px",fontSize:12,minHeight:34,color:B.cyan,borderColor:B.cyan+"55",flexShrink:0}}>Today</button>}
       </div>
       {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap",flexShrink:0}}>{compact?"+ Event":"+ Add Event"}</button>}
     </div>
 
     {/* Layer + people chips — every chip filters EVERY layer */}
     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-      {LAYERS.map(([k,l,c])=><button key={k} data-tip={"Show or hide the "+l.toLowerCase()+" layer — your choice sticks on this device."} onClick={()=>toggleLayer(k)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,border:"1px solid "+(layers[k]?c+"66":B.border),background:layers[k]?c+"16":"transparent",color:layers[k]?c:B.textDim,fontSize:11.5,fontWeight:650,cursor:"pointer",fontFamily:F,opacity:layers[k]?1:0.7}}>
-        <span style={{width:8,height:8,borderRadius:4,background:layers[k]?c:B.border}}/>{l}
+      {LAYERS.map(([k,l,c])=><button key={k} data-tip={"Show or hide the "+l.toLowerCase()+" layer — your choice sticks on this device."} onClick={()=>toggleLayer(k)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+(layers[k]?c+"55":B.border),background:layers[k]?c+"12":"transparent",color:layers[k]?c:B.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>
+        <span style={{width:6,height:6,borderRadius:3,background:layers[k]?c:B.textDim}}/>{l}
       </button>)}
       {isMgr&&allTechs.length>0&&<>
         <span style={{width:1,height:18,background:B.border,margin:"0 4px"}}/>
-        <button onClick={()=>pickTech("")} style={{padding:"5px 12px",borderRadius:999,border:"1px solid "+(techFilter===""?B.cyan:B.border),background:techFilter===""?B.cyanGlow:"transparent",color:techFilter===""?B.cyan:B.textDim,fontSize:11.5,fontWeight:650,cursor:"pointer",fontFamily:F}}>Everyone</button>
-        {allTechs.map(n=><button key={n} onClick={()=>pickTech(techFilter===n?"":n)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,border:"1px solid "+(techFilter===n?(techColor[n]||B.cyan)+"88":B.border),background:techFilter===n?(techColor[n]||B.cyan)+"1c":"transparent",color:techFilter===n?(techColor[n]||B.cyan):B.textDim,fontSize:11.5,fontWeight:650,cursor:"pointer",fontFamily:F}}>
-          <span style={{width:8,height:8,borderRadius:4,background:techColor[n]||B.cyan}}/>{n.split(" ")[0]}
+        <button onClick={()=>pickTech("")} style={{padding:"5px 10px",borderRadius:6,border:"1px solid "+(techFilter===""?B.cyan+"55":B.border),background:techFilter===""?B.cyan+"12":"transparent",color:techFilter===""?B.cyan:B.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Everyone</button>
+        {allTechs.map(n=><button key={n} onClick={()=>pickTech(techFilter===n?"":n)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+(techFilter===n?(techColor[n]||B.cyan)+"55":B.border),background:techFilter===n?(techColor[n]||B.cyan)+"12":"transparent",color:techFilter===n?(techColor[n]||B.cyan):B.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>
+          <span style={{width:6,height:6,borderRadius:3,background:techColor[n]||B.cyan}}/>{n.split(" ")[0]}
         </button>)}
       </>}
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:compact?2:3}}>
-      {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,wi)=><div key={d} style={{textAlign:"center",fontSize:9.5,fontWeight:700,color:B.textDim,padding:"4px 0 8px",letterSpacing:compact?.3:.8,textTransform:"uppercase",opacity:(wi===0||wi===6)?.55:1,minWidth:0}}>{compact?d[0]:d}</div>)}
-      {days.map((d,i)=>{const items=getDateItems(d);const ds=d?dateStr(d):null;const isToday=ds===todayStr;const hd=layers.hours&&ds?hoursByDate[ds]:null;const hc=isLongDay(hd)?B.orange:B.green;const maxItems=compact?2:3;
-      return<div key={i} onClick={()=>{if(d)setDayDetail(ds);}} title={hd?Object.keys(hd.byTech).sort().map(n=>n+" "+fmtHours(hd.byTech[n].hours)).join("\n"):undefined} style={{minHeight:compact?58:74,minWidth:0,overflow:"hidden",padding:compact?"4px 3px":5,background:d?B.surface:"transparent",border:"1px solid "+(isToday?B.cyan+"88":d?B.border:"transparent"),boxShadow:isToday?"inset 0 0 0 1px "+B.cyan+"33":"none",borderRadius:8,position:"relative",cursor:d?"pointer":"default"}}>
-        {d&&<div style={{display:"flex",alignItems:compact?"flex-start":"center",justifyContent:"space-between",flexDirection:compact?"column":"row",flexWrap:compact?"nowrap":"wrap",gap:2,marginBottom:2,minWidth:0}}>
-          <span style={{fontSize:11,fontWeight:isToday?800:500,lineHeight:1,color:isToday?B.btnPrimaryText:B.text,background:isToday?B.cyan:"transparent",borderRadius:999,minWidth:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:isToday?"0 5px":"0",flexShrink:0}}>{d}</span>
-          {hd&&<span style={{fontFamily:M,fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:4,background:hc+"1E",color:hc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:"100%",boxSizing:"border-box"}}>{fmtHours(hd.total)}</span>}
+    {/* One panel, hairline grid (the panel paints the line color through a 1px gap), weekends a
+        shade dimmer, today carries a 2px cyan rule — the calendar's one accent. */}
+    <div style={{border:"1px solid "+B.border,borderRadius:8,overflow:"hidden",background:B.border}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1}}>
+        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,wi)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:600,color:(wi===0||wi===6)?B.textDim:B.textMuted,padding:"8px 0",letterSpacing:compact?.3:.6,textTransform:"uppercase",background:B.surface,minWidth:0}}>{compact?d[0]:d}</div>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,borderTop:"1px solid "+B.border}}>
+      {days.map((d,i)=>{const items=getDateItems(d);const ds=d?dateStr(d):null;const isToday=ds===todayStr;const wk=i%7===0||i%7===6;const hd=layers.hours&&ds?hoursByDate[ds]:null;const hc=isLongDay(hd)?B.orange:B.cyan;const maxItems=compact?2:3;
+      return<div key={i} onClick={()=>{if(d)setDayDetail(ds);}} title={hd?Object.keys(hd.byTech).sort().map(n=>n+" "+fmtHours(hd.byTech[n].hours)).join("\n"):undefined} style={{minHeight:compact?60:88,minWidth:0,overflow:"hidden",padding:compact?"5px 4px":"6px 7px",background:d?(wk?B.bg:B.surface):B.bg,boxShadow:isToday?"inset 0 2px 0 "+B.cyan:"none",position:"relative",cursor:d?"pointer":"default",transition:"background .12s"}} className={d?"cal-cell":""}>
+        {d&&<div style={{display:"flex",alignItems:compact?"flex-start":"center",justifyContent:"space-between",flexDirection:compact?"column":"row",flexWrap:compact?"nowrap":"wrap",gap:3,marginBottom:4,minWidth:0}}>
+          <span style={{fontFamily:M,fontSize:12,fontWeight:isToday?700:500,lineHeight:1,color:isToday?B.cyan:wk?B.textDim:B.textMuted,flexShrink:0}}>{d}</span>
+          {hd&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,background:hc+"18",color:hc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:"100%",boxSizing:"border-box"}}>{fmtHours(hd.total)}</span>}
         </div>}
-        {items.slice(0,maxItems).map(it=>{const c=itemColor(it);return<div key={it.id} style={{fontSize:compact?9:10,padding:compact?"1px 3px":"2px 5px",marginBottom:2,borderRadius:4,background:c+"1A",borderLeft:"2px solid "+c,color:c,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.5,minWidth:0}}>{compact?shortLabel(it):it.title}</div>;})}
-        {items.length>maxItems&&<div style={{fontSize:9,color:B.textDim,paddingLeft:compact?2:5,fontWeight:600,whiteSpace:"nowrap"}}>+{items.length-maxItems}{compact?"":" more"}</div>}
+        {items.slice(0,maxItems).map(it=>{const c=itemColor(it);return<div key={it.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:compact?9.5:11,marginBottom:3,color:B.text,fontWeight:500,overflow:"hidden",minWidth:0,lineHeight:1.3}}><span style={{width:6,height:6,borderRadius:3,background:c,flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{compact?shortLabel(it):it.title}</span></div>;})}
+        {items.length>maxItems&&<div style={{fontSize:10,color:B.textDim,paddingLeft:11,fontWeight:500,whiteSpace:"nowrap"}}>+{items.length-maxItems}{compact?"":" more"}</div>}
       </div>})}
+      </div>
+      {layers.hours&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",background:B.surface,borderTop:"1px solid "+B.border}}>
+        <span style={{fontSize:11.5,color:B.textMuted,fontWeight:500}}>{techFilter?techFilter:isMgr?"All technicians":"Your hours"} · {month.toLocaleString("default",{month:"long"})}</span>
+        <span style={{fontSize:11,color:B.textDim}}>{monthStats.techs>1?monthStats.techs+" techs · ":""}<span style={{fontFamily:M,fontSize:14,fontWeight:700,color:B.cyan}}>{fmtHours(monthStats.total)}</span></span>
+      </div>}
     </div>
 
-    {/* Month hours summary */}
-    {layers.hours&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,padding:"8px 10px",background:B.surface,border:"1px solid "+B.border,borderRadius:8}}>
-      <span style={{fontSize:11,color:B.textDim,fontWeight:600}}>{techFilter?techFilter:isMgr?"All technicians":"Your hours"} · {month.toLocaleString("default",{month:"long"})}</span>
-      <span style={{fontSize:11,color:B.textDim}}>{monthStats.techs>1?monthStats.techs+" techs · ":""}<span style={{fontFamily:M,fontSize:13,fontWeight:700,color:B.green}}>{fmtHours(monthStats.total)}</span></span>
-    </div>}
+
 
     {/* Upcoming events list */}
     {layers.events&&<div style={{marginTop:16}}><span style={{...LS,fontSize:10}}>UPCOMING</span>
