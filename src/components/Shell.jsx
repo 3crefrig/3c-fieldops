@@ -63,10 +63,10 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     {(()=>{
       // Group tabs into sections for cleaner navigation (6+ tabs triggers grouping)
       const TAB_GROUPS=[
-        {label:"Operations",icon:"⚡",keys:["overview","today","inbox","orders","planner","time","calendar"]},
-        {label:"Finance",icon:"💰",keys:["billing","invoices","parts","proposals","agreements","feedback","reports"]},
-        {label:"Management",icon:"👥",keys:["pos","rfqs","audit","pricebook","customers","equipment","users","recurring","team","projects"]},
-        {label:"System",icon:"⚙️",keys:["settings","kb","guide"]},
+        {label:"Operations",icon:"zap",keys:["overview","today","inbox","orders","planner","time","calendar"]},
+        {label:"Finance",icon:"dollar",keys:["billing","invoices","parts","proposals","agreements","feedback","reports"]},
+        {label:"Management",icon:"user",keys:["pos","rfqs","audit","pricebook","customers","equipment","users","recurring","team","projects"]},
+        {label:"System",icon:"settings",keys:["settings","kb","guide"]},
       ];
       const useGroups=!isMobile&&tabs.length>8;
       const activeGroup=useGroups?TAB_GROUPS.find(g=>g.keys.includes(tab)):null;

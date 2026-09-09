@@ -115,18 +115,18 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
   // Build KPI tile data
   let tileIdx=0;
   const kpiTiles=[
-    {key:"od",label:"Overdue WOs",value:overdueWOs.length,icon:"⚠",color:overdueWOs.length>0?B.red:B.green,valueColor:overdueWOs.length>0?B.red:undefined,click:overdueWOs.length>0?()=>setDrillDown("overduewos"):null},
-    {key:"util",label:"Tech Utilization",value:techUtil+"%",icon:"⚡",color:techUtil>=80?B.green:techUtil>=60?B.orange:B.red},
+    {key:"od",label:"Overdue WOs",value:overdueWOs.length,icon:"alert",color:overdueWOs.length>0?B.red:B.green,valueColor:overdueWOs.length>0?B.red:undefined,click:overdueWOs.length>0?()=>setDrillDown("overduewos"):null},
+    {key:"util",label:"Tech Utilization",value:techUtil+"%",icon:"zap",color:techUtil>=80?B.green:techUtil>=60?B.orange:B.red},
     {key:"comp",label:"WOs Completed",value:completedWOs.length,icon:"✓",color:B.green,delta:pctDelta(completedWOs.length,prevCompletedCount),click:()=>setDrillDown("completed")},
-    {key:"hrs",label:"Hours Logged",value:fmtHours(totalHours),icon:"⏱",color:B.cyan,delta:pctDelta(totalHours,prevHrs)},
+    {key:"hrs",label:"Hours Logged",value:fmtHours(totalHours),icon:"clock",color:B.cyan,delta:pctDelta(totalHours,prevHrs)},
   ];
   // Financial tiles (admin/manager)
   const finTiles=[];
   if(isMgr){
-    if(isAdmin)finTiles.push({key:"rev",label:"Revenue/Tech",value:"$"+revPerTech.toLocaleString(),icon:"💰",color:B.green,wide:true});
-    finTiles.push({key:"pay",label:"Avg Days to Pay",value:avgPayDays+"d",icon:"📊",color:avgPayDays<=15?B.green:avgPayDays<=30?B.orange:B.red});
-    finTiles.push({key:"ar",label:"Outstanding AR",value:"$"+totalAR.toLocaleString(undefined,{minimumFractionDigits:0}),icon:"📋",color:B.cyan,click:()=>setDrillDown("outstanding")});
-    finTiles.push({key:"over",label:"Overdue ("+overdueInv.length+")",value:"$"+overdueAmt.toLocaleString(undefined,{minimumFractionDigits:0}),icon:"⚠️",color:B.red,click:overdueInv.length>0?()=>setDrillDown("overdue"):null});
+    if(isAdmin)finTiles.push({key:"rev",label:"Revenue/Tech",value:"$"+revPerTech.toLocaleString(),icon:"dollar",color:B.green,wide:true});
+    finTiles.push({key:"pay",label:"Avg Days to Pay",value:avgPayDays+"d",icon:"chart",color:avgPayDays<=15?B.green:avgPayDays<=30?B.orange:B.red});
+    finTiles.push({key:"ar",label:"Outstanding AR",value:"$"+totalAR.toLocaleString(undefined,{minimumFractionDigits:0}),icon:"clipboard",color:B.cyan,click:()=>setDrillDown("outstanding")});
+    finTiles.push({key:"over",label:"Overdue ("+overdueInv.length+")",value:"$"+overdueAmt.toLocaleString(undefined,{minimumFractionDigits:0}),icon:"alert",color:B.red,click:overdueInv.length>0?()=>setDrillDown("overdue"):null});
   }
 
   const allTiles=[...kpiTiles,...finTiles];
@@ -199,7 +199,7 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
     {isMgr&&custStats.length>0&&<div style={{
       background:B.surface,
       border:"1px solid "+B.border,
-      borderRadius:10,
+      borderRadius:8,
       boxShadow:"0 1px 3px rgba(0,0,0,0.08)",
       padding:"18px 20px",
       marginBottom:16,

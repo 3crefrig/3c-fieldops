@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, haptic, fmtDate, cleanText, SUPABASE_URL , todayLocal, localDateStr} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, EmptyState, Spinner } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, EmptyState, Spinner, Icon } from "./ui";
 
 // ── Status metadata (computed per render so theme colors stay live) ──
 function statusMeta(){
@@ -126,14 +126,14 @@ function ReviewSendModal({rfq,onClose,onApprove,onSend,onRegenerate,msg}){
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div><span style={LS}>Vendor</span><div style={{fontSize:13,color:B.text,fontWeight:600}}>{rfq.to_vendor||"—"}</div></div>
-        <div><span style={LS}>Vendor Email</span><div style={{fontSize:13,color:rfq.vendor_email?B.text:B.red,fontWeight:600}}>{rfq.vendor_email||"⚠ none — required to send"}</div></div>
+        <div><span style={LS}>Vendor Email</span><div style={{fontSize:13,color:rfq.vendor_email?B.text:B.red,fontWeight:600}}>{rfq.vendor_email||"none — required to send"}</div></div>
         <div><span style={LS}>Account</span><div style={{fontSize:13,color:B.text}}>{rfq.account||"—"}</div></div>
         <div><span style={LS}>Date</span><div style={{fontSize:13,color:B.text}}>{rfq.rfq_date?fmtDate(rfq.rfq_date):"—"}</div></div>
       </div>
 
       {/* Document */}
       <div style={{background:B.bg,border:"1px solid "+B.border,borderRadius:8,padding:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <div style={{fontSize:12,color:B.textMuted}}>{url?"📄 RFQ document ready":"No document generated yet"}</div>
+        <div style={{fontSize:12,color:B.textMuted}}>{url?"RFQ document ready":"No document generated yet"}</div>
         <div style={{display:"flex",gap:8}}>
           {url&&<a href={url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"8px 14px",fontSize:12}}>Preview / Download</a>}
           <button onClick={regen} disabled={busy==="regen"} style={{...BS,padding:"8px 14px",fontSize:12,opacity:busy==="regen"?.6:1}}>{busy==="regen"?"Working...":"Regenerate"}</button>
@@ -220,10 +220,10 @@ function RFQDashboard({D,A,userRole,userName,userId}){
 
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"flex-start"}}>
-      <StatCard label="Total RFQs" value={visible.length} icon="📨" color={B.cyan}/>
-      <StatCard label="Draft" value={visible.filter(r=>r.status==="draft").length} icon="📝" color={B.textDim}/>
+      <StatCard label="Total RFQs" value={visible.length} icon="mail" color={B.cyan}/>
+      <StatCard label="Draft" value={visible.filter(r=>r.status==="draft").length} icon="edit" color={B.textDim}/>
       <StatCard label="Pending" value={visible.filter(r=>r.status==="pending_approval").length} icon="⏳" color={B.orange}/>
-      <StatCard label="Sent" value={visible.filter(r=>r.status==="sent").length} icon="📤" color={B.green}/>
+      <StatCard label="Sent" value={visible.filter(r=>r.status==="sent").length} icon="mail" color={B.green}/>
       <button onClick={()=>setShowCreate(true)} style={{...BP,padding:"10px 18px",fontSize:13,fontWeight:700,whiteSpace:"nowrap",marginLeft:"auto"}}>+ New RFQ</button>
     </div>
 
@@ -232,7 +232,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
         <button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
     </div>
 
-    {flt.length===0?<EmptyState icon="📨" title="No RFQs yet" subtitle="Create a request for quotation to send part pricing requests to a vendor."/>:
+    {flt.length===0?<EmptyState icon="mail" title="No RFQs yet" subtitle="Create a request for quotation to send part pricing requests to a vendor."/>:
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {flt.map(rfq=>{const sm=SM[rfq.status]||{c:B.textDim,l:rfq.status};const url=docxUrl(rfq);const canEditDraft=rfq.status==="draft"&&(isMgr||rfq.created_by===userId);return(
         <Card key={rfq.id} style={{padding:"14px 16px"}}>
@@ -249,7 +249,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{rfq.rfq_date?fmtDate(rfq.rfq_date):"No date"}{rfq.vendor_email?" · "+rfq.vendor_email:""}{rfq.sent_at?" · sent "+fmtDate(rfq.sent_at.slice(0,10)):""}</div>
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
-              {url&&<a href={url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"8px 12px",fontSize:11,minHeight:36,display:"inline-flex",alignItems:"center"}}>📄 Doc</a>}
+              {url&&<a href={url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"8px 12px",fontSize:11,minHeight:36,display:"inline-flex",alignItems:"center"}}>Doc</a>}
               {canEditDraft&&<button onClick={()=>setEditing(rfq)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>}
               {isMgr&&(rfq.status==="quoted"||rfq.status==="closed")&&<button data-tip="Turns the vendor’s quote into a purchase order — items, prices, and vendor carried over automatically." onClick={()=>createPOFromQuote(rfq)} title="Create a purchase order pre-filled with this RFQ's items and vendor prices" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>→ PO</button>}
               {isMgr&&<button onClick={()=>openReview(rfq)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36}}>Review &amp; Send</button>}
@@ -264,7 +264,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
     {review&&<ReviewSendModal rfq={rfqs.find(r=>r.id===review.id)||review} onClose={()=>setReview(null)} onApprove={A.approveRFQ} onSend={A.sendRFQ} onRegenerate={A.regenerateRFQDocx} msg={msg}/>}
     {confirmDelete&&<Modal title="Delete RFQ?" onClose={()=>setConfirmDelete(null)}>
       <div style={{textAlign:"center",padding:"10px 0"}}>
-        <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:32,marginBottom:8}}><Icon name="alert" size={30}/></div>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:4}}>Delete {confirmDelete.rfq_ref}?</div>
         <div style={{fontSize:12,color:B.textDim,marginBottom:16}}>This removes the RFQ and its line items. This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}><button onClick={()=>setConfirmDelete(null)} style={{...BS,flex:1}}>Cancel</button><button onClick={async()=>{await A.deleteRFQ(confirmDelete.id);setConfirmDelete(null);msg("RFQ deleted");}} style={{...BP,flex:1,background:B.red}}>Delete</button></div>

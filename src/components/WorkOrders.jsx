@@ -25,7 +25,7 @@ function EquipmentInlinePicker({customerName,equipment,onPick,onScan,onAdd,onCan
       <input value={query} onChange={e=>setQuery(e.target.value)}
         placeholder={noUnits?(customerName?"No equipment on file for "+customerName:"No equipment — add one below"):("Search "+(equipment||[]).length+" unit"+((equipment||[]).length!==1?"s":"")+(customerName?" for "+customerName:"")+"...")}
         style={{...IS,flex:1,minWidth:160,padding:"8px 12px",fontSize:12}} disabled={noUnits}/>
-      <button type="button" onClick={onScan} style={{...BS,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>📷 Scan</button>
+      <button type="button" onClick={onScan} style={{...BS,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>Scan</button>
       <button type="button" onClick={onAdd} style={{...BP,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap"}}>+ Quick Add</button>
       {onCancel&&<button type="button" onClick={onCancel} style={{...BS,padding:"8px 10px",fontSize:11}}>×</button>}
     </div>
@@ -81,7 +81,7 @@ function EquipmentQuickAddModal({wo,customers,initial,onSave,onClose}){
   };
   return(<Modal title="Quick Add Equipment" onClose={onClose} wide>
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {!wo.customer&&<div style={{padding:"8px 10px",background:B.orange+"15",border:"1px solid "+B.orange+"40",borderRadius:6,fontSize:11,color:B.orange}}>⚠️ Set this WO's customer first — equipment must belong to a customer.</div>}
+      {!wo.customer&&<div style={{padding:"8px 10px",background:B.orange+"15",border:"1px solid "+B.orange+"40",borderRadius:6,fontSize:11,color:B.orange}}>Set this WO's customer first — equipment must belong to a customer.</div>}
       {wo.customer&&<div style={{fontSize:11,color:B.textMuted}}>For <strong style={{color:B.text}}>{f.customer_name}</strong></div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:9,textTransform:"none"}}>(customer's name)</span></label>
@@ -152,12 +152,12 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   const customerEquipment=(equipment||[]).filter(e=>!wo.customer||e.customer_name===wo.customer);
   const link=async(equipmentId)=>{
     try{await sb().from("work_orders").update({equipment_id:equipmentId}).eq("id",wo.id);await reloadWOs();msg("Equipment linked");setPicking(false);}
-    catch(e){console.error(e);msg("⚠️ Failed to link");}
+    catch(e){console.error(e);msg("Failed to link");}
   };
   const unlink=async()=>{
     if(!window.confirm("Unlink equipment from this work order?"))return;
     try{await sb().from("work_orders").update({equipment_id:null}).eq("id",wo.id);await reloadWOs();msg("Equipment unlinked");}
-    catch(e){console.error(e);msg("⚠️ Failed to unlink");}
+    catch(e){console.error(e);msg("Failed to unlink");}
   };
   const handleScan=async(tag)=>{
     setScanning(false);
@@ -169,7 +169,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
   };
   const saveQuickAdd=async(eq)=>{
     const{data:inserted,error}=await sb().from("equipment").insert(eq).select("id").single();
-    if(error){console.error(error);msg("⚠️ Failed to register equipment");throw error;}
+    if(error){console.error(error);msg("Failed to register equipment");throw error;}
     if(reloadTable)await reloadTable("equipment");
     if(inserted?.id)await link(inserted.id);
   };
@@ -192,7 +192,7 @@ function EquipmentLinkCard({wo,equipment,customers,canEdit,reloadWOs,reloadTable
             {linked.refrigerant_type&&<span>{linked.refrigerant_type} · </span>}
             <span>{EQ_LABELS[linked.equipment_type]||linked.equipment_type}</span>
           </div>
-          {(linked.location||linked.location_detail)&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>📍 {linked.location}{linked.location_detail?" — "+linked.location_detail:""}</div>}
+          {(linked.location||linked.location_detail)&&<div style={{fontSize:11,color:B.textDim,marginTop:2}}>{linked.location}{linked.location_detail?" — "+linked.location_detail:""}</div>}
         </div>
         {canEdit&&<div style={{display:"flex",gap:4,flexShrink:0}}>
           <button type="button" onClick={()=>setPicking(true)} style={{...BS,padding:"5px 10px",fontSize:10}}>Change</button>
@@ -279,10 +279,10 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   useEffect(()=>{loadFieldNoteRows();},[wo.id]);
   const loadPreviousNotes=async()=>{setPreviousNotes([]);try{let priorWOs=[];if(wo.equipment_id){const{data}=await sb().from("work_orders").select("id,wo_id,title,date_completed,created_at").eq("equipment_id",wo.equipment_id).neq("id",wo.id).order("created_at",{ascending:false}).limit(5);priorWOs=data||[];}else if(wo.customer&&wo.location){const{data}=await sb().from("work_orders").select("id,wo_id,title,date_completed,created_at").eq("customer",wo.customer).eq("location",wo.location).neq("id",wo.id).is("equipment_id",null).order("created_at",{ascending:false}).limit(5);priorWOs=data||[];}if(priorWOs.length===0)return;const ids=priorWOs.map(w=>w.id);const{data:notes,error}=await sb().from("wo_field_notes").select("*").in("wo_id",ids).order("created_at",{ascending:false}).limit(20);if(error){console.warn("Previous notes load failed:",error.message);return;}const byWO={};priorWOs.forEach(w=>{byWO[w.id]=w;});setPreviousNotes((notes||[]).map(n=>({...n,wo:byWO[n.wo_id]})));}catch(e){console.warn("Previous notes error:",e);}};
   useEffect(()=>{loadPreviousNotes();},[wo.id,wo.equipment_id,wo.customer,wo.location]);
-  const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("⚠️ Failed to log refrigerant");}setSavingRef(false);};
-  const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("⚠️ Failed to delete");}};
-  const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("⚠️ Failed to stamp");}};
-  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v,nte_approved_by:v===null?null:userName,nte_approved_at:v===null?null:new Date().toISOString()}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("⚠️ Failed to save NTE");}};
+  const addRefEntry=async()=>{const lbs=parseFloat(refForm.pounds);if(!lbs||lbs<=0||savingRef)return;setSavingRef(true);try{const{error}=await sb().from("refrigerant_log").insert({wo_id:wo.id,action:refForm.action,refrigerant_type:refForm.refrigerant_type,pounds:lbs,cylinder_id:refForm.cylinder_id.trim()||null,notes:refForm.notes.trim()||null,technician:userName});if(error)throw error;setRefForm({action:"added",refrigerant_type:refForm.refrigerant_type,pounds:"",cylinder_id:refForm.cylinder_id,notes:""});await loadRefLog();msg("Refrigerant logged");}catch(e){console.error(e);msg("Failed to log refrigerant");}setSavingRef(false);};
+  const delRefEntry=async(id)=>{if(!window.confirm("Delete this refrigerant entry?"))return;try{await sb().from("refrigerant_log").delete().eq("id",id);await loadRefLog();msg("Entry removed");}catch(e){msg("Failed to delete");}};
+  const stampTime=async(field)=>{const now=new Date().toISOString();try{await sb().from("work_orders").update({[field]:now}).eq("id",wo.id);await reloadWOs();msg(field==="dispatched_at"?"Dispatched":field==="on_site_at"?"On site":"Resolved");}catch(e){msg("Failed to stamp");}};
+  const saveNte=async()=>{const v=nteInput===""?null:parseFloat(nteInput);if(v!==null&&(isNaN(v)||v<0)){msg("Enter a valid NTE amount");return;}try{await sb().from("work_orders").update({nte:v,nte_approved_by:v===null?null:userName,nte_approved_at:v===null?null:new Date().toISOString()}).eq("id",wo.id);await reloadWOs();setEditNte(false);msg(v===null?"NTE cleared":"NTE set to $"+v);}catch(e){msg("Failed to save NTE");}};
   const[liDesc,setLiDesc]=useState(""),[liAmt,setLiAmt]=useState(""),[addingLI,setAddingLI]=useState(false),[savingLI,setSavingLI]=useState(false);
   const isProjectWO=!!wo.project_id;
   const woLineItems=(lineItems||[]).filter(li=>li.wo_id===wo.id);
@@ -310,12 +310,12 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
   const addTime=async()=>{const h=parseFloat(tH);if(!h||h<=0||!tD.trim()||saving)return;if(cleanText(tD,"Time Description")===null)return;setSaving(true);try{await onAddTime({wo_id:wo.id,hours:h,description:tD.trim(),logged_date:tDate});setSaving(false);setTH("");setTD("");setShowTime(false);msg("Logged "+h+"h");}catch(e){console.error(e);setSaving(false);}};
   const saveTimeEdit=async()=>{if(!editingTime||saving)return;const h=parseFloat(editingTime.hours);if(!h||h<=0)return;setSaving(true);try{await onUpdateTime(editingTime);setSaving(false);setEditingTime(null);msg("Time entry updated");}catch(e){console.error(e);setSaving(false);}};
   const deleteTimeEntry=async(te)=>{if(saving)return;if(!window.confirm("Delete this time entry ("+te.hours+"h)?"))return;setSaving(true);try{await onDeleteTime(te.id);setSaving(false);msg("Time entry deleted");}catch(e){console.error(e);setSaving(false);}};
-  const addFieldNote=async()=>{if(!note.trim()||saving)return;if(cleanText(note,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").insert({wo_id:wo.id,author:userName,body:note.trim()});if(error)throw error;await loadFieldNoteRows();setNote("");msg("Field note added");}catch(e){console.error(e);msg("⚠️ Failed to add note — DB table may not exist yet");}setSaving(false);};
+  const addFieldNote=async()=>{if(!note.trim()||saving)return;if(cleanText(note,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").insert({wo_id:wo.id,author:userName,body:note.trim()});if(error)throw error;await loadFieldNoteRows();setNote("");msg("Field note added");}catch(e){console.error(e);msg("Failed to add note — DB table may not exist yet");}setSaving(false);};
   const canEditNote=(n)=>isManager||n.author===userName;
   const startEditNote=(n)=>{setEditingNoteId(n.id);setEditingNoteText(n.body);};
   const cancelEditNote=()=>{setEditingNoteId(null);setEditingNoteText("");};
-  const saveEditNote=async()=>{if(!editingNoteText.trim()||saving)return;if(cleanText(editingNoteText,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").update({body:editingNoteText.trim(),edited_at:new Date().toISOString(),edited_by:userName}).eq("id",editingNoteId);if(error)throw error;await loadFieldNoteRows();setEditingNoteId(null);setEditingNoteText("");msg("Note updated");}catch(e){console.error(e);msg("⚠️ Failed to update");}setSaving(false);};
-  const deleteFieldNote=async(n)=>{if(!window.confirm("Delete this note?"))return;try{const{error}=await sb().from("wo_field_notes").delete().eq("id",n.id);if(error)throw error;await loadFieldNoteRows();msg("Note deleted");}catch(e){console.error(e);msg("⚠️ Failed to delete");}};
+  const saveEditNote=async()=>{if(!editingNoteText.trim()||saving)return;if(cleanText(editingNoteText,"Field Note")===null)return;setSaving(true);try{const{error}=await sb().from("wo_field_notes").update({body:editingNoteText.trim(),edited_at:new Date().toISOString(),edited_by:userName}).eq("id",editingNoteId);if(error)throw error;await loadFieldNoteRows();setEditingNoteId(null);setEditingNoteText("");msg("Note updated");}catch(e){console.error(e);msg("Failed to update");}setSaving(false);};
+  const deleteFieldNote=async(n)=>{if(!window.confirm("Delete this note?"))return;try{const{error}=await sb().from("wo_field_notes").delete().eq("id",n.id);if(error)throw error;await loadFieldNoteRows();msg("Note deleted");}catch(e){console.error(e);msg("Failed to delete");}};
   const[editingDetails,setEditingDetails]=useState(false),[detailsText,setDetailsText]=useState(wo.notes||"");
   const saveDetails=async()=>{if(saving)return;setSaving(true);try{await sb().from("work_orders").update({notes:detailsText}).eq("id",wo.id);await reloadWOs();setSaving(false);setEditingDetails(false);msg("Job details updated");}catch(e){console.error(e);setSaving(false);}};
   const changeStatus=async(newStatus)=>{if(saving)return;if(newStatus==="completed"){openCompleteFlow();return;}setSaving(true);try{await onUpdateWO({...wo,status:newStatus});setSaving(false);msg("Status → "+SL[newStatus]);}catch(e){console.error(e);setSaving(false);}};
@@ -352,7 +352,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
     {/* HEADER — WO ID, title, customer, status */}
     <Card style={{maxWidth:640,marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:12}}>
-        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wo.wo_id}</span><select value={wo.priority} onChange={async e=>{await onUpdateWO({...wo,priority:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+(PC[wo.priority]||B.border)+"44",background:(PC[wo.priority]||B.textDim)+"22",color:PC[wo.priority]||B.textDim,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><select value={wo.wo_type||"CM"} onChange={async e=>{await onUpdateWO({...wo,wo_type:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+((wo.wo_type==="PM"?B.cyan:B.orange))+"44",background:(wo.wo_type==="PM"?B.cyan:B.orange)+"22",color:wo.wo_type==="PM"?B.cyan:B.orange,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="PM">PM</option><option value="CM">CM</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}><h2 style={{margin:0,fontSize:20,fontWeight:700,color:B.text}}>{wo.title}</h2>{isManager&&<button onClick={openEditWO} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:2,flexShrink:0}} title="Edit work order">✎</button>}</div>{isManager?<div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}><select value={wo.customer||""} onChange={async e=>{const v=e.target.value;try{await onUpdateWO({...wo,customer:v||null});msg(v?"Customer → "+v:"Customer cleared");}catch(err){console.error(err);msg("⚠️ Failed to update customer");}}} style={{padding:"3px 8px",borderRadius:4,border:"1px solid "+B.cyan+"44",background:B.cyan+"12",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,maxWidth:"100%",minHeight:32}}><option value="">— No customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>:wo.customer&&<div style={{fontSize:12,color:B.cyan,marginTop:4}}>{wo.customer}{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,marginLeft:6,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>}</div>
+        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontSize:12,color:B.textDim}}>{wo.wo_id}</span><select value={wo.priority} onChange={async e=>{await onUpdateWO({...wo,priority:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+(PC[wo.priority]||B.border)+"44",background:(PC[wo.priority]||B.textDim)+"22",color:PC[wo.priority]||B.textDim,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><select value={wo.wo_type||"CM"} onChange={async e=>{await onUpdateWO({...wo,wo_type:e.target.value});}} style={{padding:"6px 10px",minHeight:32,borderRadius:6,border:"1px solid "+((wo.wo_type==="PM"?B.cyan:B.orange))+"44",background:(wo.wo_type==="PM"?B.cyan:B.orange)+"22",color:wo.wo_type==="PM"?B.cyan:B.orange,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,textTransform:"uppercase",appearance:"none",WebkitAppearance:"none",paddingRight:14,backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%235E656E' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 4px center"}}><option value="PM">PM</option><option value="CM">CM</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}><h2 style={{margin:0,fontSize:20,fontWeight:700,color:B.text}}>{wo.title}</h2>{isManager&&<button onClick={openEditWO} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:2,flexShrink:0}} title="Edit work order"><Icon name="edit" size={12}/></button>}</div>{isManager?<div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}><select value={wo.customer||""} onChange={async e=>{const v=e.target.value;try{await onUpdateWO({...wo,customer:v||null});msg(v?"Customer → "+v:"Customer cleared");}catch(err){console.error(err);msg("Failed to update customer");}}} style={{padding:"3px 8px",borderRadius:4,border:"1px solid "+B.cyan+"44",background:B.cyan+"12",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F,maxWidth:"100%",minHeight:32}}><option value="">— No customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>:wo.customer&&<div style={{fontSize:12,color:B.cyan,marginTop:4}}>{wo.customer}{wo.customer_wo&&<span style={{fontFamily:M,color:B.textMuted,marginLeft:6,fontSize:11}}>WO# {wo.customer_wo}</span>}</div>}</div>
         <DSBadge ok={woPhotos.length>0}/>
       </div>
       {/* Status bar — big, tappable */}
@@ -406,7 +406,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           !wo.nte?<div style={{fontSize:11,color:B.textDim,fontStyle:"italic"}}>Not set — customer may cap spend</div>:
           <><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}><span style={{fontFamily:M,fontSize:17,fontWeight:700,color:nteColor}}>${parseFloat(wo.nte).toLocaleString()}</span><span style={{fontSize:10,color:B.textDim}}>${woSpend.toFixed(0)} used</span></div>
           <div style={{height:6,background:B.bg,borderRadius:3,overflow:"hidden",border:"1px solid "+B.border}}><div style={{width:Math.min(100,ntePct)+"%",height:"100%",background:nteColor,transition:"width .3s"}}/></div>
-          {ntePct>=100&&<div style={{fontSize:10,color:B.red,fontWeight:700,marginTop:4}}>⚠️ Over NTE — request increase before adding more</div>}
+          {ntePct>=100&&<div style={{fontSize:10,color:B.red,fontWeight:700,marginTop:4}}>Over NTE — request increase before adding more</div>}
           {ntePct>=75&&ntePct<100&&<div style={{fontSize:10,color:B.orange,fontWeight:600,marginTop:4}}>Approaching NTE ({Math.round(ntePct)}%)</div>}
           {wo.nte_approved_by&&<div style={{fontSize:9,color:B.textDim,marginTop:3}}>Last approved by {wo.nte_approved_by}</div>}</>}
         </div>
@@ -436,8 +436,8 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
 
     {/* BIG ACTION BUTTONS — the main things a tech does */}
     {canEdit&&wo.status!=="completed"&&<div style={{display:"flex",gap:8,marginBottom:12,maxWidth:640}}>
-      <button data-tip="Log hours on this job — logging time on a Pending job automatically flips it to Active." onClick={()=>setShowTime(true)} style={{...BIG,background:B.cyan,color:B.bg}}>⏱ Log Time</button>
-      <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>📷 Photo</button>
+      <button data-tip="Log hours on this job — logging time on a Pending job automatically flips it to Active." onClick={()=>setShowTime(true)} style={{...BIG,background:B.cyan,color:B.bg}}>Log Time</button>
+      <button onClick={()=>document.getElementById("cam-upload")?.click()} style={{...BIG,background:B.surface,border:"1px solid "+B.cyan,color:B.cyan}}>Photo</button>
       <button data-tip="Finish the job: confirm hours, add a summary, get the customer’s signature right on your screen." onClick={openCompleteFlow} style={{...BIG,background:B.green,color:B.bg}}>✓ Done</button>
     </div>}
 
@@ -456,16 +456,16 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         }catch(e){console.error("Intel fetch error:",e);}setIntelLoading(false);
       }}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🧠</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>AI Job Brief</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}><Icon name="bulb" size={14}/></span><span style={{fontSize:13,fontWeight:700,color:B.text}}>AI Job Brief</span></div>
           <span style={{fontSize:11,color:B.textDim}}>{intelOpen?"▼":"▶"} {intelLoading?"Loading...":jobIntel?"Tap to "+(intelOpen?"collapse":"expand"):"Tap to generate"}</span>
         </div>
         {intelOpen&&jobIntel&&<div style={{marginTop:12,borderTop:"1px solid "+B.border,paddingTop:12}}>
           <div style={{fontSize:12,color:B.textMuted,marginBottom:8}}>{jobIntel.summary}</div>
           {jobIntel.common_issues&&jobIntel.common_issues.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Common Issues</span>{jobIntel.common_issues.map((issue,i)=><div key={i} style={{fontSize:11,color:B.orange,marginTop:2}}>• {issue}</div>)}</div>}
           {jobIntel.parts_used_previously&&jobIntel.parts_used_previously.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:B.textDim,textTransform:"uppercase"}}>Parts Used Before</span>{jobIntel.parts_used_previously.map((p,i)=><div key={i} style={{fontSize:11,color:B.text,marginTop:2}}>• {p.name}{p.frequency>1?" (×"+p.frequency+")":""}</div>)}</div>}
-          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>⏱ Avg duration: {fmtHours(jobIntel.avg_duration_hours)}</div>}
-          {jobIntel.suggested_approach&&<div style={{fontSize:11,color:B.green,fontStyle:"italic"}}>💡 {jobIntel.suggested_approach}</div>}
-          {jobIntel.customer_notes&&<div style={{fontSize:11,color:B.cyan,marginTop:4}}>📝 {jobIntel.customer_notes}</div>}
+          {jobIntel.avg_duration_hours>0&&<div style={{fontSize:11,color:B.cyan,marginBottom:4}}>Avg duration: {fmtHours(jobIntel.avg_duration_hours)}</div>}
+          {jobIntel.suggested_approach&&<div style={{fontSize:11,color:B.green,fontStyle:"italic"}}>{jobIntel.suggested_approach}</div>}
+          {jobIntel.customer_notes&&<div style={{fontSize:11,color:B.cyan,marginTop:4}}>{jobIntel.customer_notes}</div>}
         </div>}
         {intelOpen&&intelLoading&&<div style={{marginTop:12,textAlign:"center",padding:12}}><span style={{fontSize:12,color:B.cyan}}>Analyzing customer history...</span></div>}
       </Card>
@@ -479,11 +479,11 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
           const resp=await fnFetch("predict-parts",{wo_title:wo.title,wo_description:wo.notes||"",equipment_type:eq?.equipment_type||"",equipment_model:eq?.model||"",customer_name:wo.customer||""});
           const data=await resp.json();if(data.success)setPartsPred(data.result);
         }catch(e){console.error("Parts predict error:",e);}setPartsLoading(false);
-      }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>🔮 Suggest Parts</button>
+      }} style={{...SEC,width:"100%",color:B.orange,borderColor:B.orange+"44"}}>Suggest Parts</button>
       :partsLoading?<Card style={{textAlign:"center",padding:14}}><span style={{fontSize:12,color:B.orange}}>Predicting parts needed...</span></Card>
       :partsPred&&<Card style={{}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:13,fontWeight:700,color:B.text}}>🔮 Predicted Parts</span>
+          <span style={{fontSize:13,fontWeight:700,color:B.text}}>Predicted Parts</span>
           <button onClick={()=>setPartsPred(null)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer"}}>Clear</button>
         </div>
         {partsPred.reasoning&&<div style={{fontSize:11,color:B.textMuted,marginBottom:10,fontStyle:"italic"}}>{partsPred.reasoning}</div>}
@@ -529,8 +529,8 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
                 {n.edited_at&&<span style={{fontSize:9,color:B.textDim,fontStyle:"italic"}} title={"Edited by "+(n.edited_by||"someone")+" on "+new Date(n.edited_at).toLocaleString()}>· edited</span>}
               </div>
               {canEdit&&canEditNote(n)&&!editing&&<div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button onClick={()=>startEditNote(n)} style={{background:"none",border:"none",color:B.cyan,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Edit">✏️</button>
-                <button onClick={()=>deleteFieldNote(n)} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Delete">🗑</button>
+                <button onClick={()=>startEditNote(n)} style={{background:"none",border:"none",color:B.cyan,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Edit"><Icon name="edit" size={12}/></button>
+                <button onClick={()=>deleteFieldNote(n)} style={{background:"none",border:"none",color:B.red,fontSize:13,cursor:"pointer",padding:"2px 4px"}} title="Delete"><Icon name="trash" size={12}/></button>
               </div>}
             </div>
             {editing
@@ -580,7 +580,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
 
       <Toggle label="Time Entries" count={woTime.length} open={showTimeEntries} setOpen={setShowTimeEntries}/>
       {showTimeEntries&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woTime.length===0?<div style={{color:B.textDim,fontSize:12}}>No time logged yet</div>:woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",fontSize:13,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:75}}>{fmtDate(te.logged_date)}</span><span style={{fontFamily:M,color:B.cyan,minWidth:40,fontWeight:700}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<div style={{display:"flex",gap:6}}><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:"4px"}}>✏️</button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:"4px"}}>🗑</button></div>}</div>)}
+        {woTime.length===0?<div style={{color:B.textDim,fontSize:12}}>No time logged yet</div>:woTime.map((te,i)=><div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:i<woTime.length-1?"1px solid "+B.border:"none",fontSize:13,alignItems:"center"}}><span style={{fontFamily:M,color:B.textDim,minWidth:75}}>{fmtDate(te.logged_date)}</span><span style={{fontFamily:M,color:B.cyan,minWidth:40,fontWeight:700}}>{te.hours}h</span><span style={{color:B.textMuted,flex:1}}>{te.description}</span>{canEditTime(te)&&<div style={{display:"flex",gap:6}}><button onClick={()=>setEditingTime({...te})} style={{background:"none",border:"none",color:B.cyan,fontSize:12,cursor:"pointer",padding:"4px"}}><Icon name="edit" size={12}/></button><button onClick={()=>deleteTimeEntry(te)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:"4px"}}><Icon name="trash" size={12}/></button></div>}</div>)}
         {canEdit&&<button onClick={()=>setShowTime(true)} style={{...BP,width:"100%",marginTop:10,padding:12}}>+ Log Time</button>}
       </Card>}
 
@@ -608,13 +608,13 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       {showPhotos&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
         {woPhotos.length===0?<div style={{color:B.textDim,fontSize:12}}>No photos yet</div>:<>
           <PhotoTimeline photos={woPhotos}/>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{woPhotos.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,display:"block"}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>📷 {p.filename}</div>}</a>)}</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{woPhotos.map((p,i)=><a key={i} href={(p.photo_url||"").replace("thumbnail?id=","file/d/").replace("&sz=w400","/view")} target="_blank" rel="noreferrer" style={{borderRadius:8,overflow:"hidden",border:"1px solid "+B.border,display:"block"}}>{p.photo_url?<img src={p.photo_url} alt={p.filename} style={{width:100,height:100,objectFit:"cover",display:"block"}}/>:<div style={{width:100,height:100,display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontSize:11,color:B.textDim}}>{p.filename}</div>}</a>)}</div>
         </>}
       </Card>}
 
       <Toggle label="Purchase Orders" count={woPOs.length} open={showPOs} setOpen={setShowPOs}/>
       {showPOs&&<Card style={{marginBottom:8,borderTopLeftRadius:0,borderTopRightRadius:0}}>
-        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const isEmpty=parseFloat(po.amount||0)===0;const canRemove=canEdit&&isEmpty;const canEditPO=canEdit;return<div key={po.id} onClick={canEditPO?()=>setEditingPO(po):undefined} title={canEditPO?"Click to edit PO details (description, amount, status, notes, surplus)":undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:canEditPO?"pointer":"default"}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span>{po.surplus_pool&&<span title={po.surplus_notes||"Available to bill on a future job"} style={{marginLeft:8,fontSize:9,padding:"2px 6px",borderRadius:10,background:B.orange+"22",color:B.orange,fontWeight:700}}>Surplus</span>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge>{canEditPO&&<button onClick={(e)=>{e.stopPropagation();setEditingPO(po);}} title="Edit PO" style={{background:"none",border:"1px solid "+B.border,color:B.textDim,fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>✎ Edit</button>}{canRemove&&<button onClick={async(e)=>{e.stopPropagation();if(!window.confirm("Remove empty PO "+po.po_id+" from this work order?\n\nThis PO has $0 charge and will be deleted."))return;const{error}=await sb().from("purchase_orders").delete().eq("id",po.id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");msg("PO "+po.po_id+" removed");}} title="Remove empty PO from this WO" style={{background:"none",border:"1px solid "+B.red+"55",color:B.red+"cc",fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>× Remove</button>}</div></div>})}
+        {woPOs.map(po=>{const canSeeAmt=isManager||po.requested_by===userName;const isEmpty=parseFloat(po.amount||0)===0;const canRemove=canEdit&&isEmpty;const canEditPO=canEdit;return<div key={po.id} onClick={canEditPO?()=>setEditingPO(po):undefined} title={canEditPO?"Click to edit PO details (description, amount, status, notes, surplus)":undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+B.border,cursor:canEditPO?"pointer":"default"}}><div><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:12,marginLeft:8}}>{po.description}</span>{po.surplus_pool&&<span title={po.surplus_notes||"Available to bill on a future job"} style={{marginLeft:8,fontSize:9,padding:"2px 6px",borderRadius:8,background:B.orange+"22",color:B.orange,fontWeight:700}}>Surplus</span>}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{canSeeAmt&&<span style={{fontFamily:M,fontSize:12,color:B.text}}>{"$"+parseFloat(po.amount||0).toFixed(2)}</span>}<Badge color={PSC[po.status]}>{po.status}</Badge>{canEditPO&&<button onClick={(e)=>{e.stopPropagation();setEditingPO(po);}} title="Edit PO" style={{background:"none",border:"1px solid "+B.border,color:B.textDim,fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>Edit</button>}{canRemove&&<button onClick={async(e)=>{e.stopPropagation();if(!window.confirm("Remove empty PO "+po.po_id+" from this work order?\n\nThis PO has $0 charge and will be deleted."))return;const{error}=await sb().from("purchase_orders").delete().eq("id",po.id);if(error){msg("Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");msg("PO "+po.po_id+" removed");}} title="Remove empty PO from this WO" style={{background:"none",border:"1px solid "+B.red+"55",color:B.red+"cc",fontSize:11,padding:"6px 10px",minHeight:32,borderRadius:6,cursor:"pointer",fontFamily:F,fontWeight:600}}>× Remove</button>}</div></div>})}
         {canEdit&&<div style={{display:"flex",gap:8,marginTop:10}}>
           <button data-tip="Need a part? Request a PO from right here — managers get pinged to approve it, and it stays attached to this job." onClick={()=>setShowPO(true)} style={{...BP,flex:1,padding:12}}>+ Request PO</button>
           <button onClick={()=>setShowReceipt(true)} style={{...BS,flex:1,padding:12}}>Scan Receipt</button>
@@ -627,7 +627,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
         <div style={{fontSize:10,color:B.textDim,marginBottom:8}}>EPA 608 tracking — every charge, recovery, or leak on systems ≥50 lbs.</div>
         {refLog.length>0&&<div style={{marginBottom:10}}>{refLog.map(r=>{const actColor=r.action==="added"?B.green:r.action==="recovered"?B.orange:B.red;return<div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+B.border,fontSize:12,gap:8}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{padding:"2px 8px",borderRadius:10,background:actColor+"22",color:actColor,fontSize:9,fontWeight:700,textTransform:"uppercase"}}>{r.action}</span><span style={{fontFamily:M,fontWeight:700,color:B.text}}>{r.pounds} lbs</span><span style={{color:B.textDim,fontSize:11}}>{r.refrigerant_type}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{padding:"2px 8px",borderRadius:8,background:actColor+"22",color:actColor,fontSize:9,fontWeight:700,textTransform:"uppercase"}}>{r.action}</span><span style={{fontFamily:M,fontWeight:700,color:B.text}}>{r.pounds} lbs</span><span style={{color:B.textDim,fontSize:11}}>{r.refrigerant_type}</span></div>
             <div style={{fontSize:10,color:B.textDim,marginTop:2}}>{r.technician}{r.cylinder_id&&" · Cyl "+r.cylinder_id}{" · "+new Date(r.logged_at).toLocaleString([],{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}{r.notes&&" · "+r.notes}</div>
           </div>
           {(isManager||r.technician===userName)&&<button onClick={()=>delRefEntry(r.id)} style={{background:"none",border:"none",color:B.red+"88",fontSize:12,cursor:"pointer",padding:"4px 8px"}}>×</button>}
@@ -669,14 +669,14 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
       {/* Delete — small, at the bottom, not prominent */}
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         <button onClick={async()=>{if(!window.confirm("Duplicate "+wo.wo_id+"? This creates a new WO with the same details."))return;setSaving(true);const r=await onCreateWO({title:wo.title,priority:wo.priority,assignee:wo.assignee||"Unassigned",due_date:"TBD",notes:wo.notes||"",location:wo.location||"",wo_type:wo.wo_type||"CM",building:wo.building||"",customer:wo.customer||"",customer_wo:"",crew:wo.crew||[]});setSaving(false);msg((r?.wo_id||"WO")+" created — opening it");if(r?.wo_id&&onOpenWO)onOpenWO(r.wo_id);}} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.cyan+"33",background:"transparent",color:B.cyan,fontSize:11,cursor:"pointer",fontFamily:F,minHeight:40}}>Duplicate WO</button>
-        <button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>🗑 Delete WO</button>
+        <button onClick={tryDelete} disabled={saving} style={{flex:1,padding:"10px",borderRadius:6,border:"1px solid "+B.red+"33",background:"transparent",color:B.red+"88",fontSize:11,cursor:"pointer",fontFamily:F}}>Delete WO</button>
       </div>
     </div>
 
     {/* MODALS */}
-    {showTime&&(()=>{const elapsedHrs=wo.on_site_at&&wo.resolved_at?Math.round(((new Date(wo.resolved_at)-new Date(wo.on_site_at))/3600000)*4)/4:0;return <Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/>{elapsedHrs>0&&<button onClick={()=>setTH(String(elapsedHrs))} style={{marginTop:6,background:B.cyan+"15",border:"1px solid "+B.cyan+"44",color:B.cyan,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontFamily:F}}>⏱ Use on-site → resolved: {elapsedHrs}h</button>}</div><div><label style={LS}>Description</label><div style={{display:"flex",gap:6}}><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,flex:1,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/><VoiceInput onResult={t=>setTD(prev=>prev?(prev+" "+t):t)} style={{minHeight:44}}/></div></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>;})()}
+    {showTime&&(()=>{const elapsedHrs=wo.on_site_at&&wo.resolved_at?Math.round(((new Date(wo.resolved_at)-new Date(wo.on_site_at))/3600000)*4)/4:0;return <Modal title="Log Time" onClose={()=>setShowTime(false)}><div style={{display:"flex",flexDirection:"column",gap:14}}><div><label style={LS}>Date</label><input type="date" value={tDate} onChange={e=>setTDate(e.target.value)} style={{...IS,padding:14,fontSize:14}}/></div><div><label style={LS}>Hours</label><input value={tH} onChange={e=>setTH(e.target.value)} type="number" step="0.25" placeholder="1.5" style={{...IS,fontFamily:M,padding:14,fontSize:16}}/>{elapsedHrs>0&&<button onClick={()=>setTH(String(elapsedHrs))} style={{marginTop:6,background:B.cyan+"15",border:"1px solid "+B.cyan+"44",color:B.cyan,fontSize:11,fontWeight:700,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontFamily:F}}>Use on-site → resolved: {elapsedHrs}h</button>}</div><div><label style={LS}>Description</label><div style={{display:"flex",gap:6}}><input value={tD} onChange={e=>setTD(e.target.value)} placeholder="What was done?" style={{...IS,flex:1,padding:14,fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addTime()}/><VoiceInput onResult={t=>setTD(prev=>prev?(prev+" "+t):t)} style={{minHeight:44}}/></div></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowTime(false)} style={{...SEC}}>Cancel</button><button onClick={addTime} disabled={saving} style={{...BIG,background:B.cyan,color:B.bg,opacity:saving?.6:1}}>{saving?"Saving...":"Log Time"}</button></div></div></Modal>;})()}
     {showPO&&<POReqModal wo={wo} pos={pos} onCreatePO={onCreatePO} onClose={()=>{setShowPO(false);setPoPrefill(null);}} initial={poPrefill} userName={userName} userRole={userRole} userId={(users||[]).find(u=>u.name===userName)?.id}/>}
-    {editingPO&&<Modal title={"Edit PO "+editingPO.po_id} onClose={()=>setEditingPO(null)}><POEditForm po={editingPO} onClose={()=>setEditingPO(null)} onSave={async(u)=>{const{id,...rest}=u;const{error}=await sb().from("purchase_orders").update(rest).eq("id",id);if(error){msg("⚠️ Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");setEditingPO(null);msg("PO "+u.po_id+" updated");}}/></Modal>}
+    {editingPO&&<Modal title={"Edit PO "+editingPO.po_id} onClose={()=>setEditingPO(null)}><POEditForm po={editingPO} onClose={()=>setEditingPO(null)} onSave={async(u)=>{const{id,...rest}=u;const{error}=await sb().from("purchase_orders").update(rest).eq("id",id);if(error){msg("Failed: "+error.message);return;}if(reloadTable)await reloadTable("purchase_orders");setEditingPO(null);msg("PO "+u.po_id+" updated");}}/></Modal>}
     {showReceipt&&<Modal title="Scan Receipt / Invoice" onClose={()=>{setShowReceipt(false);setReceiptData(null);}} wide>
       {!receiptData?<div style={{display:"flex",flexDirection:"column",gap:14,alignItems:"center"}}>
         
@@ -756,7 +756,7 @@ function WODetail({wo,onBack,onOpenWO,onUpdateWO,onDeleteWO,onCreateWO,canEdit,p
     </Modal>}
     {showFollowUp&&<Modal title="Job Complete! Need a Follow-up?" onClose={()=>setShowFollowUp(false)}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div style={{textAlign:"center",fontSize:32,marginBottom:4}}>✅</div>
+        <div style={{textAlign:"center",fontSize:32,marginBottom:4}}><Icon name="check" size={30}/></div>
         <div style={{textAlign:"center",fontSize:14,fontWeight:700,color:B.green,marginBottom:4}}>{wo.wo_id} completed successfully</div>
         <div style={{fontSize:12,color:B.textMuted,textAlign:"center"}}>Does this job need a follow-up visit? Need to order parts? Any equipment to replace next time?</div>
         <textarea value={fuNotes} onChange={e=>setFuNotes(e.target.value)} rows={3} placeholder="Describe what needs to happen next..." style={{...IS,resize:"vertical",lineHeight:1.5,fontSize:14}}/>
@@ -850,7 +850,7 @@ function CreateWO({onSave,onCancel,users,customers,userName,userRole,allWos,equi
   };
   return(<div><button onClick={onCancel} style={{background:"none",border:"none",color:B.cyan,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:14,fontFamily:F}}>← Back</button>
     <Card style={{maxWidth:580}}><h2 style={{margin:"0 0 18px",fontSize:18,fontWeight:700,color:B.text}}>Create Work Order</h2><div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div><input ref={scanRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanWO}/><button onClick={()=>scanRef.current?.click()} disabled={scanning} type="button" style={{...BS,width:"100%",padding:"12px 16px",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanning?.6:1}}>{scanning?"Scanning...":"📷 Scan Document"}</button>{scanning&&<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the document...</div>}</div>
+      <div><input ref={scanRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleScanWO}/><button onClick={()=>scanRef.current?.click()} disabled={scanning} type="button" style={{...BS,width:"100%",padding:"12px 16px",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:scanning?.6:1}}>{scanning?"Scanning...":"Scan Document"}</button>{scanning&&<div style={{fontSize:11,color:B.cyan,marginTop:4,textAlign:"center"}}>AI is reading the document...</div>}</div>
       <div><label style={LS}>Title {custWO&&<span style={{color:B.textDim,fontWeight:400}}>(optional — defaults to Customer WO#)</span>}</label><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={custWO?custWO:"Walk-in Cooler Repair — Store #14"} style={IS}/></div>
       <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);if(linkedEq&&linkedEq.customer_name!==e.target.value)setEquipmentId(null);}} style={{...IS,cursor:"pointer"}}><option value="">— Select Customer —</option>{(customers||[]).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
       <div><label style={LS}>Customer WO# <span style={{color:B.textDim,fontWeight:400}}>(optional — from customer's TMS)</span></label><input value={custWO} onChange={e=>setCustWO(e.target.value)} placeholder="e.g. TMS-40291" style={IS}/></div>
@@ -989,7 +989,7 @@ function BatchScanWO({onCreateWO,onCancel,users,customers,userName,allWos}){
         <div><label style={LS}>Additional crew <span style={{color:B.textDim,fontWeight:400}}>(applied with Assign to)</span></label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:defCrew.length?6:0}}>{defCrew.map(t=><span key={t} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button type="button" onClick={()=>setDefCrew(defCrew.filter(x=>x!==t))} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:0}}>×</button></span>)}</div><select value="" onChange={e=>{if(!e.target.value)return;setDefCrew([...defCrew,e.target.value]);}} style={{...IS,cursor:"pointer"}}><option value="">+ Add technician</option>{assignable.filter(u=>u.name!==defAssign&&!defCrew.includes(u.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
       </div>
       <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{addFiles(e.target.files);e.target.value="";}}/>
-      <button type="button" onClick={()=>fileRef.current?.click()} disabled={busy} style={{...BP,width:"100%",padding:"12px 16px",fontSize:13,opacity:busy?.6:1}}>{progress?"Reading "+progress.name+" ("+progress.i+" of "+progress.n+")…":rows.length?"📷 Scan More Documents":"📷 Scan Documents (photos or PDF)"}</button>
+      <button type="button" onClick={()=>fileRef.current?.click()} disabled={busy} style={{...BP,width:"100%",padding:"12px 16px",fontSize:13,opacity:busy?.6:1}}>{progress?"Reading "+progress.name+" ("+progress.i+" of "+progress.n+")…":rows.length?"Scan More Documents":"Scan Documents (photos or PDF)"}</button>
       <div style={{fontSize:10,color:progress?B.cyan:B.textDim,marginTop:4,textAlign:"center"}}>{progress?"AI is extracting work orders — a 30-page stack takes about a minute.":"Pick several photos at once, or one PDF with every page. You can also paste a screenshot with Ctrl+V."}</div>
       {errors.length>0&&<div style={{marginTop:10,padding:"8px 12px",background:B.red+"18",border:"1px solid "+B.red+"66",borderRadius:6,fontSize:11,color:B.red}}>{errors.map((e,i)=><div key={i}>{e}</div>)}<button type="button" onClick={()=>setErrors([])} style={{background:"none",border:"none",color:B.red,fontSize:10,cursor:"pointer",padding:0,marginTop:4,fontFamily:F}}>dismiss</button></div>}
       {done&&<div style={{marginTop:12,padding:"10px 14px",background:done.created.length?B.green+"18":B.orange+"18",border:"1px solid "+(done.created.length?B.green:B.orange)+"66",borderRadius:8,fontSize:12}}>
@@ -1086,7 +1086,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
       {[["all","All"],["pending","Pending"],["in_progress","Active"],["completed","Done"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}</button>)}
       {canEdit&&<button data-tip="Create a new work order. It shows up on the assigned tech’s My Day immediately, with a push alert." data-tour="wo-new" onClick={()=>setCreating(true)} style={{...BP,marginLeft:"auto",padding:"7px 14px",fontSize:12}}>+ New Order</button>}
-      {canEdit&&isMgr&&<button data-tip="Import a stack of customer-issued work orders (Duke TMS printouts): scan photos or a multi-page PDF, review, create them all at once." onClick={()=>setBatching(true)} style={{...BS,padding:"7px 10px",fontSize:11}}>📷 Scan Batch</button>}
+      {canEdit&&isMgr&&<button data-tip="Import a stack of customer-issued work orders (Duke TMS printouts): scan photos or a multi-page PDF, review, create them all at once." onClick={()=>setBatching(true)} style={{...BS,padding:"7px 10px",fontSize:11}}>Scan Batch</button>}
       {canEdit&&<button data-tip="Bulk mode: select several jobs, then set them Active or Pending in one go." onClick={()=>{setBulkMode(!bulkMode);setBulkSel([]);}} style={{...BS,padding:"7px 10px",fontSize:11,color:bulkMode?B.cyan:B.textDim,display:"inline-flex",alignItems:"center",gap:5}}>{bulkMode?"Cancel":<><Icon name="checksquare" size={13}/> Bulk</>}</button>}
     </div>
     {bulkMode&&bulkSel.length>0&&<div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 12px",background:B.cyanGlow,borderRadius:6,alignItems:"center"}}>
@@ -1100,7 +1100,7 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
       {custList.length>1&&<select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,width:"auto",maxWidth:"45%",padding:"8px 10px",fontSize:11,cursor:"pointer"}}><option value="">All Customers</option>{custList.map(c=><option key={c} value={c}>{c}</option>)}</select>}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:0}}>
-      {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"📭"}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
+      {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"":""}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
       {flt.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
         <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{
           // Swiping to "completed" opens the Review & Sign flow instead of raw-completing —
@@ -1166,7 +1166,7 @@ function TMSQueue({orders,wlp}){
     <Card style={{padding:14,marginBottom:12,background:B.orange+"11"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div>
-          <div style={{fontSize:14,fontWeight:700,color:B.text}}>📥 TMS Queue — Batch Entry</div>
+          <div style={{fontSize:14,fontWeight:700,color:B.text}}>TMS Queue — Batch Entry</div>
           <div style={{fontSize:11,color:B.textDim,marginTop:3}}>Rip through customer WO# entry. Type the number, Tab/Enter to save, check the box when you've also entered it in the customer's TMS system.</div>
         </div>
         <div style={{display:"flex",gap:12,fontFamily:M,fontSize:11}}>
@@ -1176,7 +1176,7 @@ function TMSQueue({orders,wlp}){
         </div>
       </div>
     </Card>
-    {visible.length===0&&<Card style={{textAlign:"center",padding:24}}><div style={{fontSize:24,marginBottom:6}}>✅</div><div style={{fontSize:13,color:B.textDim}}>All customer WOs entered in TMS</div></Card>}
+    {visible.length===0&&<Card style={{textAlign:"center",padding:24}}><div style={{fontSize:24,marginBottom:6}}><Icon name="check" size={22}/></div><div style={{fontSize:13,color:B.textDim}}>All customer WOs entered in TMS</div></Card>}
     <div style={{display:"flex",flexDirection:"column",gap:4}}>
       {visible.map(wo=>{const localV=localVals[wo.id]??(wo.customer_wo||"");const dirty=localV.trim()!==(wo.customer_wo||"");const sv=saving[wo.id];return(<Card key={wo.id} style={{padding:"10px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -1242,12 +1242,12 @@ function WOOverview({orders,wlp,pos,time}){
 
   return(<div>
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Active" value={active.length} icon="📋" color={B.cyan}/>
+      <StatCard label="Active" value={active.length} icon="clipboard" color={B.cyan}/>
       <StatCard label="Done This Week" value={completedThisWeek.length} icon="✓" color={B.green}/>
-      <StatCard label="Hours" value={fmtHours(thisWeek.reduce((s,o)=>s+calcWOHours(o.id,time),0))} icon="⏱" color={B.orange}/>
-      <StatCard label="Pending POs" value={pendingPOs} icon="📄" color={B.cyan}/>
-      {tmsPending>0&&<StatCard label="TMS Needed" value={tmsPending} icon="⚠️" color={B.orange}/>}
-      {staleWOs.length>0&&<div onClick={()=>setFilter("stale")} style={{cursor:"pointer"}}><StatCard label="Stale (30d+)" value={staleWOs.length} icon="🕐" color={B.red}/></div>}
+      <StatCard label="Hours" value={fmtHours(thisWeek.reduce((s,o)=>s+calcWOHours(o.id,time),0))} icon="clock" color={B.orange}/>
+      <StatCard label="Pending POs" value={pendingPOs} icon="file" color={B.cyan}/>
+      {tmsPending>0&&<StatCard label="TMS Needed" value={tmsPending} icon="alert" color={B.orange}/>}
+      {staleWOs.length>0&&<div onClick={()=>setFilter("stale")} style={{cursor:"pointer"}}><StatCard label="Stale (30d+)" value={staleWOs.length} icon="clock" color={B.red}/></div>}
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontSize:14,fontWeight:700,color:B.text}}>This Week <span style={{fontWeight:400,fontSize:12,color:B.textDim,marginLeft:6}}>{weekLabel}</span></div>
@@ -1257,10 +1257,10 @@ function WOOverview({orders,wlp,pos,time}){
     <ListFilterBar filter={listFilter}
       placeholder={filter==="tms"?"Search the TMS queue by WO#, customer, title, tech…":"Search by WO#, customer, title, tech…"}
       showing={(n,t)=>n+" of "+t+(filter==="tms"?" needing TMS":" orders")}/>
-    {filter==="tms"?<TMSQueue orders={listFilter.result} wlp={wlp}/>:(listFilter.result.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13,color:B.textDim}}>{listFilter.activeCount>0?"Nothing matches those filters":"No work orders"}</div></Card>:<WOList orders={listFilter.result} {...wlp}/>)}
+    {filter==="tms"?<TMSQueue orders={listFilter.result} wlp={wlp}/>:(listFilter.result.length===0?<Card style={{textAlign:"center",padding:24,marginBottom:16}}><div style={{fontSize:24,marginBottom:6}}><Icon name="inbox" size={22}/></div><div style={{fontSize:13,color:B.textDim}}>{listFilter.activeCount>0?"Nothing matches those filters":"No work orders"}</div></Card>:<WOList orders={listFilter.result} {...wlp}/>)}
     {past.length>0&&<div style={{marginTop:20}}>
       <button onClick={()=>setShowArchive(!showArchive)} style={{width:"100%",padding:"12px 16px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📁</span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}><Icon name="file" size={14}/></span><span style={{fontSize:13,fontWeight:700,color:B.text}}>Past Work Orders</span><span style={{fontSize:11,color:B.textDim}}>({past.length} completed)</span></div>
         <span style={{color:B.textDim,fontSize:14}}>{showArchive?"\u25BE":"\u25B8"}</span>
       </button>
       {showArchive&&<div style={{border:"1px solid "+B.border,borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
@@ -1399,7 +1399,7 @@ function TroubleshootAssistant({wo,onClose}){
       {/* RESULTS */}
       {result&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
         {/* Diagnosis header */}
-        <div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        <div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim}}>Diagnosis</span>
             <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:4,background:(urgencyColors[result.urgency]||B.cyan)+"22",color:urgencyColors[result.urgency]||B.cyan,textTransform:"uppercase"}}>{result.urgency} urgency</span>
@@ -1414,7 +1414,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>
 
         {/* Possible causes */}
-        {result.possible_causes?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        {result.possible_causes?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Possible Causes</span>
           {result.possible_causes.map((c,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",fontSize:13,color:B.text}}>
             <span style={{color:B.cyan,fontFamily:M,fontWeight:700,minWidth:18}}>{i+1}.</span>{c}
@@ -1422,7 +1422,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>}
 
         {/* Recommended actions */}
-        {result.recommended_actions?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        {result.recommended_actions?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Recommended Actions</span>
           {result.recommended_actions.map((a,i)=><div key={i} style={{display:"flex",gap:8,padding:"5px 0",fontSize:13,color:B.text,borderBottom:i<result.recommended_actions.length-1?"1px solid "+B.border+"44":"none"}}>
             <span style={{color:B.green,fontSize:14,minWidth:20}}>{"[ ]"}</span><span style={{lineHeight:1.4}}>{a}</span>
@@ -1430,7 +1430,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>}
 
         {/* Parts likely needed */}
-        {result.parts_likely_needed?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:10,padding:"14px 16px"}}>
+        {result.parts_likely_needed?.length>0&&<div style={{background:B.surface,border:"1px solid "+B.border,borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.textDim,display:"block",marginBottom:8}}>Parts Likely Needed</span>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {result.parts_likely_needed.map((p,i)=><span key={i} style={{padding:"5px 10px",borderRadius:6,background:B.cyan+"18",color:B.cyan,fontSize:12,fontWeight:600}}>{p}</span>)}
@@ -1438,7 +1438,7 @@ function TroubleshootAssistant({wo,onClose}){
         </div>}
 
         {/* Safety warnings */}
-        {result.safety_warnings?.length>0&&<div style={{background:B.red+"11",border:"2px solid "+B.red+"44",borderRadius:10,padding:"14px 16px"}}>
+        {result.safety_warnings?.length>0&&<div style={{background:B.red+"11",border:"2px solid "+B.red+"44",borderRadius:8,padding:"14px 16px"}}>
           <span style={{fontSize:10,fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",color:B.red,display:"block",marginBottom:8}}>Safety Warnings</span>
           {result.safety_warnings.map((w,i)=><div key={i} style={{display:"flex",gap:8,padding:"4px 0",fontSize:13,color:B.red,fontWeight:600}}>
             <span>{"!!!"}</span>{w}

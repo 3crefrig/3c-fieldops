@@ -48,11 +48,11 @@ function Reports({wos,pos,timeEntries,users,customers,invoices}){
     {/* KPI Cards */}
     <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
       <StatCard label="Completed" value={completed.length} icon="✓" color={B.green} delta={delta(completed.length,prevCompleted)}/>
-      <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="⏱" color={B.cyan} delta={delta(totalHours,prevHours)}/>
-      <StatCard label="Avg Job Duration" value={fmtHours(avgJobDuration)} icon="📐" color={B.orange}/>
-      <StatCard label="Avg Response" value={avgResponseTime.toFixed(1)+"d"} icon="⚡" color={B.cyan}/>
-      <StatCard label="PO Spend" value={"$"+totalPOSpend.toLocaleString()} icon="💰" color={B.red}/>
-      <StatCard label="PM / CM" value={pmCount+" / "+cmCount} icon="📊" color={B.orange}/>
+      <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="clock" color={B.cyan} delta={delta(totalHours,prevHours)}/>
+      <StatCard label="Avg Job Duration" value={fmtHours(avgJobDuration)} icon="file" color={B.orange}/>
+      <StatCard label="Avg Response" value={avgResponseTime.toFixed(1)+"d"} icon="zap" color={B.cyan}/>
+      <StatCard label="PO Spend" value={"$"+totalPOSpend.toLocaleString()} icon="dollar" color={B.red}/>
+      <StatCard label="PM / CM" value={pmCount+" / "+cmCount} icon="chart" color={B.orange}/>
     </div>
 
     {/* Tech Performance Table */}

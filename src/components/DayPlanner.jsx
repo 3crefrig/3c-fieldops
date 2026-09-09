@@ -80,10 +80,10 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
   return(<div>
     {/* Stats */}
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="This Week" value={weekWOs.length} icon="📋" color={B.cyan}/>
-      <StatCard label="PM Jobs" value={pmCount} icon="🔁" color={B.green}/>
-      <StatCard label="CM Jobs" value={cmCount} icon="🔧" color={B.orange}/>
-      {overdueWOs.length>0&&<StatCard label="Overdue" value={overdueWOs.length} icon="🚨" color={B.red}/>}
+      <StatCard label="This Week" value={weekWOs.length} icon="clipboard" color={B.cyan}/>
+      <StatCard label="PM Jobs" value={pmCount} icon="repeat" color={B.green}/>
+      <StatCard label="CM Jobs" value={cmCount} icon="wrench" color={B.orange}/>
+      {overdueWOs.length>0&&<StatCard label="Overdue" value={overdueWOs.length} icon="alert" color={B.red}/>}
     </div>
 
     {/* Controls */}

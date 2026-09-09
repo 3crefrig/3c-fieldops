@@ -186,6 +186,9 @@ export const visibleNotifs=(notifs,role)=>{if(!Array.isArray(notifs))return[];if
 
 export const GlobalStyles=()=><style>{`
 html,body,#root{height:100%;margin:0;padding:0;overflow:hidden}
+body{font-family:${F}}
+/* Controls inherit the UI face — a button without fontFamily used to fall back to the browser serif. */
+button,input,select,textarea{font-family:inherit}
 /* Native date/time pickers draw their OWN popup, and without color-scheme the
    browser paints that popup in light mode over a dark app — a white calendar
    flashing out of a dark form. This one declaration makes Chrome, Safari and

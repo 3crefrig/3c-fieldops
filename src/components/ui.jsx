@@ -34,6 +34,29 @@ export function Icon({name,size=20,color="currentColor",strokeWidth=2}){
     chevron:[<path key="a" d="M6 9l6 6 6-6"/>],
     checksquare:[<rect key="a" x="4" y="4" width="16" height="16" rx="3"/>,<path key="b" d="M8 12l3 3 5-6"/>],
     check:[<path key="a" d="M5 12l4 4 10-10"/>],
+    camera:[<path key="a" d="M4 8h3l2-3h6l2 3h3v11H4z"/>,<circle key="b" cx="12" cy="13" r="3.5"/>],
+    dollar:[<path key="a" d="M12 3v18"/>,<path key="b" d="M16.5 7.5c0-1.7-2-3-4.5-3S7.5 5.8 7.5 7.5 9.5 10 12 10s4.5 1.3 4.5 3.5-2 3-4.5 3-4.5-1.3-4.5-3"/>],
+    file:[<path key="a" d="M6 3h8l4 4v14H6z"/>,<path key="b" d="M14 3v4h4M9 13h6M9 17h6"/>],
+    edit:[<path key="a" d="M4 20h4l11-11-4-4L4 16z"/>,<path key="b" d="M13 7l4 4"/>],
+    chart:[<path key="a" d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>],
+    paperclip:[<path key="a" d="M8 12l7-7a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8"/>],
+    zap:[<path key="a" d="M13 2L4 14h7l-1 8 9-12h-7z"/>],
+    mail:[<rect key="a" x="3" y="5" width="18" height="14" rx="2"/>,<path key="b" d="M3 7l9 6 9-6"/>],
+    box:[<path key="a" d="M3 8l9-5 9 5v8l-9 5-9-5z"/>,<path key="b" d="M3 8l9 5 9-5M12 13v8"/>],
+    star:[<path key="a" d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/>],
+    trash:[<path key="a" d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/>,<path key="b" d="M10 11v6M14 11v6"/>],
+    tag:[<path key="a" d="M3 12V3h9l9 9-9 9z"/>,<circle key="b" cx="8" cy="8" r="1.5"/>],
+    settings:[<circle key="a" cx="12" cy="12" r="3"/>,<path key="b" d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>],
+    target:[<circle key="a" cx="12" cy="12" r="9"/>,<circle key="b" cx="12" cy="12" r="5"/>,<circle key="c" cx="12" cy="12" r="1.5"/>],
+    shield:[<path key="a" d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>],
+    bulb:[<path key="a" d="M9 18h6M10 21h4"/>,<path key="b" d="M8 13a5 5 0 1 1 8 0c-1 1-1.5 2-1.5 3h-5c0-1-.5-2-1.5-3z"/>],
+    snowflake:[<path key="a" d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/>],
+    message:[<path key="a" d="M4 5h16v11H9l-5 4z"/>],
+    lock:[<rect key="a" x="5" y="11" width="14" height="10" rx="2"/>,<path key="b" d="M8 11V7a4 4 0 0 1 8 0v4"/>],
+    image:[<rect key="a" x="3" y="4" width="18" height="16" rx="2"/>,<path key="b" d="M3 16l5-5 4 4 3-3 6 6"/>,<circle key="c" cx="16" cy="9" r="1.5"/>],
+    link:[<path key="a" d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>,<path key="b" d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>],
+    mic:[<rect key="a" x="9" y="3" width="6" height="11" rx="3"/>,<path key="b" d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/>],
+    help:[<circle key="a" cx="12" cy="12" r="9"/>,<path key="b" d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17v.5"/>],
     repeat:[<path key="a" d="M17 2l4 4-4 4"/>,<path key="b" d="M3 11V9a4 4 0 0 1 4-4h14"/>,<path key="c" d="M7 22l-4-4 4-4"/>,<path key="d" d="M21 13v2a4 4 0 0 1-4 4H3"/>],
     map:[<path key="a" d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/>,<path key="b" d="M9 4v14M15 6v14"/>],
     receipt:[<path key="a" d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/>,<path key="b" d="M9 8h6M9 12h6"/>],
@@ -90,7 +113,7 @@ export function previewPdfDoc(doc,title,setPreview){
 export function PdfPreviewModal({url,downloadUrl,title,filename,onClose}){
   useEffect(()=>{const k=e=>{if(e.key==="Escape")onClose&&onClose();};document.addEventListener("keydown",k);return()=>document.removeEventListener("keydown",k);},[onClose]);
   return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1100,display:"flex",flexDirection:"column",background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",padding:"max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom))",boxSizing:"border-box",animation:"fadeIn .15s ease-out"}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:B.surface,borderRadius:14,border:"1px solid "+B.border,flex:1,display:"flex",flexDirection:"column",overflow:"hidden",maxWidth:1000,width:"100%",margin:"0 auto",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:B.surface,borderRadius:8,border:"1px solid "+B.border,flex:1,display:"flex",flexDirection:"column",overflow:"hidden",maxWidth:1000,width:"100%",margin:"0 auto",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 16px",borderBottom:"1px solid "+B.border}}>
         <span style={{fontSize:14,fontWeight:700,color:B.text,fontFamily:M,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Preview"}</span>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
@@ -111,7 +134,7 @@ export function PdfPreviewModal({url,downloadUrl,title,filename,onClose}){
 export function Badge({color,children}){return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"2px 7px",borderRadius:5,background:color+"16",color,fontSize:11,fontWeight:600,fontFamily:F,letterSpacing:0.1,lineHeight:"16px",whiteSpace:"nowrap"}}><span style={{width:5,height:5,borderRadius:3,background:color,flexShrink:0}}/>{children}</span>;}
 export function Card({children,onClick,style}){return <div onClick={onClick} className={onClick?"card-hover":""} style={{background:B.surface,borderRadius:8,padding:16,border:"1px solid "+B.border,cursor:onClick?"pointer":"default",transition:"border-color .15s",...style}}>{children}</div>;}
 export function StatCard({label,value,icon,color,delta}){return <div className="stat-card" style={{flex:"1 1 130px",minWidth:130,padding:"14px 16px",background:B.surface,borderRadius:8,border:"1px solid "+B.border,boxSizing:"border-box"}}><div className="stat-label" style={{fontSize:11,color:B.textMuted,fontWeight:600,letterSpacing:0.3,textTransform:"uppercase",marginBottom:6}}>{label}</div><div className="stat-value" style={{fontSize:22,fontWeight:700,color:B.text,fontFamily:M,lineHeight:1,letterSpacing:-0.5,fontVariantNumeric:"tabular-nums"}}>{value}</div>{delta!=null&&<div style={{fontSize:10.5,fontWeight:650,marginTop:6,color:delta>=0?B.green:B.red}}>{delta>=0?"▲":"▼"} {Math.abs(delta)}% <span style={{color:B.textDim,fontWeight:400}}>vs prior</span></div>}</div>;}
-export function Modal({title,onClose,children,wide}){return <div style={{position:"fixed",inset:0,zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",animation:"fadeIn .15s ease-out",padding:"max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))",boxSizing:"border-box"}}><div className="modal-card" style={{background:B.surface,borderRadius:10,padding:24,width:"92%",maxWidth:wide?620:440,overflowY:"auto",border:"1px solid "+B.border,boxShadow:"0 20px 60px rgba(0,0,0,0.4)",animation:"modalIn .2s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text,letterSpacing:-0.2}}>{title}</h3><button onClick={onClose} aria-label="Close" style={{background:B.bg,border:"1px solid "+B.border,color:B.textMuted,width:28,height:28,borderRadius:8,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=B.surfaceActive} onMouseLeave={e=>e.currentTarget.style.background=B.bg}>×</button></div>{children}</div></div>;}
+export function Modal({title,onClose,children,wide}){return <div style={{position:"fixed",inset:0,zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.7)",backdropFilter:"blur(6px)",animation:"fadeIn .15s ease-out",padding:"max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))",boxSizing:"border-box"}}><div className="modal-card" style={{background:B.surface,borderRadius:8,padding:24,width:"92%",maxWidth:wide?620:440,overflowY:"auto",border:"1px solid "+B.border,boxShadow:"0 20px 60px rgba(0,0,0,0.4)",animation:"modalIn .2s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text,letterSpacing:-0.2}}>{title}</h3><button onClick={onClose} aria-label="Close" style={{background:B.bg,border:"1px solid "+B.border,color:B.textMuted,width:28,height:28,borderRadius:8,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=B.surfaceActive} onMouseLeave={e=>e.currentTarget.style.background=B.bg}>×</button></div>{children}</div></div>;}
 export function Toast({msg}){useEffect(()=>{if(msg)haptic(30);},[msg]);if(!msg)return null;return <div style={{position:"fixed",top:16,right:16,zIndex:2000,background:B.text,color:B.bg,padding:"9px 14px",borderRadius:6,fontSize:13,fontWeight:600,fontFamily:F,display:"flex",alignItems:"center",gap:8,boxShadow:"0 6px 20px rgba(0,0,0,0.25)",animation:"toastIn .25s ease-out"}}><span style={{color:B.green,display:"inline-flex"}}><Icon name="check" size={14}/></span>{msg}</div>;}
 export function CustomSelect({value,onChange,options,placeholder,style:sx}){
   const[open,setOpen]=useState(false);const ref=useRef(null);const[search,setSearch]=useState("");
@@ -134,7 +157,7 @@ export function CustomSelect({value,onChange,options,placeholder,style:sx}){
           <div style={{fontSize:13,fontWeight:o.value===value?700:500,color:o.value===value?B.cyan:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.label}</div>
           {o.sub&&<div style={{fontSize:10,color:B.textDim,marginTop:1}}>{o.sub}</div>}
         </div>
-        {o.tag&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:o.tagColor+"20",color:o.tagColor,border:"1px solid "+o.tagColor+"30",flexShrink:0}}>{o.tag}</span>}
+        {o.tag&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:o.tagColor+"20",color:o.tagColor,border:"1px solid "+o.tagColor+"30",flexShrink:0}}>{o.tag}</span>}
       </div>)}
     </div>}
   </div>);
@@ -144,7 +167,7 @@ export function DSBadge({ok}){return <span style={{display:"inline-flex",alignIt
 export function Spinner(){return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{width:32,height:32,border:"3px solid "+B.border,borderTopColor:B.cyan,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/></div>;}
 export function SkeletonCard(){return <div style={{background:B.surface,borderRadius:8,padding:16,border:"1px solid "+B.border}}><div style={{height:10,width:"40%",borderRadius:4,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:18,width:"70%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /><div style={{height:10,width:"55%",borderRadius:4,marginTop:10,background:`linear-gradient(90deg,${B.border},${B.surfaceActive},${B.border})`,backgroundSize:"200% 100%",animation:"shimmer 1.5s infinite"}} /></div>;}
 export function SkeletonLoader({count}){return <div style={{display:"flex",flexDirection:"column",gap:10,animation:"fadeIn .3s ease-out"}}>{Array.from({length:count||3}).map((_,i)=><SkeletonCard key={i}/>)}</div>;}
-export function EmptyState({icon,title,subtitle}){return <div style={{textAlign:"center",padding:"48px 24px",animation:"fadeIn .3s ease-out"}}>{icon&&<div style={{fontSize:40,marginBottom:12,opacity:0.8}}>{icon}</div>}<div style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:6}}>{title||"Nothing here yet"}</div><div style={{fontSize:12,color:B.textDim,lineHeight:1.5,maxWidth:260,margin:"0 auto"}}>{subtitle||""}</div></div>;}
+export function EmptyState({icon,title,subtitle}){return <div style={{textAlign:"center",padding:"48px 24px",animation:"fadeIn .3s ease-out"}}>{icon&&<div style={{marginBottom:12,color:B.textDim,display:"flex",justifyContent:"center"}}><Icon name={icon} size={32} strokeWidth={1.5}/></div>}<div style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:6}}>{title||"Nothing here yet"}</div><div style={{fontSize:12,color:B.textDim,lineHeight:1.5,maxWidth:260,margin:"0 auto"}}>{subtitle||""}</div></div>;}
 export function GlobalSearch({data,onNavigateWO,setTab}){
   const[q,setQ]=useState("");
   const[open,setOpen]=useState(false);
@@ -171,7 +194,7 @@ export function GlobalSearch({data,onNavigateWO,setTab}){
       <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>q&&setOpen(true)} placeholder={mob?"Search…":"Search WO, PO, customer…"} style={{background:"transparent",border:"none",outline:"none",color:B.text,fontSize:16,fontFamily:F,flex:1,minWidth:0,padding:0}}/>
       {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{background:"none",border:"none",color:B.textDim,fontSize:14,cursor:"pointer",padding:0,lineHeight:1}}>×</button>}
     </div>
-    {open&&query&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,minWidth:mob?0:320,maxWidth:mob?"none":420,background:B.surface,border:"1px solid "+B.border,borderRadius:10,boxShadow:"0 12px 40px rgba(0,0,0,0.4)",maxHeight:420,overflowY:"auto",zIndex:300}}>
+    {open&&query&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,minWidth:mob?0:320,maxWidth:mob?"none":420,background:B.surface,border:"1px solid "+B.border,borderRadius:8,boxShadow:"0 12px 40px rgba(0,0,0,0.4)",maxHeight:420,overflowY:"auto",zIndex:300}}>
       {results.length===0?<div style={{padding:"16px 14px",fontSize:12,color:B.textDim,textAlign:"center"}}>No matches for "{q}"</div>:
       Object.keys(grouped).map(k=><div key={k}>
         <div style={{padding:"8px 12px 4px",fontSize:10,fontWeight:600,color:B.textDim,textTransform:"uppercase",letterSpacing:0.4}}>{groupLabel[k]||k}</div>
@@ -196,5 +219,5 @@ export function VoiceInput({onResult,style}){
     rec.onerror=()=>setListening(false);rec.onend=()=>setListening(false);
     rec.start();setListening(true);
   };
-  return<button onClick={start} type="button" title={listening?"Listening...":"Voice input"} style={{background:listening?B.cyan+"22":"transparent",border:"1px solid "+(listening?B.cyan:B.border),borderRadius:8,padding:"8px 10px",cursor:"pointer",fontSize:16,color:listening?B.cyan:B.textDim,transition:"all .15s",minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",...(style||{})}}>{listening?"🔴":"🎤"}</button>;
+  return<button onClick={start} type="button" title={listening?"Listening...":"Voice input"} style={{background:listening?B.cyan+"22":"transparent",border:"1px solid "+(listening?B.cyan:B.border),borderRadius:8,padding:"8px 10px",cursor:"pointer",fontSize:16,color:listening?B.cyan:B.textDim,transition:"all .15s",minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",...(style||{})}}>{listening?"":""}</button>;
 }

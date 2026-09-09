@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, haptic, cleanText, autoCorrect, fmtDate, fmtHours, todayLocal, localDateStr, openWO, importRetry} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, CustomSelect } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, CustomSelect, Icon } from "./ui";
 import { CameraUpload } from "./CameraUpload";
 // html5-qrcode (~46KB gz) loads on demand when the scanner actually opens —
 // keeping it out of the main bundle. See the dynamic import in BarcodeScanner.
@@ -92,7 +92,7 @@ function BarcodeScanner({onScan,onClose}){
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
       {/* Collapse the viewfinder when the camera can't run — otherwise it's a
           750px slab of black above the field the tech actually needs. */}
-      <div ref={containerRef} style={{width:"100%",maxWidth:400,minHeight:error?0:250,height:error?0:undefined,borderRadius:10,overflow:"hidden",background:B.bg}}/>
+      <div ref={containerRef} style={{width:"100%",maxWidth:400,minHeight:error?0:250,height:error?0:undefined,borderRadius:8,overflow:"hidden",background:B.bg}}/>
       {error&&<div style={{color:B.orange,fontSize:12,textAlign:"center",padding:8}}>{error}</div>}
       {!error&&noRead&&<div style={{color:B.textMuted,fontSize:11,textAlign:"center",padding:"8px 10px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,lineHeight:1.5}}>
         Still no read? Plenty of tags — including Duke's engraved metal property plates — have <b>no barcode on them at all</b>. Just type the number below.
@@ -263,12 +263,12 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
 
     {/* Info Grid */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginBottom:12}}>
-      <StatCard label="Customer" value={eq.customer_name} icon="🏢" color={B.cyan}/>
-      <StatCard label="Refrigerant" value={eq.refrigerant_type||"—"} icon="❄️" color={B.cyan}/>
-      <StatCard label="Warranty" value={warrantyDays===null?"N/A":warrantyDays<=0?"Expired":warrantyDays+"d left"} icon="🛡" color={warrantyColor}/>
-      <StatCard label="Service Visits" value={linkedWOs.length} icon="🔧" color={B.cyan}/>
-      <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="⏱" color={B.orange}/>
-      <StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="💰" color={B.green}/>
+      <StatCard label="Customer" value={eq.customer_name} icon="building" color={B.cyan}/>
+      <StatCard label="Refrigerant" value={eq.refrigerant_type||"—"} icon="snowflake" color={B.cyan}/>
+      <StatCard label="Warranty" value={warrantyDays===null?"N/A":warrantyDays<=0?"Expired":warrantyDays+"d left"} icon="shield" color={warrantyColor}/>
+      <StatCard label="Service Visits" value={linkedWOs.length} icon="wrench" color={B.cyan}/>
+      <StatCard label="Total Hours" value={fmtHours(totalHours)} icon="clock" color={B.orange}/>
+      <StatCard label="Parts Spend" value={"$"+totalPartsCost.toFixed(0)} icon="dollar" color={B.green}/>
     </div>
 
     {/* Location */}
@@ -300,7 +300,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
       <span style={LS}>Service History ({linkedWOs.length})</span>
       {linkedWOs.length===0?<div style={{fontSize:12,color:B.textDim,marginTop:6}}>No service records yet</div>:<>
       {(()=>{const byTitle={};linkedWOs.forEach(w=>{const key=(w.title||"").toLowerCase().trim();if(!key)return;byTitle[key]=(byTitle[key]||0)+1;});const recurring=Object.entries(byTitle).filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,3);const firstDate=linkedWOs[linkedWOs.length-1]?.created_at?.slice(0,10);const lastDate=linkedWOs[0]?.created_at?.slice(0,10);return(recurring.length>0||linkedWOs.length>=3)?<div style={{marginTop:8,padding:"8px 10px",background:B.orange+"11",border:"1px solid "+B.orange+"33",borderRadius:6,fontSize:11}}>
-        {recurring.length>0&&<div style={{color:B.orange,fontWeight:600,marginBottom:recurring.length>0?4:0}}>⚠️ Recurring issues (repair-vs-replace flag):</div>}
+        {recurring.length>0&&<div style={{color:B.orange,fontWeight:600,marginBottom:recurring.length>0?4:0}}>Recurring issues (repair-vs-replace flag):</div>}
         {recurring.map(([title,count])=><div key={title} style={{color:B.text,marginLeft:12,marginTop:2}}>• {title.charAt(0).toUpperCase()+title.slice(1)} <span style={{color:B.orange,fontWeight:700}}>×{count}</span></div>)}
         {firstDate&&lastDate&&<div style={{color:B.textDim,marginTop:6,fontSize:10}}>First service {firstDate} · last {lastDate} · {linkedWOs.length} total visits</div>}
       </div>:null})()}
@@ -329,7 +329,7 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
     {editing&&<EquipmentForm initial={eq} customers={[{id:eq.customer_id,name:eq.customer_name}]} onSave={async(updated)=>{await onUpdate(updated);msg("Equipment updated");setEditing(false);}} onClose={()=>setEditing(false)}/>}
     {confirmDel&&<Modal title="Delete Equipment?" onClose={()=>setConfirmDel(false)}>
       <div style={{textAlign:"center",padding:"10px 0"}}>
-        <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:32,marginBottom:8}}><Icon name="alert" size={30}/></div>
         <div style={{fontSize:14,fontWeight:700,color:B.text}}>{eq.model||"This equipment"}</div>
         <div style={{fontSize:12,color:B.textDim,marginBottom:16}}>This will unlink all associated work orders. This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}>
@@ -381,11 +381,11 @@ function EquipmentDashboard({D,A,userRole,userName}){
     <Toast msg={toast}/>
     {/* Stats */}
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Total Units" value={equipment.length} icon="🔧" color={B.cyan}/>
+      <StatCard label="Total Units" value={equipment.length} icon="wrench" color={B.cyan}/>
       <StatCard label="Active" value={active} icon="✓" color={B.green}/>
-      <StatCard label="Customers" value={custCount} icon="🏢" color={B.cyan}/>
-      <StatCard label="Warranty Expiring" value={expiringWarranties} icon="⚠️" color={B.orange}/>
-      {expiredWarranties>0&&<StatCard label="Warranty Expired" value={expiredWarranties} icon="🛡" color={B.red}/>}
+      <StatCard label="Customers" value={custCount} icon="building" color={B.cyan}/>
+      <StatCard label="Warranty Expiring" value={expiringWarranties} icon="alert" color={B.orange}/>
+      {expiredWarranties>0&&<StatCard label="Warranty Expired" value={expiredWarranties} icon="shield" color={B.red}/>}
     </div>
 
     {/* Actions */}
@@ -408,7 +408,7 @@ function EquipmentDashboard({D,A,userRole,userName}){
     {/* Equipment List */}
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {filtered.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}>
-        <div style={{fontSize:20,marginBottom:6}}>{search?"🔍":"🔧"}</div>
+        <div style={{fontSize:20,marginBottom:6}}>{search?"":""}</div>
         <div style={{fontSize:13}}>{search?"No equipment matching \""+search+"\"":"No equipment registered yet"}</div>
         {canEdit&&!search&&<button onClick={()=>setCreating({})} style={{...BP,marginTop:12,fontSize:12}}>+ Register First Unit</button>}
       </Card>}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, haptic, cleanText, calcWOHours, fmtDate, fmtHours, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, nextInvoiceNumDB, openWO, getAppSetting, importRetry} from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc, Icon } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 import { buildFeedbackEmail } from "../feedbackEmail";
 
@@ -551,7 +551,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   const askReview=async(inv)=>{if(!window.confirm("Email a review request to "+(inv.customer||"this customer")+" right now?"))return;
     try{const r=await sendFeedbackRequest(inv,customers,{force:true,delayHours:0});
       msg(r==="sent"?"Review request sent":r==="no-email"?"No customer email on file":"Feedback requests are disabled in Settings");
-    }catch(e){console.error(e);msg("⚠️ Failed to send review request");}
+    }catch(e){console.error(e);msg("Failed to send review request");}
   };
   const markPaid=async(inv)=>{await onUpdateInvoice({...inv,status:"paid",date_paid:todayLocal()});msg("Invoice "+inv.invoice_num+" marked as paid");};
   // Email any invoice straight from the tracker (drafts had NO send path before —
@@ -588,7 +588,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       if(r.success){await onUpdateInvoice({id:inv.id,last_reminder_at:new Date().toISOString()});msg("Reminder sent to "+toEmail);}
       else msg("Error: "+(r.error||"send failed"));
     }catch(e){msg("Error: "+e.message);console.error(e);}};
-  const del=async(inv)=>{const warn=inv.status==="paid"?"⚠️ This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"⚠️ This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
+  const del=async(inv)=>{const warn=inv.status==="paid"?"This invoice is marked PAID. Deleting will remove the payment record and unmark associated work orders so they can be re-invoiced. Continue?":inv.status==="sent"?"This invoice has been SENT to the customer. Deleting will unmark associated work orders. Continue?":"Delete invoice "+inv.invoice_num+"? Associated work orders will be unmarked so they can be re-invoiced.";if(!window.confirm(warn))return;await onDeleteInvoice(inv);msg("Deleted");};
   const rebuildData=(inv)=>rebuildInvoiceData(inv,{customers,pos,wos});
   const regenExcel=async(inv)=>{msg("Generating...");try{const d=rebuildData(inv);const buf=await buildInvoiceExcel(d);const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="INV_"+inv.invoice_num+"_"+(inv.customer||"").replace(/[^a-zA-Z0-9]/g,"_")+".xlsx";a.click();URL.revokeObjectURL(url);msg("Excel downloaded!");}catch(e){msg("Error: "+e.message);}};
   const previewPDF=async(inv)=>{msg("Opening preview...");try{const d=rebuildData(inv);const doc=await buildInvoicePDF(d);previewPdfDoc(doc,"INV-"+inv.invoice_num,setPdfPreview);msg("");}catch(e){msg("Error: "+e.message);}};
@@ -600,9 +600,9 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
 
   return(<div><Toast msg={toast}/>{pdfPreview&&<PdfPreviewModal {...pdfPreview} onClose={()=>setPdfPreview(null)}/>}
     <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
-      <StatCard label="Outstanding" value={"$"+totalOutstanding.toLocaleString(undefined,{minimumFractionDigits:2})} icon="💰" color={B.cyan}/>
-      <StatCard label="Overdue (30d+)" value={overdue.length} icon="⚠️" color={B.red}/>
-      <StatCard label="Avg Days to Pay" value={avgDays+"d"} icon="📊" color={B.orange}/>
+      <StatCard label="Outstanding" value={"$"+totalOutstanding.toLocaleString(undefined,{minimumFractionDigits:2})} icon="dollar" color={B.cyan}/>
+      <StatCard label="Overdue (30d+)" value={overdue.length} icon="alert" color={B.red}/>
+      <StatCard label="Avg Days to Pay" value={avgDays+"d"} icon="chart" color={B.orange}/>
       <StatCard label="Paid This Month" value={"$"+totalPaidMonth.toLocaleString(undefined,{minimumFractionDigits:2})} icon="✓" color={B.green}/>
     </div>
     <div style={{display:"flex",gap:6,marginBottom:16}}>
@@ -612,14 +612,17 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       <button onClick={()=>setSchedOpen(true)} title="Emails queued for later — review, send now, or cancel" style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(schedPending>0?B.orange+"66":B.border),background:"transparent",color:schedPending>0?B.orange:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Scheduled{schedPending>0?" ("+schedPending+")":""}</button>
     </div>
     {view==="tracker"&&<div>
-      {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📝</div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
+      {invoices.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}><Icon name="edit" size={22}/></div><div style={{fontSize:13}}>No invoices yet. Create one or enable auto-invoicing on a customer.</div></Card>}
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {invoices.slice(0,visibleCount).map(inv=>{const st=getStatus(inv);const days=daysOut(inv.date_issued);const ac=agingColor(days);return(
-          <Card key={inv.id} style={{padding:"14px 16px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+          <Card key={inv.id} style={{padding:"12px 14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+              <div className="ticket-stub" style={{width:80,flexShrink:0,display:"flex",flexDirection:"column",gap:4,paddingRight:12,borderRight:"1px dashed "+B.border,minWidth:0}}>
+                <span style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.textDim}}>INV</span>
+                <span className="ticket-num" style={{fontFamily:M,fontSize:20,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5}}>{inv.invoice_num}</span>
+              </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontFamily:M,fontWeight:700,fontSize:15,color:B.text}}>INV-{inv.invoice_num}</span>
                   <Badge color={ISC[st]||B.textDim}>{ISL[st]||inv.status}</Badge>
                   {st==="sent"&&<span style={{fontFamily:M,fontSize:11,fontWeight:700,color:ac}}>{days}d</span>}
                 </div>
@@ -981,7 +984,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Customer</label><select value={cust} onChange={e=>{setCust(e.target.value);setSelWOs([]);setTierAssign({});setSkipLabor(false);setCustomItems([]);}} style={{...IS,cursor:"pointer"}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         <div style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px dashed "+B.cyan+"55"}}>
-          <div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>🏗️ Start from a Project (optional)</div>
+          <div style={{fontSize:10,color:B.textDim,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Start from a Project (optional)</div>
           <select value={selProject} onChange={e=>{
             const pid=e.target.value;setSelProject(pid);
             if(!pid)return;
@@ -1034,7 +1037,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
                     <div style={{fontSize:12,fontWeight:checked?700:600,color:checked?B.cyan:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.wo_id} — {w.title}</div>
                     {w.customer_wo&&<div style={{fontSize:10,color:B.textDim,marginTop:1}}>#{w.customer_wo}</div>}
                   </div>
-                  {tag&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:tag[1]+"20",color:tag[1],border:"1px solid "+tag[1]+"30",flexShrink:0}}>{tag[0]}</span>}
+                  {tag&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:tag[1]+"20",color:tag[1],border:"1px solid "+tag[1]+"30",flexShrink:0}}>{tag[0]}</span>}
                 </div>;
               })}
             </div>}
@@ -1532,7 +1535,7 @@ function ScheduledEmailsModal({invoices,msg,onClose}){
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <Badge color={stColor[r.status]||B.textDim}>{r.status}</Badge>
           {invNum(r.invoice_id)&&<span style={{fontFamily:M,fontSize:11,color:B.cyan}}>INV-{invNum(r.invoice_id)}</span>}
-          {r.attachment_name&&<span style={{fontSize:10,color:B.textDim}}>📎 {r.attachment_name}</span>}
+          {r.attachment_name&&<span style={{fontSize:10,color:B.textDim}}>{r.attachment_name}</span>}
         </div>
         <div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:4}}>{r.subject}</div>
         <div style={{fontSize:11,color:B.textDim,marginTop:2}}>To: {r.to_emails}{r.cc_emails?" · CC: "+r.cc_emails:""}</div>
@@ -1552,7 +1555,7 @@ function ScheduledEmailsModal({invoices,msg,onClose}){
   </Card>);
   return(<Modal title="Scheduled Emails" onClose={onClose} wide>
     {rows===null&&<div style={{textAlign:"center",padding:30}}><Spinner/></div>}
-    {rows!==null&&rows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>📭</div><div style={{fontSize:13}}>Nothing scheduled. Invoices you Schedule Send will appear here for review.</div></Card>}
+    {rows!==null&&rows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}><Icon name="inbox" size={18}/></div><div style={{fontSize:13}}>Nothing scheduled. Invoices you Schedule Send will appear here for review.</div></Card>}
     {pending.length>0&&<div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Waiting to send ({pending.length})</div>}
     {pending.map(Row)}
     {others.length>0&&<div style={{fontSize:11,fontWeight:700,color:B.textDim,textTransform:"uppercase",letterSpacing:0.8,margin:"14px 0 8px"}}>Recent</div>}
@@ -1632,7 +1635,7 @@ function StatementsModal({invoices,customers,msg,onClose}){
     <div style={{fontSize:12,color:B.textMuted,marginBottom:12}}>Every customer with open (sent) invoices. The PDF lists each invoice with its age plus 30/60/90 aging buckets.</div>
     {rows.length===0&&<div style={{textAlign:"center",padding:24,color:B.textDim,fontSize:12}}>No open invoices \u2014 nothing to state. \ud83c\udf89</div>}
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {rows.map(r=><div key={r.name} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:B.bg,border:"1px solid "+B.border,borderRadius:10}}>
+      {rows.map(r=><div key={r.name} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:B.bg,border:"1px solid "+B.border,borderRadius:8}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:13,fontWeight:650,color:B.text}}>{r.name}</div>
           <div style={{fontSize:11,color:B.textDim}}>{r.invs.length} open invoice{r.invs.length!==1?"s":""} \u00b7 oldest {Math.max(...r.invs.map(i=>daysOutStatic(i.date_issued)))}d</div>

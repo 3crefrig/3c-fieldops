@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, haptic, fnFetch , openWO} from "../shared";
-import { Toast, Card, Badge, Modal, Spinner } from "./ui";
+import { Toast, Card, Badge, Modal, Spinner, Icon } from "./ui";
 
 // ── Scan Inbox Button with 2hr cooldown ──────────────────────
 function ScanInboxButton({onComplete}){
@@ -152,7 +152,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
 
     {/* Pending drafts */}
     {pending.length===0&&!showReviewed&&<div style={{textAlign:"center",padding:30,color:B.textDim}}>
-      <div style={{fontSize:28,marginBottom:6}}>📬</div>
+      <div style={{fontSize:28,marginBottom:6}}><Icon name="inbox" size={26}/></div>
       <div style={{fontSize:13,fontWeight:600}}>No pending service requests</div>
       <div style={{fontSize:11,marginTop:4}}>Use the scan button above to check for new emails</div>
     </div>}
@@ -207,7 +207,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
         <div style={{fontSize:12,color:B.text}}><strong>From:</strong> {sel.email_from_name} &lt;{sel.email_from}&gt;</div>
         <div style={{fontSize:12,color:B.text}}><strong>Subject:</strong> {sel.email_subject}</div>
         <div style={{fontSize:11,color:B.textMuted,marginTop:6,maxHeight:120,overflowY:"auto",whiteSpace:"pre-wrap",lineHeight:1.4}}>{sel.email_body}</div>
-        {sel.attachments&&sel.attachments.length>0&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>{sel.attachments.map((a,i)=><a key={i} href={a.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:B.cyan,textDecoration:"none"}}>📎 {a.name}</a>)}</div>}
+        {sel.attachments&&sel.attachments.length>0&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>{sel.attachments.map((a,i)=><a key={i} href={a.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:B.cyan,textDecoration:"none"}}>{a.name}</a>)}</div>}
       </div>
 
       {/* Editable fields */}
@@ -233,7 +233,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
     {/* Bulk reject confirmation modal */}
     {showBulkRejectConfirm&&<Modal title="Reject Service Requests" onClose={()=>setShowBulkRejectConfirm(false)}>
       <div style={{textAlign:"center",padding:"10px 0"}}>
-        <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:32,marginBottom:8}}><Icon name="alert" size={30}/></div>
         <div style={{fontSize:14,fontWeight:700,color:B.text,marginBottom:4}}>Reject {selected.length} service request{selected.length>1?"s":""}?</div>
         <div style={{fontSize:12,color:B.textDim,marginBottom:16}}>This cannot be undone. All selected requests will be rejected.</div>
         <div style={{display:"flex",gap:8}}><button onClick={()=>setShowBulkRejectConfirm(false)} style={{...BS,flex:1}}>Cancel</button><button onClick={bulkReject} disabled={bulkRejecting} style={{...BP,flex:1,background:B.red,opacity:bulkRejecting?.5:1}}>{bulkRejecting?"Rejecting...":"Reject All"}</button></div>

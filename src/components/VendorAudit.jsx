@@ -303,8 +303,8 @@ export function TicketCaptureModal({ po, pos, onClose, onSaved, userName, userId
 
   return (<Modal title={"Pickup Ticket" + (po ? " — " + po.po_id : "")} onClose={onClose} wide>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ fontSize: 11, color: B.textDim, background: B.bg, padding: "8px 12px", borderRadius: 6, border: "1px solid " + B.border }}>📸 Snap the counter ticket <b>before leaving the supply house</b>. It becomes the proof of what was actually picked up when the bill is audited.</div>
-      <ScanButton onFile={onFile} busy={scanning} label="📷 Scan Counter Ticket (photo or PDF)" />
+      <div style={{ fontSize: 11, color: B.textDim, background: B.bg, padding: "8px 12px", borderRadius: 6, border: "1px solid " + B.border }}>Snap the counter ticket <b>before leaving the supply house</b>. It becomes the proof of what was actually picked up when the bill is audited.</div>
+      <ScanButton onFile={onFile} busy={scanning} label="Scan Counter Ticket (photo or PDF)" />
       {err && <div style={{ fontSize: 11, color: B.red, background: B.red + "12", padding: "8px 12px", borderRadius: 6 }}>{err}</div>}
       {!po && pos && <div><label style={LS}>Purchase Order</label><CustomSelect value={selPO} onChange={setSelPO} options={poOptions(pos)} placeholder="— Link to a PO —" /></div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
@@ -316,7 +316,7 @@ export function TicketCaptureModal({ po, pos, onClose, onSaved, userName, userId
         <label style={LS}>Items Picked Up {scanned && <span style={{ color: B.cyan, fontWeight: 400, textTransform: "none" }}>— check against the paper ticket</span>}</label>
         <LineGrid lines={lines} setLines={setLines} />
       </div>}
-      {!scanned && lines.length === 0 && <button onClick={() => setLines([{ part_no: "", description: "", qty: 1, unit_price: "", amount: "" }])} style={{ ...BS, fontSize: 12 }}>✏️ Enter lines manually instead</button>}
+      {!scanned && lines.length === 0 && <button onClick={() => setLines([{ part_no: "", description: "", qty: 1, unit_price: "", amount: "" }])} style={{ ...BS, fontSize: 12 }}>Enter lines manually instead</button>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div><label style={LS}>Tax ($)</label><input value={tax} onChange={e => setTax(e.target.value)} type="number" step="0.01" placeholder="—" style={{ ...IS, fontFamily: M }} /></div>
         <div><label style={LS}>Ticket Total ($)</label><input value={total} onChange={e => setTotal(e.target.value)} type="number" step="0.01" placeholder="auto" style={{ ...IS, fontFamily: M }} /></div>
@@ -430,7 +430,7 @@ function BillAuditModal({ pos, tickets, ticketItems, A, onClose, onSaved, userNa
 
   return (<Modal title="Audit a Vendor Bill" onClose={onClose} wide>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <ScanButton onFile={onFile} busy={scanning} label="📄 Scan Vendor Bill (photo or PDF)" />
+      <ScanButton onFile={onFile} busy={scanning} label="Scan Vendor Bill (photo or PDF)" />
       {err && <div style={{ fontSize: 11, color: B.red, background: B.red + "12", padding: "8px 12px", borderRadius: 6 }}>{err}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         <div><label style={LS}>Vendor</label><input value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Supply house" style={IS} /></div>
@@ -442,7 +442,7 @@ function BillAuditModal({ pos, tickets, ticketItems, A, onClose, onSaved, userNa
       </div>
       {(scanned || lines.length > 0) && <>
         {audit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", borderRadius: 8, background: audit.summary.exceptions > 0 ? B.orangeGlow : B.greenGlow, border: "1px solid " + (audit.summary.exceptions > 0 ? B.orange : B.green) + "40" }}>
-          <span style={{ fontSize: 18 }}>{audit.summary.exceptions > 0 ? "⚠️" : "✅"}</span>
+          <span style={{ fontSize: 18 }}>{audit.summary.exceptions > 0 ? "" : ""}</span>
           <div style={{ flex: 1, minWidth: 160 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: audit.summary.exceptions > 0 ? B.orange : B.green }}>{audit.summary.exceptions > 0 ? audit.summary.exceptions + " exception(s) — $" + audit.summary.variance.toFixed(2) + " over" : "All " + audit.summary.bill_lines + " lines match the tickets"}</div>
             <div style={{ fontSize: 10, color: B.textDim }}>{audit.summary.bill_lines} bill lines vs {audit.summary.ticket_lines} ticket lines{audit.summary.unbilled > 0 ? " · " + audit.summary.unbilled + " picked-up item(s) not on this bill" : ""}</div>
@@ -457,7 +457,7 @@ function BillAuditModal({ pos, tickets, ticketItems, A, onClose, onSaved, userNa
           {showUnbilled && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>{audit.unbilled.map((u, i) => <div key={i} style={{ fontSize: 11, color: B.textMuted, padding: "6px 10px", background: B.bg, borderRadius: 6, border: "1px solid " + B.border }}><span style={{ fontFamily: M, color: B.cyan }}>{u.part_no || "—"}</span> {u.description} · qty {u.qty}{u.unit_price != null ? " @ $" + u.unit_price.toFixed(2) : ""} <span style={{ color: B.textDim }}>(likely a future bill — or capture the missing ticket)</span></div>)}</div>}
         </div>}
       </>}
-      {!scanned && lines.length === 0 && <button onClick={() => setLines([{ part_no: "", description: "", qty: 1, unit_price: "", amount: "" }])} style={{ ...BS, fontSize: 12 }}>✏️ Enter bill lines manually instead</button>}
+      {!scanned && lines.length === 0 && <button onClick={() => setLines([{ part_no: "", description: "", qty: 1, unit_price: "", amount: "" }])} style={{ ...BS, fontSize: 12 }}>Enter bill lines manually instead</button>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div><label style={LS}>Tax ($)</label><input value={tax} onChange={e => setTax(e.target.value)} type="number" step="0.01" placeholder="—" style={{ ...IS, fontFamily: M }} /></div>
         <div><label style={LS}>Bill Total ($)</label><input value={total} onChange={e => setTotal(e.target.value)} type="number" step="0.01" style={{ ...IS, fontFamily: M }} /></div>
@@ -491,9 +491,9 @@ function BillDetailModal({ bill, items, pos, A, onClose, msg }) {
         {po && <span style={{ fontFamily: M, fontSize: 12, color: B.cyan, fontWeight: 700 }}>{po.po_id}</span>}
         {bill.bill_date && <span style={{ fontSize: 11, color: B.textDim }}>{fmtDate(bill.bill_date)}</span>}
         {bill.total != null && <span style={{ fontFamily: M, fontSize: 13, fontWeight: 800, color: B.text }}>${parseFloat(bill.total).toFixed(2)}</span>}
-        {bill.image_url && <a href={bill.image_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: B.cyan, marginLeft: "auto" }}>📎 View bill</a>}
+        {bill.image_url && <a href={bill.image_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: B.cyan, marginLeft: "auto" }}>View bill</a>}
       </div>
-      {openExc.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: B.orange, background: B.orangeGlow, padding: "8px 12px", borderRadius: 6 }}>⚠️ {openExc.length} open exception(s) — ${openExc.reduce((sm, i) => sm + Math.max(0, parseFloat(i.variance) || 0), 0).toFixed(2)} potentially overbilled. Dispute windows are usually 21–30 days.</div>}
+      {openExc.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: B.orange, background: B.orangeGlow, padding: "8px 12px", borderRadius: 6 }}>{openExc.length} open exception(s) — ${openExc.reduce((sm, i) => sm + Math.max(0, parseFloat(i.variance) || 0), 0).toFixed(2)} potentially overbilled. Dispute windows are usually 21–30 days.</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }}>
         {items.map(it => (<div key={it.id} style={{ padding: "8px 12px", background: B.bg, borderRadius: 8, border: "1px solid " + B.border }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -546,14 +546,14 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
 
   return (<div><Toast msg={toast} />
     <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-      <StatCard label="Bills to Review" value={bills.filter(b => b.status === "review" || b.status === "disputed").length} icon="📄" color={B.orange} />
-      <StatCard label="Open Exceptions" value={openExc.length} icon="⚠️" color={B.red} />
-      <StatCard label="$ Flagged" value={"$" + flagged.toFixed(0)} icon="💰" color={B.cyan} />
-      <StatCard label="Tickets Captured" value={tickets.length} icon="🧾" color={B.cyan} />
+      <StatCard label="Bills to Review" value={bills.filter(b => b.status === "review" || b.status === "disputed").length} icon="file" color={B.orange} />
+      <StatCard label="Open Exceptions" value={openExc.length} icon="alert" color={B.red} />
+      <StatCard label="$ Flagged" value={"$" + flagged.toFixed(0)} icon="dollar" color={B.cyan} />
+      <StatCard label="Tickets Captured" value={tickets.length} icon="receipt" color={B.cyan} />
     </div>
     <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-      <button onClick={() => setShowBillModal(true)} style={{ ...BP, padding: "10px 16px", fontSize: 12 }}>📄 Audit a Vendor Bill</button>
-      <button onClick={() => setShowTicketModal(true)} style={{ ...BS, padding: "10px 16px", fontSize: 12 }}>📷 Add Pickup Ticket</button>
+      <button onClick={() => setShowBillModal(true)} style={{ ...BP, padding: "10px 16px", fontSize: 12 }}>Audit a Vendor Bill</button>
+      <button onClick={() => setShowTicketModal(true)} style={{ ...BS, padding: "10px 16px", fontSize: 12 }}>Add Pickup Ticket</button>
     </div>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
       {[["bills", "Bills (" + bills.length + ")"], ["tickets", "Pickup Tickets (" + tickets.length + ")"]].map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ padding: "6px 14px", borderRadius: 4, border: "1px solid " + (view === k ? B.cyan : B.border), background: view === k ? B.cyanGlow : "transparent", color: view === k ? B.cyan : B.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: F }}>{l}</button>)}
@@ -561,7 +561,7 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
     </div>
 
     {view === "bills" && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {fltBills.length === 0 && <EmptyState icon="🧾" title={bills.length === 0 ? "No bills audited yet" : "Nothing here"} subtitle={bills.length === 0 ? "Techs snap pickup tickets as they leave the counter; when the supplier's bill arrives, scan it here and every line gets checked automatically. ~27% of supplier invoices contain errors." : "Try another filter."} />}
+      {fltBills.length === 0 && <EmptyState icon="receipt" title={bills.length === 0 ? "No bills audited yet" : "Nothing here"} subtitle={bills.length === 0 ? "Techs snap pickup tickets as they leave the counter; when the supplier's bill arrives, scan it here and every line gets checked automatically. ~27% of supplier invoices contain errors." : "Try another filter."} />}
       {fltBills.map(b => { const items = bItems.filter(i => i.bill_id === b.id); const exc = items.filter(i => EXCEPTION_STATUSES.includes(i.match_status)); const v = exc.reduce((s, i) => s + Math.max(0, parseFloat(i.variance) || 0), 0); const po = pos.find(p => p.id === b.po_id); return (
         <Card key={b.id} onClick={() => setDetail(b.id)} style={{ padding: "14px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
@@ -583,7 +583,7 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
     </div>}
 
     {view === "tickets" && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {tickets.length === 0 && <EmptyState icon="📷" title="No pickup tickets yet" subtitle="Snap the counter ticket every time parts leave the supply house — from here, from a PO, or from the PO modal on a work order. They become the proof the bill gets audited against." />}
+      {tickets.length === 0 && <EmptyState icon="camera" title="No pickup tickets yet" subtitle="Snap the counter ticket every time parts leave the supply house — from here, from a PO, or from the PO modal on a work order. They become the proof the bill gets audited against." />}
       {tickets.map(t => { const items = tItems.filter(i => i.ticket_id === t.id); const po = pos.find(p => p.id === t.po_id); return (
         <Card key={t.id} style={{ padding: "12px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -596,7 +596,7 @@ export function AuditDashboard({ D, A, userRole, userName, userId }) {
               <div style={{ fontSize: 11, color: B.textDim, marginTop: 3 }}>{t.ticket_date ? fmtDate(t.ticket_date) + " · " : ""}{items.length} lines{t.total != null ? " · $" + parseFloat(t.total).toFixed(2) : ""}{t.created_by_name ? " · by " + t.created_by_name : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              {t.image_url && <a href={t.image_url} target="_blank" rel="noreferrer" style={{ ...BS, padding: "6px 10px", fontSize: 11, minHeight: 30, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>📎 View</a>}
+              {t.image_url && <a href={t.image_url} target="_blank" rel="noreferrer" style={{ ...BS, padding: "6px 10px", fontSize: 11, minHeight: 30, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>View</a>}
               {(userRole === "admin" || userRole === "manager") && <button onClick={async () => { if (window.confirm("Delete this ticket capture?")) { await A.deletePOTicket(t.id); msg("Ticket deleted"); } }} style={{ ...BS, padding: "6px 10px", fontSize: 11, minHeight: 30, color: B.red, borderColor: B.red + "40" }}>✕</button>}
             </div>
           </div>

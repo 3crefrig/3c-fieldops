@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic, todayLocal, localDateStr, nextInvoiceNumDB} from "../shared";
-import { Card, Badge, StatCard, Toast, PdfPreviewModal, previewPdfDoc } from "./ui";
+import { Card, Badge, StatCard, Toast, PdfPreviewModal, previewPdfDoc, Icon } from "./ui";
 import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal, rebuildInvoiceData } from "./Invoices";
 
 const r2=n=>Math.round((parseFloat(n)||0)*100)/100;
@@ -257,7 +257,7 @@ function PartsSales({D,A,user}){
       </div>
       {sales===null&&<Card style={{padding:26,textAlign:"center"}}><span style={{fontSize:12,color:B.textDim}}>Loading…</span></Card>}
       {sales!==null&&sales.length===0&&<Card style={{padding:26,textAlign:"center"}}>
-        <div style={{fontSize:28,marginBottom:6}}>📦</div>
+        <div style={{fontSize:28,marginBottom:6}}><Icon name="box" size={26}/></div>
         <div style={{fontSize:13,fontWeight:700,color:B.text,marginBottom:4}}>No parts sales yet</div>
         <div style={{fontSize:11,color:B.textDim}}>Bill a customer for parts only — dropship supply, no work order needed. The invoice lands in the normal Invoices tab.</div>
       </Card>}
@@ -284,7 +284,7 @@ function PartsSales({D,A,user}){
               {st==="sent"&&<button onClick={e=>setInvStatus(s,"paid",e)} title="Mark the invoice paid" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0,color:B.green,borderColor:B.green+"55"}}>Mark Paid</button>}
               {st&&st!=="paid"&&<button onClick={e=>resendSale(s,e)} title="Email the invoice (rebuilds the PDF fresh)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>Send</button>}
               <button onClick={e=>downloadSalePDF(s,e)} title="Re-download the invoice PDF" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>PDF</button>
-              <button onClick={e=>startEdit(s,e)} title="Edit this parts sale (re-syncs the invoice)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>✎ Edit</button>
+              <button onClick={e=>startEdit(s,e)} title="Edit this parts sale (re-syncs the invoice)" style={{...BS,padding:"5px 10px",fontSize:11,flexShrink:0}}>Edit</button>
               <button onClick={e=>{e.stopPropagation();deleteSale(s);}} title="Delete this parts sale record" style={{background:"none",border:"none",color:B.red+"88",cursor:"pointer",fontSize:15,padding:4}}>✕</button>
             </div>
             {open&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+B.border}}>
@@ -345,7 +345,7 @@ function PartsSales({D,A,user}){
               <button onClick={()=>removeLine(i)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-              {l.po_ref&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:B.cyan+"20",color:B.cyan,border:"1px solid "+B.cyan+"30"}}>PO {l.po_ref}</span>}
+              {l.po_ref&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:B.cyan+"20",color:B.cyan,border:"1px solid "+B.cyan+"30"}}>PO {l.po_ref}</span>}
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Qty</span><input value={l.qty} onChange={e=>updateLine(i,"qty",e.target.value)} type="number" min="0" step="1" style={{...IS,width:52,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Cost $</span><input value={l.unit_cost} onChange={e=>updateLine(i,"unit_cost",e.target.value)} type="number" min="0" step="0.01" style={{...IS,width:76,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Price $</span><input value={l.unit_price} onChange={e=>updateLine(i,"unit_price",e.target.value)} type="number" min="0" step="0.01" style={{...IS,width:76,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>

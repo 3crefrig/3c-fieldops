@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS } from "../shared";
-import { Card, Badge, StatCard, Modal, Toast, Spinner } from "./ui";
+import { Card, Badge, StatCard, Modal, Toast, Spinner, Icon } from "./ui";
 
 function Logo({size,onClick}){const h=size==="large"?56:32;return(<img src="https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png" alt="3C Refrigeration" style={{height:h,display:"block",cursor:onClick?"pointer":"default",transition:"opacity .2s"}} onClick={onClick}/>);}
 
@@ -119,10 +119,10 @@ function FeedbackDashboard({D}){
   return(<div><Toast msg={toast}/>
     {/* Metrics Row */}
     <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <StatCard label="Avg Rating" value={avgRating+"★"} icon="⭐" color={parseFloat(avgRating)>=4?B.green:parseFloat(avgRating)>=3?B.orange:B.red}/>
-      <StatCard label="Responses" value={feedback.length} icon="📊" color={B.cyan}/>
-      {npsScore!==null&&<StatCard label="NPS Score" value={npsScore} icon="📈" color={npsScore>=50?B.green:npsScore>=0?B.orange:B.red}/>}
-      <StatCard label="Testimonials" value={testimonials.length} icon="💬" color={B.cyan}/>
+      <StatCard label="Avg Rating" value={avgRating+"★"} icon="star" color={parseFloat(avgRating)>=4?B.green:parseFloat(avgRating)>=3?B.orange:B.red}/>
+      <StatCard label="Responses" value={feedback.length} icon="chart" color={B.cyan}/>
+      {npsScore!==null&&<StatCard label="NPS Score" value={npsScore} icon="chart" color={npsScore>=50?B.green:npsScore>=0?B.orange:B.red}/>}
+      <StatCard label="Testimonials" value={testimonials.length} icon="message" color={B.cyan}/>
     </div>
 
     {/* Rating Distribution */}
@@ -132,7 +132,7 @@ function FeedbackDashboard({D}){
         {[5,4,3,2,1].map(s=>{const d=distribution.find(x=>x.star===s);return(
           <div key={s} style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:12,fontFamily:M,color:B.textDim,width:16,textAlign:"right"}}>{s}</span>
-            <span style={{fontSize:14}}>⭐</span>
+            <span style={{fontSize:14}}><Icon name="star" size={12}/></span>
             <div style={{flex:1,height:8,borderRadius:4,background:B.border,overflow:"hidden"}}>
               <div style={{width:(d.count/maxDist*100)+"%",height:"100%",borderRadius:4,background:s>=4?B.green:s===3?B.orange:B.red,transition:"width .4s"}}/>
             </div>
@@ -149,12 +149,12 @@ function FeedbackDashboard({D}){
 
     {/* Feedback List */}
     {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
-    {!loading&&filtered.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}>📭</div><div style={{fontSize:13}}>No feedback yet.</div></Card>}
+    {!loading&&filtered.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:24,marginBottom:6}}><Icon name="inbox" size={22}/></div><div style={{fontSize:13}}>No feedback yet.</div></Card>}
     {filtered.map(fb=><Card key={fb.id} style={{padding:"14px 16px",marginBottom:8}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-            <span style={{fontSize:14}}>{Array.from({length:fb.star_rating},(_,i)=>"⭐").join("")}</span>
+            <span style={{fontSize:14}}>{Array.from({length:fb.star_rating},(_,i)=>"").join("")}</span>
             {fb.nps_score!==null&&<Badge color={fb.nps_score>=9?B.green:fb.nps_score>=7?B.cyan:B.red}>NPS: {fb.nps_score}</Badge>}
           </div>
           <div style={{fontSize:13,fontWeight:600,color:B.text}}>{fb.customer_name}</div>

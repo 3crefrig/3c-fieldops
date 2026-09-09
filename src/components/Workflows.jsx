@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sb, B, F, M, IS, LS, BP, BS } from "../shared";
-import { Card, Badge, Modal, Toast, Spinner } from "./ui";
+import { Card, Badge, Modal, Toast, Spinner, Icon } from "./ui";
 
-const WF_TRIGGERS=[{key:"wo_created",label:"Work Order Created",icon:"📋",fields:["customer","priority","wo_type","assignee"]},{key:"wo_completed",label:"WO Completed",icon:"✅",fields:["customer","priority","wo_type","assignee"]},{key:"wo_status_changed",label:"WO Status Changed",icon:"🔄",fields:["customer","priority","status","assignee"]},{key:"invoice_sent",label:"Invoice Sent",icon:"📧",fields:["customer","amount","status"]},{key:"po_requested",label:"PO Requested",icon:"📄",fields:["amount","customer"]},{key:"po_approved",label:"PO Approved",icon:"✅",fields:["amount","customer"]},{key:"customer_created",label:"Customer Created",icon:"🏢",fields:["name","email"]}];// Only events the app actually emits — inert triggers were removed 2026-08-02
-const WF_ACTIONS=[{key:"wait",label:"Wait / Delay",icon:"⏳",fields:["delay_hours"]},{key:"send_email",label:"Send Email",icon:"📧",fields:["to_email","subject","body"]},{key:"create_notification",label:"Create Notification",icon:"🔔",fields:["title","message","for_role"]},{key:"log_activity",label:"Log Activity",icon:"📝",fields:["message"]}];// Only actions evaluateTriggers implements — inert actions were removed 2026-08-02
+const WF_TRIGGERS=[{key:"wo_created",label:"Work Order Created",icon:"clipboard",fields:["customer","priority","wo_type","assignee"]},{key:"wo_completed",label:"WO Completed",icon:"check",fields:["customer","priority","wo_type","assignee"]},{key:"wo_status_changed",label:"WO Status Changed",icon:"repeat",fields:["customer","priority","status","assignee"]},{key:"invoice_sent",label:"Invoice Sent",icon:"mail",fields:["customer","amount","status"]},{key:"po_requested",label:"PO Requested",icon:"file",fields:["amount","customer"]},{key:"po_approved",label:"PO Approved",icon:"check",fields:["amount","customer"]},{key:"customer_created",label:"Customer Created",icon:"building",fields:["name","email"]}];// Only events the app actually emits — inert triggers were removed 2026-08-02
+const WF_ACTIONS=[{key:"wait",label:"Wait / Delay",icon:"⏳",fields:["delay_hours"]},{key:"send_email",label:"Send Email",icon:"mail",fields:["to_email","subject","body"]},{key:"create_notification",label:"Create Notification",icon:"bell",fields:["title","message","for_role"]},{key:"log_activity",label:"Log Activity",icon:"edit",fields:["message"]}];// Only actions evaluateTriggers implements — inert actions were removed 2026-08-02
 const WF_OPERATORS=[{key:"equals",label:"="},{key:"not_equals",label:"!="},{key:">",label:">"},{key:"<",label:"<"},{key:">=",label:">="},{key:"<=",label:"<="},{key:"contains",label:"contains"}];
 
 function WorkflowBuilder({D,userName}){
@@ -22,7 +22,7 @@ function WorkflowBuilder({D,userName}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Workflow Automations</h3>
       <div style={{display:"flex",gap:6}}>
-        <button onClick={()=>setView(view==="list"?"runs":"list")} style={{...BS,fontSize:11,padding:"6px 12px"}}>{view==="list"?"📋 Run Log":"← Workflows"}</button>
+        <button onClick={()=>setView(view==="list"?"runs":"list")} style={{...BS,fontSize:11,padding:"6px 12px"}}>{view==="list"?"Run Log":"← Workflows"}</button>
         <button onClick={()=>setEditing({name:"",description:"",nodes:[],edges:[],active:false})} style={{...BP,fontSize:12}}>+ New Workflow</button>
       </div>
     </div>
@@ -45,7 +45,7 @@ function WorkflowBuilder({D,userName}){
 
     {view==="list"&&<>
       {loading&&<div style={{textAlign:"center",padding:40}}><Spinner/></div>}
-      {!loading&&workflows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:36,marginBottom:8}}>⚡</div><div style={{fontSize:14,fontWeight:600,marginBottom:4}}>No workflows yet</div><div style={{fontSize:12}}>Create your first automation to get started.</div></Card>}
+      {!loading&&workflows.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:36,marginBottom:8}}><Icon name="zap" size={34}/></div><div style={{fontSize:14,fontWeight:600,marginBottom:4}}>No workflows yet</div><div style={{fontSize:12}}>Create your first automation to get started.</div></Card>}
       {workflows.map(wf=>{const triggerNode=wf.nodes?.find(n=>n.type==="trigger");const actionNodes=(wf.nodes||[]).filter(n=>n.type==="action");const recentRuns=runs.filter(r=>r.workflow_id===wf.id).length;
         return(<Card key={wf.id} style={{padding:"14px 16px",marginBottom:8,opacity:wf.active?1:0.7}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
@@ -100,7 +100,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
   const removeEdge=(id)=>setEdges(edges.filter(e=>e.id!==id));
 
   const nodeColors={trigger:B.cyan,condition:B.orange,action:B.cyan,wait:B.textDim};
-  const nodeIcons={trigger:"⚡",condition:"❓",action:"▶",wait:"⏳"};
+  const nodeIcons={trigger:"",condition:"",action:"▶",wait:"⏳"};
 
   const handleMouseDown=(e,nodeId)=>{e.stopPropagation();if(connecting){addEdge(connecting,nodeId);setConnecting(null);return;}
     setSelected(nodeId);setDragNode({id:nodeId,startX:e.clientX,startY:e.clientY,origX:nodes.find(n=>n.id===nodeId).x,origY:nodes.find(n=>n.id===nodeId).y});};
@@ -134,7 +134,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
     </div>
 
     {/* Canvas */}
-    <div ref={canvasRef} style={{flex:1,minHeight:400,background:B.bg,border:"1px solid "+B.border,borderRadius:10,position:"relative",overflow:"hidden",cursor:dragNode?"grabbing":"default"}}
+    <div ref={canvasRef} style={{flex:1,minHeight:400,background:B.bg,border:"1px solid "+B.border,borderRadius:8,position:"relative",overflow:"hidden",cursor:dragNode?"grabbing":"default"}}
       onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onClick={()=>{setSelected(null);setConnecting(null);}}>
       {/* SVG edges */}
       <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}}>
@@ -146,7 +146,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
 
       {/* Nodes */}
       {nodes.map(n=>{const c=nodeColors[n.type];const isSelected=selected===n.id;return(
-        <div key={n.id} style={{position:"absolute",left:n.x,top:n.y,width:180,background:B.surface,border:"2px solid "+(isSelected?c:B.border),borderRadius:10,padding:"10px 12px",cursor:"grab",boxShadow:isSelected?"0 4px 16px "+c+"30":"0 1px 4px rgba(0,0,0,0.1)",transition:"box-shadow .15s",zIndex:isSelected?10:1}}
+        <div key={n.id} style={{position:"absolute",left:n.x,top:n.y,width:180,background:B.surface,border:"2px solid "+(isSelected?c:B.border),borderRadius:8,padding:"10px 12px",cursor:"grab",boxShadow:isSelected?"0 4px 16px "+c+"30":"0 1px 4px rgba(0,0,0,0.1)",transition:"box-shadow .15s",zIndex:isSelected?10:1}}
           onMouseDown={e=>handleMouseDown(e,n.id)} onDoubleClick={(e)=>{e.stopPropagation();setConfigNode(n);}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
@@ -163,7 +163,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
         </div>);})}
 
       {nodes.length===0&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",color:B.textDim}}>
-        <div style={{fontSize:36,marginBottom:8}}>⚡</div><div style={{fontSize:13}}>Add nodes to build your workflow</div>
+        <div style={{fontSize:36,marginBottom:8}}><Icon name="zap" size={34}/></div><div style={{fontSize:13}}>Add nodes to build your workflow</div>
         <div style={{fontSize:11,marginTop:4}}>Start with a Trigger, then add Conditions and Actions</div>
       </div>}
     </div>
@@ -173,7 +173,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
       {configNode.type==="trigger"&&<div>
         <label style={LS}>When this happens:</label>
         <select value={configNode.config?.event||""} onChange={e=>{updateNodeConfig(configNode.id,{event:e.target.value});setConfigNode({...configNode,config:{...configNode.config,event:e.target.value}});}} style={{...IS,cursor:"pointer"}}>
-          {WF_TRIGGERS.map(t=><option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+          {WF_TRIGGERS.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}
         </select>
       </div>}
       {configNode.type==="condition"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -188,7 +188,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
       </div>}
       {configNode.type==="action"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
         <div><label style={LS}>Action Type</label><select value={configNode.config?.action_type||""} onChange={e=>{updateNodeConfig(configNode.id,{action_type:e.target.value});setConfigNode({...configNode,config:{...configNode.config,action_type:e.target.value}});}} style={{...IS,cursor:"pointer"}}>
-          {WF_ACTIONS.filter(a=>a.key!=="wait").map(a=><option key={a.key} value={a.key}>{a.icon} {a.label}</option>)}
+          {WF_ACTIONS.filter(a=>a.key!=="wait").map(a=><option key={a.key} value={a.key}>{a.label}</option>)}
         </select></div>
         {configNode.config?.action_type==="send_email"&&<>
           <div><label style={LS}>To Email</label><input value={configNode.config?.to_email||""} onChange={e=>{updateNodeConfig(configNode.id,{to_email:e.target.value});setConfigNode({...configNode,config:{...configNode.config,to_email:e.target.value}});}} style={IS} placeholder="Leave blank to use customer email"/></div>
