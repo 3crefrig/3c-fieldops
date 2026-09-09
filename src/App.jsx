@@ -187,8 +187,18 @@ function App(){
   // Queue a write for later sync (tech lost signal) and reflect it locally now.
   const queueOffline=async(table,action,row)=>{try{await queueMutation({table,action,data:row});}catch(e){console.error("queue failed",e);}applyOptimistic(table,action,row);setOfflineMode(true);try{setOfflineQueueCount(await getQueueCount());}catch(e){}};
   const isOffline=()=>(typeof navigator!=="undefined"&&navigator.onLine===false);
+  // Local patch for time_entries so the calendar / My Day / Hours reflect a log the
+  // instant the insert returns; the background refetch then confirms ordering.
+  const patchTime=(action,row)=>setData(prev=>{if(!prev)return prev;const arr=prev.time||[];let next;
+    if(action==="insert")next=[row,...arr.filter(t=>t.id!==row.id)];
+    else if(action==="update")next=arr.map(t=>t.id===row.id?{...t,...row}:t);
+    else next=arr.filter(t=>t.id!==row.id);
+    return{...prev,time:next};});
   const isNetErr=(e)=>{const m=(e&&e.message)||"";return /Failed to fetch|NetworkError|network|fetch/i.test(m);};
-  const withTableSync=(table,fn)=>async(...args)=>{setSyncing(true);try{const rv=await fn(...args);if(!isOffline()){try{await reloadTable(table);}catch(e){}}return rv;}catch(e){if(isOffline()||isNetErr(e)){/* offline: queueable actions already queued + returned; non-queueable ones simply can't run */if(e?.__queued)return;alert("You're offline — this change needs a connection and was not saved.");return;}console.error(table+" operation failed:",e);if(e?.message)alert("Operation failed: "+e.message);throw e;}finally{setSyncing(false);}};
+  // opts.background: the action already patched local state, so the confirming refetch
+  // runs after the promise resolves instead of holding the caller's modal open — on a
+  // field connection the ~150KB time_entries reload was the whole "takes a while".
+  const withTableSync=(table,fn,opts)=>async(...args)=>{setSyncing(true);try{const rv=await fn(...args);if(!isOffline()){if(opts&&opts.background){reloadTable(table).catch(()=>{});}else{try{await reloadTable(table);}catch(e){}}}return rv;}catch(e){if(isOffline()||isNetErr(e)){/* offline: queueable actions already queued + returned; non-queueable ones simply can't run */if(e?.__queued)return;alert("You're offline — this change needs a connection and was not saved.");return;}console.error(table+" operation failed:",e);if(e?.message)alert("Operation failed: "+e.message);throw e;}finally{setSyncing(false);}};
   const notify=async(type,title,message,forRole)=>{await sb().from("notifications").insert({type,title,message,for_role:forRole||null});};
   // Send the branded onboarding email to a user via the existing send-email function.
   const sendOnboarding=async(user)=>{
@@ -264,12 +274,13 @@ function App(){
         const dayHrs=data.time.filter(t=>t.technician===appUser.name&&t.logged_date===logDate).reduce((s,t)=>s+parseFloat(t.hours||0),0);
         if(dayHrs+h>maxDaily){const isManager=appUser.role==="admin"||appUser.role==="manager";if(!isManager){alert("Daily limit: "+maxDaily+" hours exceeded for "+logDate+". Ask a manager to override.");return;}if(!window.confirm("This would put "+appUser.name+" over "+maxDaily+" hours for "+logDate+" ("+fmtHours(dayHrs+h)+"). Override and allow?"))return;}
       }
-      const{error:teErr}=await sb().from("time_entries").insert({...te,hours:h,technician:appUser.name,logged_date:logDate});if(teErr){alert("Failed to log time. Please try again.");throw teErr;}
+      const{data:teRow,error:teErr}=await sb().from("time_entries").insert({...te,hours:h,technician:appUser.name,logged_date:logDate}).select("*").single();if(teErr){alert("Failed to log time. Please try again.");throw teErr;}
+      if(teRow)patchTime("insert",teRow);
       const wo=data.wos.find(w=>w.id===te.wo_id);
       if(wo&&wo.status==="pending"){await sb().from("work_orders").update({status:"in_progress"}).eq("id",wo.id);await sb().from("wo_activity").insert({wo_id:wo.id,action:"updated",details:"Status → in_progress (auto on first time entry)",actor:appUser?.name||"System"});}
-    }),
-    updateTime:withTableSync("time_entries",async(te)=>{if(te.description)te.description=autoCorrect(te.description);const{id,...rest}=te;if(isOffline()){await queueOffline("time_entries","update",{id,...rest});return;}const{error}=await sb().from("time_entries").update(rest).eq("id",id);if(error){alert("Failed to update time entry.");throw error;}}),
-    deleteTime:withTableSync("time_entries",async(id)=>{if(isOffline()){await queueOffline("time_entries","delete",{id});return;}const{error}=await sb().from("time_entries").delete().eq("id",id);if(error){alert("Failed to delete time entry.");throw error;}}),
+    },{background:true}),
+    updateTime:withTableSync("time_entries",async(te)=>{if(te.description)te.description=autoCorrect(te.description);const{id,...rest}=te;if(isOffline()){await queueOffline("time_entries","update",{id,...rest});return;}const{error}=await sb().from("time_entries").update(rest).eq("id",id);if(error){alert("Failed to update time entry.");throw error;}patchTime("update",{id,...rest});},{background:true}),
+    deleteTime:withTableSync("time_entries",async(id)=>{if(isOffline()){await queueOffline("time_entries","delete",{id});return;}const{error}=await sb().from("time_entries").delete().eq("id",id);if(error){alert("Failed to delete time entry.");throw error;}patchTime("delete",{id});},{background:true}),
     addPhoto:withTableSync("photos",async(ph)=>{const{error}=await sb().from("photos").insert({...ph,uploaded_by:appUser.name,drive_synced:true});if(error){alert("Failed to upload photo.");throw error;}}),
     addUser:withTableSync("users",async(u)=>{const{error}=await sb().from("users").insert(u);if(error){alert("Failed to add user.");throw error;}if(u.role==="technician"&&u.email){sendOnboarding(u).then(r=>{if(!r.ok)console.warn("Onboarding email not sent:",r.error);});}}),
     sendOnboardingEmail:async(user)=>{const r=await sendOnboarding(user);if(!r.ok)alert("Failed to send onboarding email: "+(r.error||"unknown"));return r;},
