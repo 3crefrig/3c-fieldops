@@ -134,7 +134,7 @@ function KnowledgeBase({ userName, userRole }) {
     return (<div><Toast msg={toast} />
       <button onClick={() => { setSelArticle(null); setArticleFiles([]); }} style={{ background: "none", border: "none", color: B.cyan, fontSize: 12, cursor: "pointer", fontFamily: F, marginBottom: 10 }}>← Back</button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-        <div><Badge color={catColors[a.category]}>{cats[a.category]}</Badge><h2 style={{ margin: "6px 0 0", fontSize: 20, fontWeight: 700, color: B.text }}>{a.title}</h2><div style={{ fontSize: 11, color: B.textDim, marginTop: 4 }}>By {a.author} · {new Date(a.created_at).toLocaleDateString()}{a.status === "pending" && <span style={{ color: B.orange, marginLeft: 8 }}>Pending approval</span>}</div></div>
+        <div><Badge color={catColors[a.category]}>{cats[a.category]}</Badge><h2 style={{ margin: "6px 0 0", fontSize: 20, fontWeight: 600, color: B.text }}>{a.title}</h2><div style={{ fontSize: 11, color: B.textDim, marginTop: 4 }}>By {a.author} · {new Date(a.created_at).toLocaleDateString()}{a.status === "pending" && <span style={{ color: B.orange, marginLeft: 8 }}>Pending approval</span>}</div></div>
         <div style={{ display: "flex", gap: 6 }}>{isMgr && <button onClick={() => openEdit(a)} style={{ background: "none", border: "none", color: B.cyan, fontSize: 11, cursor: "pointer" }}>Edit</button>}{isMgr && <button onClick={() => { del(a.id); setSelArticle(null); }} style={{ background: "none", border: "none", color: B.red, fontSize: 11, cursor: "pointer" }}>Delete</button>}</div>
       </div>
       {a.tags && a.tags.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>{a.tags.map(t => <span key={t} style={{ padding: "2px 8px", borderRadius: 4, background: B.cyanGlow, color: B.cyan, fontSize: 10, fontWeight: 600 }}>{t}</span>)}</div>}
@@ -155,7 +155,7 @@ function KnowledgeBase({ userName, userRole }) {
 
   return (<div><Toast msg={toast} />
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: B.text }}>Knowledge Base</h3>
+      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: B.text }}>Knowledge Base</h3>
       <button onClick={() => { resetForm(); setSelArticle(null); setArticleFiles([]); setShowCreate(true); }} style={{ ...BP, fontSize: 12 }}>+ New Article</button>
     </div>
     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search articles, symptoms, parts..." style={{ ...IS, marginBottom: 12, padding: 12, fontSize: 14 }} />

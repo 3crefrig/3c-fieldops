@@ -34,12 +34,12 @@ function FeedbackForm({token:rawToken}){
   const bg=B.bg,sf=B.surface;
   if(loading)return<div style={{minHeight:"100vh",background:bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
-  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>Thank you.</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>We appreciate you taking the time.</p><div style={{marginTop:24}}><Logo/></div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><h2 style={{fontSize:22,fontWeight:600,margin:"0 0 8px"}}>Thank you.</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>We appreciate you taking the time.</p><div style={{marginTop:24}}><Logo/></div></div>;
 
   return(<div style={{minHeight:"100vh",background:bg,fontFamily:F,color:B.text}}>
     <div style={{background:sf,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Feedback</div></div>
     <div style={{maxWidth:500,margin:"0 auto",padding:24}}>
-      <h2 style={{fontSize:18,fontWeight:700,marginBottom:4}}>How did we do?</h2>
+      <h2 style={{fontSize:18,fontWeight:600,marginBottom:4}}>How did we do?</h2>
       <p style={{fontSize:13,color:B.textMuted,marginBottom:24}}>Tell us how the job went.</p>
 
       {/* Step 1: Star Rating */}

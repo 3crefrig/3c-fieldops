@@ -130,7 +130,7 @@ function OptionPanel({tiers,setTiers,parts,setParts,label,setLabel,optDesc,setOp
         <input value={p.description} onChange={e=>updatePart(i,"description",e.target.value)} placeholder="Part" style={{...IS,padding:7,fontSize:11}}/>
         <input value={p.quantity||""} onChange={e=>updatePart(i,"quantity",e.target.value)} type="number" placeholder="Qty" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/>
         <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:10,color:B.textDim}}>$</span><input value={p.unit_cost||""} onChange={e=>updatePart(i,"unit_cost",e.target.value)} type="number" placeholder="Cost" style={{...IS,padding:7,fontSize:11,fontFamily:M}}/></div>
-        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:7,fontSize:11,fontFamily:M,width:40}}/><span style={{fontSize:9,color:B.textDim}}>%</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:2}}><input value={p.markup_pct||""} onChange={e=>updatePart(i,"markup_pct",e.target.value)} type="number" placeholder="%" style={{...IS,padding:7,fontSize:11,fontFamily:M,width:40}}/><span style={{fontSize:10.5,color:B.textDim}}>%</span></div>
         <button onClick={()=>removePart(i)} style={{background:"none",border:"none",color:B.red,fontSize:12,cursor:"pointer",padding:2}}>×</button>
       </div>)}
       {parts.length>0&&<div style={{textAlign:"right",fontSize:11,fontFamily:M,color:B.orange,fontWeight:700}}>Parts: ${partsTotal.toFixed(2)}</div>}
@@ -333,7 +333,7 @@ function ProposalBuilder({customers,users,userName,onClose}){
     {/* Step 2: AI Generate */}
     {step===2&&<div style={{textAlign:"center",padding:20}}>
       <div style={{fontSize:48,marginBottom:16}}></div>
-      <h3 style={{fontSize:16,fontWeight:700,color:B.text,marginBottom:8}}>Ready to Generate</h3>
+      <h3 style={{fontSize:16,fontWeight:600,color:B.text,marginBottom:8}}>Ready to Generate</h3>
       <p style={{fontSize:13,color:B.textMuted,marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>
         AI will draft a professional proposal for <strong>{cust}</strong> based on your scope description.
         {estimate&&" It will reference your $"+estimate.grand_total?.toFixed(2)+" estimate."}
@@ -620,7 +620,7 @@ function ProposalDashboard({D,A,userName}){
       <StatCard label="Pending" value={proposals.filter(p=>p.status==="sent").length} icon="clock" color={B.orange}/>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Proposals</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Proposals</h3>
       <button onClick={()=>setView("create")} style={{...BP,fontSize:12}}>+ New Proposal</button>
     </div>
 
@@ -681,7 +681,7 @@ function ProposalPortal({token}){
 
   if(loading)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(error)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><Logo/><div style={{marginTop:20,fontSize:15,fontWeight:600}}>{error}</div></div>;
-  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"":""}</div><h2 style={{fontSize:22,fontWeight:700,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
+  if(done)return<div style={{minHeight:"100vh",background:B.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:F,color:B.text,padding:40,textAlign:"center"}}><div style={{fontSize:64,marginBottom:16}}>{done==="approved"?"":""}</div><h2 style={{fontSize:22,fontWeight:600,margin:"0 0 8px"}}>{done==="approved"?"Proposal Approved!":"Response Recorded"}</h2><p style={{fontSize:14,color:B.textMuted,maxWidth:400}}>{done==="approved"?"Thank you! Our team will be in touch shortly to begin scheduling the work.":"Thank you for your feedback. Our team will follow up."}</p><div style={{marginTop:24}}><Logo/></div></div>;
 
   const isExpired=prop.expires_at&&new Date(prop.expires_at)<new Date();
   const alreadyActioned=prop.status==="approved"||prop.status==="rejected";
@@ -690,7 +690,7 @@ function ProposalPortal({token}){
     <div style={{background:B.surface,padding:"14px 20px",borderBottom:"1px solid "+B.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><Logo/><div style={{fontSize:12,color:B.textDim}}>Service Proposal</div></div>
     <div style={{maxWidth:700,margin:"0 auto",padding:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-        <div><h2 style={{fontSize:20,fontWeight:700,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
+        <div><h2 style={{fontSize:20,fontWeight:600,margin:"0 0 4px"}}>{prop.title}</h2><div style={{fontSize:13,color:B.textMuted}}>Prepared for {prop.customer_name}</div><div style={{fontSize:11,color:B.textDim}}>{prop.proposal_num} · {new Date(prop.created_at).toLocaleDateString()}</div></div>
         <Badge color={PSC[prop.status]||B.textDim}>{prop.status}</Badge>
       </div>
 

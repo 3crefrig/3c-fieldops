@@ -237,6 +237,13 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 .list-row:hover{background:${B.surfaceActive}}
 .list-row:last-child{border-bottom:none!important}
 .cal-cell:hover{background:${B.surfaceActive}!important}
+/* Tables: headers and the id column stay on one line. */
+table th{white-space:nowrap}
+table td:first-child{white-space:nowrap}
+.data-table td{white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+.data-table tr:hover td{background:${B.surfaceActive}}
+/* Phones: every in-content control is at least 36px tall (gloves, glare). */
+@media(max-width:767px){.tab-content button{min-height:36px}}
 /* Stat strip (desktop): sibling stat tiles fuse into one panel with vertical hairlines. */
 div:has(> .stat-card){gap:1px!important;border:1px solid ${B.border};border-radius:8px;overflow:hidden;background:${B.border}}
 .stat-card{border:none!important;border-radius:0!important;box-shadow:none!important;background:${B.surface}!important}

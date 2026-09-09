@@ -33,7 +33,7 @@ function AgreementTierManager({tiers,onAdd,onUpdate,onDelete}){
   return(<div>
     <Toast msg={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Agreement Tiers (Internal)</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Agreement Tiers (Internal)</h3>
       <button onClick={openNew} style={{...BP,fontSize:12}}>+ New Tier</button>
     </div>
     <div style={{fontSize:11,color:B.textDim,marginBottom:14,padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border}}>
@@ -449,11 +449,12 @@ function AgreementDetail({agreement,onBack,onUpdate,wos,pos,timeEntries,equipmen
 
   return(<div style={{animation:"fadeIn .2s ease-out"}}>
     <Toast msg={toast}/>
-    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,cursor:"pointer",fontFamily:F,fontSize:13,fontWeight:600,marginBottom:12,padding:0}}>← Back to Agreements</button>
+    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,cursor:"pointer",fontFamily:F,fontSize:13,fontWeight:500,marginBottom:12,padding:"6px 0"}}>← Back to Agreements</button>
 
     <Card style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div>
+          <div style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan,marginBottom:4}}>AGREEMENT</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:M,fontWeight:700,fontSize:16,color:B.text}}>{a.agreement_num}</span><Badge color={STATUS_COLORS[a.status]}>{STATUS_LABELS[a.status]}</Badge></div>
           <div style={{fontSize:14,fontWeight:600,color:B.textMuted,marginTop:4}}>{a.customer_name}</div>
           {a.tier_name&&<div style={{fontSize:11,color:B.cyan,marginTop:2}}>Tier: {a.tier_name} (internal)</div>}
@@ -556,7 +557,7 @@ function AgreementDashboard({D,A,userRole,userName}){
     </div>
 
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Service Agreements</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Service Agreements</h3>
       <div style={{display:"flex",gap:6}}>
         {canEdit&&<button onClick={()=>setManageTiers(true)} style={{...BS,fontSize:11,padding:"6px 12px"}}>Manage Tiers</button>}
         {canEdit&&<button onClick={()=>setCreating(true)} style={{...BP,fontSize:12}}>+ New Agreement</button>}

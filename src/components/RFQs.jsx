@@ -63,7 +63,7 @@ function RFQForm({initial,onSave,onClose,signerName}){
         <div><label style={LS}>Account #</label><input value={account} onChange={e=>setAccount(e.target.value)} placeholder="Our account with them" style={IS}/></div>
         <div><label style={LS}>Date</label><input type="date" value={rfqDate} onChange={e=>setRfqDate(e.target.value)} style={IS}/></div>
         <div><label style={LS}>Prepared By</label><input value={preparedBy} onChange={e=>setPreparedBy(e.target.value)} style={IS}/></div>
-        {!isEdit&&<div><label style={LS}>Reference Tag <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label><input value={descriptor} onChange={e=>setDescriptor(e.target.value)} placeholder="e.g. MSRB2-Motors" style={IS}/></div>}
+        {!isEdit&&<div><label style={LS}>Reference Tag <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>optional</span></label><input value={descriptor} onChange={e=>setDescriptor(e.target.value)} placeholder="e.g. MSRB2-Motors" style={IS}/></div>}
       </div>
       {!isEdit&&<div style={{fontSize:10,color:B.textDim,marginTop:-4}}>RFQ number: <span style={{fontFamily:M,color:B.cyan}}>3C-RFQ-{descriptor.trim()?descriptor.trim().replace(/[^A-Za-z0-9]+/g,"-").replace(/^-+|-+$/g,""):"####"}</span> (auto-numbered if left blank)</div>}
 
@@ -87,7 +87,7 @@ function RFQForm({initial,onSave,onClose,signerName}){
 
       {/* Specs */}
       <div>
-        <label style={LS}>Specifications <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label>
+        <label style={LS}>Specifications <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>optional</span></label>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {specs.map((s,idx)=><div key={idx} style={{display:"grid",gridTemplateColumns:"1fr 1.6fr 28px",gap:6,alignItems:"center"}}>
             <input value={s.label} onChange={e=>setSpec(idx,"label",e.target.value)} placeholder="Label" style={{...IS,padding:"8px 10px",fontSize:12}}/>
@@ -98,7 +98,7 @@ function RFQForm({initial,onSave,onClose,signerName}){
         <button onClick={addSpec} style={{...BS,marginTop:6,padding:"6px 14px",fontSize:11}}>+ Add Spec</button>
       </div>
 
-      <div><label style={LS}>Notes <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>one per line</span></label><textarea value={notesText} onChange={e=>setNotesText(e.target.value)} placeholder={"Tag parts with our account\nRequest lead time on backordered items"} style={{...IS,minHeight:56,resize:"vertical"}}/></div>
+      <div><label style={LS}>Notes <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>one per line</span></label><textarea value={notesText} onChange={e=>setNotesText(e.target.value)} placeholder={"Tag parts with our account\nRequest lead time on backordered items"} style={{...IS,minHeight:56,resize:"vertical"}}/></div>
 
       <div style={{display:"flex",gap:8,marginTop:4}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":isEdit?"Save Changes":"Create RFQ"}</button></div>
     </div>
@@ -182,7 +182,7 @@ function ItemPriceRow({it,msg}){
     <div style={{color:B.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.description||""}</div>
     <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end"}}>
       <input value={price} onChange={e=>setPrice(e.target.value)} onBlur={save} type="number" step="0.01" placeholder="—" style={{...IS,width:78,padding:"6px 8px",fontSize:12,fontFamily:M,textAlign:"right"}}/>
-      {saving&&<span style={{fontSize:9,color:B.cyan}}>…</span>}
+      {saving&&<span style={{fontSize:10.5,color:B.cyan}}>…</span>}
     </div>
   </div>);
 }
@@ -248,7 +248,7 @@ function RFQDashboard({D,A,userRole,userName,userId}){
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{rfq.to_vendor||"—"}{rfq.account?" · "+rfq.account:""}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{rfq.rfq_date?fmtDate(rfq.rfq_date):"No date"}{rfq.vendor_email?" · "+rfq.vendor_email:""}{rfq.sent_at?" · sent "+fmtDate(rfq.sent_at.slice(0,10)):""}</div>
             </div>
-            <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",maxWidth:"100%"}}>
               {url&&<a href={url} target="_blank" rel="noreferrer" style={{...BS,textDecoration:"none",padding:"8px 12px",fontSize:11,minHeight:36,display:"inline-flex",alignItems:"center"}}>Doc</a>}
               {canEditDraft&&<button onClick={()=>setEditing(rfq)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>}
               {isMgr&&(rfq.status==="quoted"||rfq.status==="closed")&&<button data-tip="Turns the vendor’s quote into a purchase order — items, prices, and vendor carried over automatically." onClick={()=>createPOFromQuote(rfq)} title="Create a purchase order pre-filled with this RFQ's items and vendor prices" style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>→ PO</button>}

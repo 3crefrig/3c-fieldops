@@ -200,7 +200,6 @@ function KPIDashboard({D,A,userRole,userName,onOpenWO,onOpenInvoices}){
       background:B.surface,
       border:"1px solid "+B.border,
       borderRadius:8,
-      boxShadow:"0 1px 3px rgba(0,0,0,0.08)",
       padding:"18px 20px",
       marginBottom:16,
     }}>

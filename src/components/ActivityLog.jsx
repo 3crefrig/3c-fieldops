@@ -14,7 +14,7 @@ function ActivityLog({woId}){
       {log.length===0&&<div style={{padding:10,textAlign:"center",color:B.textDim,fontSize:11}}>No activity recorded yet</div>}
       {log.map(l=><div key={l.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:"1px solid "+B.border}}>
         <div style={{width:6,height:6,borderRadius:"50%",background:l.action==="created"?B.green:l.action==="completed"?B.green:B.cyan,marginTop:5,flexShrink:0}}/>
-        <div style={{flex:1}}><div style={{fontSize:11,color:B.text}}>{l.details||l.action}</div><div style={{fontSize:9,color:B.textDim}}>{l.actor} · {new Date(l.created_at).toLocaleString()}</div></div>
+        <div style={{flex:1}}><div style={{fontSize:11,color:B.text}}>{l.details||l.action}</div><div style={{fontSize:10.5,color:B.textDim}}>{l.actor} · {new Date(l.created_at).toLocaleString()}</div></div>
       </div>)}
     </div>}
   </div>);
@@ -38,7 +38,7 @@ function GlobalActivityFeed(){
         <span style={{display:"inline-flex",flexShrink:0,marginTop:2,color:B.textMuted}}><Icon name={actionIcon(a.action)} size={14}/></span>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:11,color:B.text}}>{a.details||a.action}</div>
-          <div style={{fontSize:9,color:B.textDim,marginTop:2}}>{a.actor} · {timeAgo(a.created_at)}</div>
+          <div style={{fontSize:10.5,color:B.textDim,marginTop:2}}>{a.actor} · {timeAgo(a.created_at)}</div>
         </div>
       </div>)}
     </div>}

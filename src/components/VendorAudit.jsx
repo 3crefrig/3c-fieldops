@@ -206,7 +206,7 @@ function LineGrid({ lines, setLines, statusChips }) {
         {statusChips && <span style={LS}>Status</span>}<span style={LS}>Part #</span><span style={LS}>Description</span><span style={LS}>Qty</span><span style={LS}>Price</span><span style={LS}>Amount</span><span />
       </div>
       {lines.map((l, i) => (<div key={i} style={{ display: "grid", gridTemplateColumns: statusChips ? "96px 110px 1fr 56px 76px 80px 26px" : "110px 1fr 56px 76px 80px 26px", gap: 6, marginBottom: 6, alignItems: "center" }}>
-        {statusChips && <span style={{ fontSize: 9, fontWeight: 800, color: msColor(l.match_status), textTransform: "uppercase", letterSpacing: 0.3 }}>{MS_LABELS[l.match_status] || "—"}</span>}
+        {statusChips && <span style={{ fontSize:10.5, fontWeight: 800, color: msColor(l.match_status), textTransform: "uppercase", letterSpacing: 0.3 }}>{MS_LABELS[l.match_status] || "—"}</span>}
         <input value={l.part_no || ""} onChange={e => upd(i, "part_no", e.target.value)} placeholder="—" style={{ ...IS, ...cellIS, fontFamily: M }} />
         <input value={l.description || ""} onChange={e => upd(i, "description", e.target.value)} placeholder="Item" style={{ ...IS, ...cellIS }} />
         <input value={l.qty ?? ""} onChange={e => upd(i, "qty", e.target.value)} type="number" step="any" style={{ ...IS, ...cellIS, fontFamily: M }} />
@@ -497,7 +497,7 @@ function BillDetailModal({ bill, items, pos, A, onClose, msg }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }}>
         {items.map(it => (<div key={it.id} style={{ padding: "8px 12px", background: B.bg, borderRadius: 8, border: "1px solid " + B.border }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 9, fontWeight: 800, color: msColor(it.match_status), textTransform: "uppercase", letterSpacing: 0.4, minWidth: 68 }}>{MS_LABELS[it.match_status] || "—"}</span>
+            <span style={{ fontSize:10.5, fontWeight: 800, color: msColor(it.match_status), textTransform: "uppercase", letterSpacing: 0.4, minWidth: 68 }}>{MS_LABELS[it.match_status] || "—"}</span>
             {it.part_no && <span style={{ fontFamily: M, fontSize: 11, color: B.cyan }}>{it.part_no}</span>}
             <span style={{ fontSize: 12, color: B.text, flex: 1, minWidth: 120 }}>{it.description}</span>
             <span style={{ fontFamily: M, fontSize: 11, color: B.textMuted }}>{(it.qty ?? 1) + " × $" + (parseFloat(it.unit_price) || 0).toFixed(2)}</span>

@@ -20,7 +20,7 @@ function WorkflowBuilder({D,userName}){
 
   return(<div><Toast msg={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Workflow Automations</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Workflow Automations</h3>
       <div style={{display:"flex",gap:6}}>
         <button onClick={()=>setView(view==="list"?"runs":"list")} style={{...BS,fontSize:11,padding:"6px 12px"}}>{view==="list"?"Run Log":"← Workflows"}</button>
         <button onClick={()=>setEditing({name:"",description:"",nodes:[],edges:[],active:false})} style={{...BP,fontSize:12}}>+ New Workflow</button>
@@ -151,7 +151,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
               <span style={{display:"inline-flex",color:c}}><Icon name={nodeIcons[n.type]} size={12}/></span>
-              <span style={{fontSize:9,fontWeight:700,color:c,textTransform:"uppercase",letterSpacing:0.5}}>{n.type}</span>
+              <span style={{fontSize:10.5,fontWeight:700,color:c,textTransform:"uppercase",letterSpacing:0.5}}>{n.type}</span>
             </div>
             <div style={{display:"flex",gap:2}}>
               <button onClick={e=>{e.stopPropagation();setConnecting(n.id);}} style={{background:B.cyan+"22",border:"none",color:B.cyan,width:18,height:18,borderRadius:4,fontSize:10,cursor:"pointer"}} title="Connect">→</button>
@@ -159,7 +159,7 @@ function WorkflowCanvas({workflow,onSave,onCancel}){
             </div>
           </div>
           <div style={{fontSize:11,fontWeight:600,color:B.text,lineHeight:1.3}}>{getNodeLabel(n)}</div>
-          <div style={{fontSize:9,color:B.textDim,marginTop:4}}>Double-click to configure</div>
+          <div style={{fontSize:10.5,color:B.textDim,marginTop:4}}>Double-click to configure</div>
         </div>);})}
 
       {nodes.length===0&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",color:B.textDim}}>

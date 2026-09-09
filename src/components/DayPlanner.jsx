@@ -161,7 +161,7 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
           {daySched(localDateStr(d)).map(e=><div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",marginBottom:6,background:B.surfaceActive,border:"1px dashed "+B.border,borderRadius:6}}>
             {e.time&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,color:B.cyan,flexShrink:0}}>{e.time}</span>}
             <span style={{fontSize:11.5,fontWeight:600,color:B.text,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.task}{e.location&&<span style={{color:B.textDim,fontWeight:400}}> · {e.location}</span>}</span>
-            {canAssignOthers&&e.assigned_to&&<span style={{fontSize:9.5,fontWeight:650,padding:"2px 8px",borderRadius:999,background:B.cyan+"14",color:B.cyan,flexShrink:0}}>{e.assigned_to.split(" ")[0]}</span>}
+            {canAssignOthers&&e.assigned_to&&<span style={{fontSize:10.5,fontWeight:650,padding:"2px 8px",borderRadius:6,background:B.cyan+"14",color:B.cyan,flexShrink:0}}>{e.assigned_to.split(" ")[0]}</span>}
             {(canAssignOthers||e.created_by===userName)&&onDeleteSchedule&&<button onClick={()=>onDeleteSchedule(e.id)} title="Remove" style={{background:"none",border:"none",color:B.textDim,cursor:"pointer",fontSize:12,padding:0,flexShrink:0}}>×</button>}
           </div>)}
           {dayWOs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid "+B.border,borderRadius:6,overflow:"hidden"}}>

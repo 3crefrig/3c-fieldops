@@ -81,7 +81,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
               const badge=g.label==="Operations"?tabs.find(t=>t.key==="inbox"&&t.label.includes("("))?"":"":null;
               return<button key={g.label} onClick={()=>{setOpenNavGroup(isOpen&&!isActive?null:g.label);if(!isOpen&&groupTabs[0])setTab(groupTabs[0].key);haptic(15);}}
                 style={{padding:"11px 16px",border:"none",background:"transparent",fontSize:13,fontWeight:isActive?600:500,color:isActive?B.text:isOpen?B.text:B.textMuted,borderBottom:isActive?"2px solid "+B.cyan:"2px solid transparent",cursor:"pointer",fontFamily:F,whiteSpace:"nowrap",transition:"color .15s",display:"flex",alignItems:"center",gap:6}}>
-                {g.label}<span style={{fontSize:9,color:B.textDim,transition:"transform .15s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>{isOpen?"▾":"▸"}</span>
+                {g.label}<span style={{fontSize:10.5,color:B.textDim,transition:"transform .15s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>{isOpen?"▾":"▸"}</span>
               </button>;})}
           </div>
           {/* Sub-tabs for open group */}
@@ -99,7 +99,7 @@ export function Shell({user,onLogout,children,tab,setTab,tabs,syncing,offlineQue
     {pushSupported()&&pushState==="default"&&!pushDismissed&&<div style={{background:B.cyanGlow,borderBottom:"1px solid "+B.cyan+"40",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontSize:12,flexWrap:"wrap"}}>
       <span style={{display:"inline-flex",color:B.cyan}}><Icon name="bell" size={16}/></span>
       <span style={{flex:1,minWidth:160,color:B.text}}>Turn on job alerts to get a notification when work is assigned to you.</span>
-      <button onClick={enablePush} disabled={pushBusy} style={{background:B.cyan,color:B.bg,border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,opacity:pushBusy?.6:1}}>{pushBusy?"Enabling…":"Enable"}</button>
+      <button onClick={enablePush} disabled={pushBusy} style={{background:B.btnPrimary,color:B.btnPrimaryText,border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:F,opacity:pushBusy?.6:1}}>{pushBusy?"Enabling…":"Enable"}</button>
       <button onClick={dismissPush} aria-label="Dismiss" style={{background:"none",border:"none",color:B.textDim,fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
     </div>}
     <div ref={contentRef} className="tab-content" key={tab+theme} style={{flex:1,padding:isMobile?"14px 10px":"20px 14px",paddingBottom:isMobile?"calc(150px + env(safe-area-inset-bottom))":20,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"none",maxWidth:1200,width:"100%",margin:"0 auto",boxSizing:"border-box",minHeight:0}}><React.Suspense fallback={<Spinner/>}>{children}</React.Suspense></div>

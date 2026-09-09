@@ -168,7 +168,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
               <Badge color={PC[d.priority]||B.orange}>{d.priority}</Badge>
               {d.customer_wo&&<span style={{fontFamily:M,fontSize:10,color:B.textDim}}>WO# {d.customer_wo}</span>}
-              <span style={{padding:"1px 6px",borderRadius:3,fontSize:9,fontWeight:700,fontFamily:M,background:confColor(d.ai_confidence)+"20",color:confColor(d.ai_confidence)}}>AI {confLabel(d.ai_confidence)}</span>
+              <span style={{padding:"1px 6px",borderRadius:3,fontSize:10.5,fontWeight:700,fontFamily:M,background:confColor(d.ai_confidence)+"20",color:confColor(d.ai_confidence)}}>AI {confLabel(d.ai_confidence)}</span>
             </div>
             <div style={{fontSize:14,fontWeight:700,color:B.text,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title||d.email_subject}</div>
             <div style={{fontSize:11,color:B.textMuted,marginTop:2}}>{d.customer_name&&<span>{d.customer_name} · </span>}{d.building&&<span>{d.building} </span>}{d.location&&<span>— {d.location}</span>}</div>
@@ -176,7 +176,7 @@ function ServiceRequests({drafts,customers,users,onApprove,onReject,onRefresh}){
         </div>
         <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
           <div style={{fontSize:10,color:B.textDim}}>{d.email_from_name||d.email_from}</div>
-          <div style={{fontSize:9,color:B.textDim,marginTop:2}}>{d.email_date?new Date(d.email_date).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
+          <div style={{fontSize:10.5,color:B.textDim,marginTop:2}}>{d.email_date?new Date(d.email_date).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
         </div>
       </div>
     </Card>)}

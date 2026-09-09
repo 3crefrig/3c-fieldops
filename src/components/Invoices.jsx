@@ -638,7 +638,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
                 {(()=>{const firstNoteLine=(inv.notes||"").split("\n").map(s=>s.trim()).filter(Boolean)[0]||"";const preview=inv.job_desc?(inv.job_desc+(firstNoteLine&&firstNoteLine!==inv.job_desc?" — "+firstNoteLine:"")):firstNoteLine;return preview?(<div style={{fontSize:11,color:B.textDim,marginTop:3,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{preview}</div>):null;})()}
                 {(inv.notes||(inv.wo_ids&&inv.wo_ids.length>0)||(inv.tier_data&&inv.tier_data.length>0)||(inv.custom_items&&inv.custom_items.length>0))&&<button onClick={()=>setExpandedId(expandedId===inv.id?null:inv.id)} style={{marginTop:6,padding:"3px 8px",fontSize:10,fontWeight:600,background:"transparent",border:"1px solid "+B.border,borderRadius:4,color:B.textDim,cursor:"pointer",fontFamily:F}}>{expandedId===inv.id?"▲ Hide details":"▼ Show details"}</button>}
               </div>
-              <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",maxWidth:"100%"}}>
                 <button onClick={()=>previewPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.cyan,borderColor:B.cyan+"55"}} title="Preview invoice (no download)">Preview</button>
                 <button onClick={()=>regenExcel(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download Excel">Excel</button>
                 <button onClick={()=>regenPDF(inv)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36}} title="Download PDF">PDF</button>
@@ -969,7 +969,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
 
 
   return(<div><Toast msg={toast}/>
-    {!lockWO&&<h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700,color:B.text}}>Invoice Generator</h3>}
+    {!lockWO&&<h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:600,color:B.text}}>Invoice Generator</h3>}
     {lockWO&&<div style={{padding:"10px 12px",background:B.bg,borderRadius:8,border:"1px solid "+B.border,marginBottom:14,fontSize:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
         <span style={{fontFamily:M,fontWeight:700,color:B.cyan}}>{lockWO.wo_id}</span>
@@ -1037,7 +1037,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
                     <div style={{fontSize:12,fontWeight:checked?700:600,color:checked?B.cyan:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.wo_id} — {w.title}</div>
                     {w.customer_wo&&<div style={{fontSize:10,color:B.textDim,marginTop:1}}>#{w.customer_wo}</div>}
                   </div>
-                  {tag&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:tag[1]+"20",color:tag[1],border:"1px solid "+tag[1]+"30",flexShrink:0}}>{tag[0]}</span>}
+                  {tag&&<span style={{fontSize:10.5,fontWeight:700,padding:"2px 7px",borderRadius:8,background:tag[1]+"20",color:tag[1],border:"1px solid "+tag[1]+"30",flexShrink:0}}>{tag[0]}</span>}
                 </div>;
               })}
             </div>}
@@ -1134,7 +1134,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
             <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Customer PO# from projects:</div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
               {custProjects.map(p=>{const active=poNum===p.customer_po;return<button key={p.id} onClick={()=>{poTouched.current=true;setPoNum(p.customer_po);}} style={{padding:"5px 12px",borderRadius:4,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:M,border:"1px solid "+(active?B.green:B.border),background:active?B.green+"18":"transparent",color:active?B.green:B.textDim}}>
-                {active?"✓ ":""}{p.customer_po} <span style={{fontFamily:F,fontWeight:400,color:B.textDim,fontSize:9}}>({p.name})</span>
+                {active?"✓ ":""}{p.customer_po} <span style={{fontFamily:F,fontWeight:400,color:B.textDim,fontSize:10.5}}>({p.name})</span>
               </button>;})}
             </div>
           </div>:null;
@@ -1196,7 +1196,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setStep(2)} style={{...BS,flex:1}}>Back</button>
           <button onClick={generateXLSX} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"Excel"}</button>
-          <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,background:B.cyan,opacity:generating?.6:1}}>{generating?"Generating...":"PDF"}</button>
+          <button onClick={generatePDF} disabled={generating} style={{...BP,flex:1,opacity:generating?.6:1}}>{generating?"Generating...":"PDF"}</button>
         </div>
         <div style={{display:"flex",gap:8,marginTop:4}}>
           <button onClick={saveDraft} disabled={generating} style={{...BS,flex:1,color:B.green,borderColor:B.green+"55",opacity:generating?.6:1}} title="Create the invoice as a DRAFT — nothing is emailed to the customer">{generating?"Saving...":"Save as Draft"}</button>
@@ -1332,7 +1332,7 @@ function SendInvoiceModal({data,onClose,msg,emailTemplates,currentUser,feedbackO
   const customAsHtml=/<[a-z][^>]*>/i.test(customBody)?customBody:String(customBody||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br/>");
   const emailHTML=useCustom?customAsHtml:buildInvoiceEmailHTML(d,variant,driveLink);
 
-  const CHIP={padding:"4px 9px",borderRadius:999,border:"1px solid "+B.border,background:"transparent",color:B.textDim,fontSize:10,cursor:"pointer",fontFamily:F,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"};
+  const CHIP={padding:"4px 9px",borderRadius:6,border:"1px solid "+B.border,background:"transparent",color:B.textDim,fontSize:10,cursor:"pointer",fontFamily:F,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"};
   // Append an address to a comma-separated field without duplicating it.
   const addEmail=(cur,em)=>{const parts=(cur||"").split(",").map(s=>s.trim()).filter(Boolean);
     if(parts.some(p=>p.toLowerCase()===em.toLowerCase()))return parts.join(", ");

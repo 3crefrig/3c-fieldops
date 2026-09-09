@@ -170,7 +170,7 @@ function EquipmentForm({initial,customers,onSave,onClose}){
           {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </select></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>(customer's name for unit)</span></label>
+        <div><label style={LS}>Equipment # <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>(customer's name for unit)</span></label>
           <input value={f.equipment_number} onChange={e=>set("equipment_number",e.target.value)} placeholder="e.g. WIC-04, Cooler #3" style={IS}/>
         </div>
         <div><label style={LS}>Equipment Type</label>
@@ -179,7 +179,7 @@ function EquipmentForm({initial,customers,onSave,onClose}){
           </select></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div><label style={LS}>Asset Tag <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>(physical barcode/QR)</span></label>
+        <div><label style={LS}>Asset Tag <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>(physical barcode/QR)</span></label>
           <div style={{display:"flex",gap:6}}>
             <input value={f.asset_tag} onChange={e=>set("asset_tag",e.target.value)} placeholder="Scan or type" style={{...IS,flex:1}}/>
             <button onClick={()=>setScanning(true)} type="button" style={{...BS,padding:"10px 12px",fontSize:11}}>Scan</button>
@@ -236,12 +236,13 @@ function EquipmentDetail({eq,onBack,onUpdate,onDelete,wos,pos,timeEntries,photos
 
   return(<div style={{animation:"fadeIn .2s ease-out"}}>
     <Toast msg={toast}/>
-    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,cursor:"pointer",fontFamily:F,fontSize:13,fontWeight:600,marginBottom:12,padding:0}}>← Back to Equipment</button>
+    <button onClick={onBack} style={{background:"none",border:"none",color:B.cyan,cursor:"pointer",fontFamily:F,fontSize:13,fontWeight:500,marginBottom:12,padding:"6px 0"}}>← Back to Equipment</button>
 
     {/* Header Card */}
     <Card style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
         <div>
+          <div style={{fontFamily:M,fontSize:10,letterSpacing:0.8,color:B.cyan,marginBottom:4}}>EQUIPMENT</div>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             <span style={{fontSize:18,fontWeight:700,color:B.text}}>{eq.equipment_number||eq.model||"Unknown Model"}</span>
             <Badge color={STATUS_COLORS[eq.status]}>{STATUS_LABELS[eq.status]||eq.status}</Badge>

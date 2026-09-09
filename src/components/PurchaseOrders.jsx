@@ -203,7 +203,7 @@ function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole,userId,initial}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <ScanRow s={scan}/>
       <div><label style={LS}>Parts/Materials <span style={{color:B.red}}>*</span></label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Compressor refrigerant R-404A" style={IS}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Estimated Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Estimated Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted}}>{wo.wo_id}</div></div></div>
       <div><label style={LS}>Vendor / Where to get it</label><input list="po-vendor-suggest" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Johnstone Supply, Home Depot, etc." style={IS}/><datalist id="po-vendor-suggest">{vendorSuggestions(pos).map(v=><option key={v} value={v}/>)}</datalist></div>
       {!isMgr&&<div style={{fontSize:10,color:B.textDim,background:B.bg,padding:"8px 12px",borderRadius:6,border:"1px solid "+B.border}}>Don't know the exact price? Leave the amount blank — your manager will fill it in before approving.</div>}
       <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Request PO"}</button></div>
@@ -225,7 +225,7 @@ function POEditForm({po,onSave,onClose}){
         <span style={{fontSize:12,fontWeight:700,color:B.orange}}>Surplus — material was purchased but not used</span>
       </label>
       <div style={{fontSize:10,color:B.textDim,marginTop:4,marginLeft:24}}>Mark this PO as available to bill on a future job. It will show up in the Surplus Parts picker when creating a new invoice.</div>
-      {surplusPool&&<div style={{marginTop:8}}><label style={LS}>Surplus Notes <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>(optional — where stored, qty remaining, etc.)</span></label><input value={surplusNotes} onChange={e=>setSurplusNotes(e.target.value)} placeholder="e.g. 5 contactors left, stored on Truck 3" style={IS}/></div>}
+      {surplusPool&&<div style={{marginTop:8}}><label style={LS}>Surplus Notes <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>(optional — where stored, qty remaining, etc.)</span></label><input value={surplusNotes} onChange={e=>setSurplusNotes(e.target.value)} placeholder="e.g. 5 contactors left, stored on Truck 3" style={IS}/></div>}
     </div>
     <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Save"}</button></div>
   </div>);
@@ -241,7 +241,7 @@ function StandalonePOModal({onCreatePO,onClose}){
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <ScanRow s={scan}/>
       <div><label style={LS}>Parts/Materials <span style={{color:B.red}}>*</span></label><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Shop refrigerant stock, tools, office supplies" style={IS}/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:9}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted,fontStyle:"italic"}}>None (standalone)</div></div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><label style={LS}>Amount ($) <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>optional</span></label><input value={amt} onChange={e=>setAmt(e.target.value)} type="number" step="0.01" placeholder="0.00" style={{...IS,fontFamily:M}}/></div><div><label style={LS}>Work Order</label><div style={{...IS,background:B.surfaceActive,color:B.textMuted,fontStyle:"italic"}}>None (standalone)</div></div></div>
       <div><label style={LS}>Vendor / Where to get it</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Johnstone Supply, Home Depot, etc." style={IS}/></div>
       <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={go} disabled={saving} style={{...BP,flex:1,opacity:saving?.6:1}}>{saving?"Saving...":"Create PO"}</button></div>
     </div></Modal>);
@@ -331,7 +331,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
                 </select>
               </div>
             </div>
-            <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",maxWidth:"100%"}}>
               {(()=>{const tc=(tickets||[]).filter(t=>t.po_id===po.id).length;return<button onClick={()=>setTicketFor(po)} title="Capture a supply house pickup ticket against this PO" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,...(tc>0?{color:B.cyan,borderColor:B.cyan+"50"}:{})}}>{tc>0?"Tickets ("+tc+")":"Ticket"}</button>;})()}
               <button onClick={async()=>{try{const d=await generatePOPdf(po,wo,{returnDoc:true});previewPdfDoc(d,"PO-"+po.po_id,setPdfPreview);}catch(e){msg("Error: "+e.message);}}} title="Preview the PO form (no download)" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,color:B.cyan,borderColor:B.cyan+"55"}}>Preview</button><button onClick={()=>generatePOPdf(po,wo)} title="Download the PO form" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>PO Form</button>
               <button onClick={()=>setEditing(po)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>

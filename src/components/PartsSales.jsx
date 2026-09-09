@@ -242,7 +242,7 @@ function PartsSales({D,A,user}){
 
   return(<div><Toast msg={toast}/>{pdfPreview&&<PdfPreviewModal {...pdfPreview} onClose={()=>setPdfPreview(null)}/>}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:14}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:700,color:B.text}}>Parts Sales</h3>
+      <h3 style={{margin:0,fontSize:15,fontWeight:600,color:B.text}}>Parts Sales</h3>
       <div style={{display:"flex",gap:6}}>
         <button onClick={()=>setView("list")} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="list"?B.cyan:B.border),background:view==="list"?B.cyanGlow:"transparent",color:view==="list"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>Sales</button>
         <button onClick={()=>{if(editingSale)resetForm();setView("create");}} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+(view==="create"?B.cyan:B.border),background:view==="create"?B.cyanGlow:"transparent",color:view==="create"?B.cyan:B.textDim,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:F}}>+ New Parts Sale</button>
@@ -335,7 +335,7 @@ function PartsSales({D,A,user}){
                 <span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.text,flexShrink:0}}>{money(po.amount)}</span>
               </div>)}
             </div>
-            <div style={{fontSize:9.5,color:B.textDim,marginTop:5}}>Linking a PO adds its cost as a line (marked up) and ties it to this sale so it can't be billed twice.</div>
+            <div style={{fontSize:10.5,color:B.textDim,marginTop:5}}>Linking a PO adds its cost as a line (marked up) and ties it to this sale so it can't be billed twice.</div>
           </div>}
           {lines.length===0&&<div style={{padding:"14px",fontSize:12,color:B.textDim,textAlign:"center",border:"1px dashed "+B.border,borderRadius:6,background:B.bg}}>No parts yet — add a part or pull one in from a vendor PO</div>}
           {lines.map((l,i)=><div key={i} style={{padding:"8px 10px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,marginBottom:6}}>
@@ -345,7 +345,7 @@ function PartsSales({D,A,user}){
               <button onClick={()=>removeLine(i)} style={{background:"none",border:"none",color:B.red+"66",cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-              {l.po_ref&&<span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:B.cyan+"20",color:B.cyan,border:"1px solid "+B.cyan+"30"}}>PO {l.po_ref}</span>}
+              {l.po_ref&&<span style={{fontSize:10.5,fontWeight:700,padding:"2px 7px",borderRadius:8,background:B.cyan+"20",color:B.cyan,border:"1px solid "+B.cyan+"30"}}>PO {l.po_ref}</span>}
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Qty</span><input value={l.qty} onChange={e=>updateLine(i,"qty",e.target.value)} type="number" min="0" step="1" style={{...IS,width:52,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Cost $</span><input value={l.unit_cost} onChange={e=>updateLine(i,"unit_cost",e.target.value)} type="number" min="0" step="0.01" style={{...IS,width:76,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
               <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:10,color:B.textDim}}>Price $</span><input value={l.unit_price} onChange={e=>updateLine(i,"unit_price",e.target.value)} type="number" min="0" step="0.01" style={{...IS,width:76,padding:"5px 6px",fontSize:12,fontFamily:M}}/></div>
