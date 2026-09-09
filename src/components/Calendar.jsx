@@ -110,7 +110,7 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
   // Compact cells have room for ~7 characters: the WO number, the schedule time, or the
   // first word of an event. The day modal (tap) carries the full text.
   const shortLabel=(it)=>{
-    if(it.kind==="wo")return it.title.split(":")[0];
+    if(it.kind==="wo")return "#"+it.title.split(":")[0].replace(/^WO-/,"");
     if(it.kind==="sched"){const m=it.title.match(/^(\d{1,2}:\d{2})/);return m?m[1]:it.title.split(" ")[0];}
     return it.title.split(" ")[0];
   };
@@ -146,9 +146,9 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
       {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,wi)=><div key={d} style={{textAlign:"center",fontSize:9.5,fontWeight:700,color:B.textDim,padding:"4px 0 8px",letterSpacing:compact?.3:.8,textTransform:"uppercase",opacity:(wi===0||wi===6)?.55:1,minWidth:0}}>{compact?d[0]:d}</div>)}
       {days.map((d,i)=>{const items=getDateItems(d);const ds=d?dateStr(d):null;const isToday=ds===todayStr;const hd=layers.hours&&ds?hoursByDate[ds]:null;const hc=isLongDay(hd)?B.orange:B.green;const maxItems=compact?2:3;
       return<div key={i} onClick={()=>{if(d)setDayDetail(ds);}} title={hd?Object.keys(hd.byTech).sort().map(n=>n+" "+fmtHours(hd.byTech[n].hours)).join("\n"):undefined} style={{minHeight:compact?58:74,minWidth:0,overflow:"hidden",padding:compact?"4px 3px":5,background:d?B.surface:"transparent",border:"1px solid "+(isToday?B.cyan+"88":d?B.border:"transparent"),boxShadow:isToday?"inset 0 0 0 1px "+B.cyan+"33":"none",borderRadius:8,position:"relative",cursor:d?"pointer":"default"}}>
-        {d&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:compact?"nowrap":"wrap",gap:2,marginBottom:2,minWidth:0}}>
+        {d&&<div style={{display:"flex",alignItems:compact?"flex-start":"center",justifyContent:"space-between",flexDirection:compact?"column":"row",flexWrap:compact?"nowrap":"wrap",gap:2,marginBottom:2,minWidth:0}}>
           <span style={{fontSize:11,fontWeight:isToday?800:500,lineHeight:1,color:isToday?B.btnPrimaryText:B.text,background:isToday?B.cyan:"transparent",borderRadius:999,minWidth:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:isToday?"0 5px":"0",flexShrink:0}}>{d}</span>
-          {hd&&<span style={{fontFamily:M,fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:4,background:hc+"1E",color:hc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{fmtHours(hd.total)}</span>}
+          {hd&&<span style={{fontFamily:M,fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:4,background:hc+"1E",color:hc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:"100%",boxSizing:"border-box"}}>{fmtHours(hd.total)}</span>}
         </div>}
         {items.slice(0,maxItems).map(it=>{const c=itemColor(it);return<div key={it.id} style={{fontSize:compact?9:10,padding:compact?"1px 3px":"2px 5px",marginBottom:2,borderRadius:4,background:c+"1A",borderLeft:"2px solid "+c,color:c,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.5,minWidth:0}}>{compact?shortLabel(it):it.title}</div>;})}
         {items.length>maxItems&&<div style={{fontSize:9,color:B.textDim,paddingLeft:compact?2:5,fontWeight:600,whiteSpace:"nowrap"}}>+{items.length-maxItems}{compact?"":" more"}</div>}
