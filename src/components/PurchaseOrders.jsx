@@ -323,9 +323,9 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
               })()}
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:6}}>
                 <span style={{fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:.4,textTransform:"uppercase"}}>Techs</span>
-                {(po.assigned_techs||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:B.cyan+"22",color:B.cyan,fontSize:11,fontWeight:600}}>{t}<button onClick={()=>setPOTechs(po,(po.assigned_techs||[]).filter(x=>x!==t))} title={"Remove "+t} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button></span>)}
+                {(po.assigned_techs||[]).map((t,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:6,background:B.cyan+"22",color:B.cyan,fontSize:12,fontWeight:600}}>{t}<button onClick={()=>setPOTechs(po,(po.assigned_techs||[]).filter(x=>x!==t))} title={"Remove "+t} style={{background:"none",border:"none",color:B.red,fontSize:14,cursor:"pointer",padding:"0 6px",minWidth:28,minHeight:28,padding:"0 2px",lineHeight:1}}>×</button></span>)}
                 {(po.assigned_techs||[]).length===0&&<span style={{fontSize:11,color:B.textDim}}>None assigned</span>}
-                <select value="" onChange={e=>{if(!e.target.value)return;setPOTechs(po,[...(po.assigned_techs||[]),e.target.value]);e.target.value="";}} style={{...IS,width:"auto",padding:"4px 8px",fontSize:11,cursor:"pointer",minHeight:0}}>
+                <select value="" onChange={e=>{if(!e.target.value)return;setPOTechs(po,[...(po.assigned_techs||[]),e.target.value]);e.target.value="";}} style={{...IS,width:"auto",padding:"6px 10px",fontSize:12,cursor:"pointer",minHeight:32}}>
                   <option value="">+ Add</option>
                   {(users||[]).filter(u=>u.active!==false&&!(po.assigned_techs||[]).includes(u.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
                 </select>
