@@ -213,7 +213,7 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 *::-webkit-scrollbar-thumb{background:${B.border};border-radius:4px;border:2px solid transparent;background-clip:padding-box}
 *::-webkit-scrollbar-thumb:hover{background:${B.textDim};background-clip:padding-box}
 /* Stat tiles: 3-up on phones with a tighter value, instead of two towering cards per row. */
-@media(max-width:640px){.stat-card{flex:1 1 30%!important;min-width:104px!important;padding:12px 12px!important;margin:0!important}.stat-card .stat-label{font-size:10.5px!important;margin-bottom:4px!important}.stat-card .stat-value{font-size:20px!important}}
+@media(max-width:640px){.stat-card{flex:1 1 45%!important;min-width:140px!important;padding:12px 12px!important;margin:0!important}.stat-card .stat-label{font-size:10.5px!important;margin-bottom:4px!important}.stat-card .stat-value{font-size:19px!important;white-space:nowrap}}
 /* App shell height: 100vh falls back for old browsers; 100dvh (dynamic viewport)
    wins where supported so the bottom of the app isn't hidden behind mobile/tablet
    browser toolbars — otherwise trailing buttons become unreachable when scrolling. */
@@ -231,7 +231,7 @@ input,textarea,[contenteditable]{caret-color:${B.cyan}}
 /* Job tickets: separated cards with a perforated stub; hover lifts the edge only. */
 .ticket{transition:border-color .15s}
 .ticket:hover{border-color:${B.textDim}66}
-@media(max-width:640px){.ticket-stub{width:62px!important;padding-right:8px!important}.ticket-num{font-size:19px!important}}
+@media(max-width:640px){.ticket-stub{width:72px!important;padding-right:6px!important}.ticket-num{font-size:17px!important}}
 /* Ledger rows: one panel, hairlines between rows, nothing after the last. */
 .list-row{transition:background .12s}
 .list-row:hover{background:${B.surfaceActive}}

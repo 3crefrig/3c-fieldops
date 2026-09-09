@@ -48,5 +48,5 @@ Radii: 5 tags · 6 inputs/buttons · 8 panels/cards · 10 modals · 999 counters
 1. Color means state. Cyan is for links, the active tab and the brand mark; never fills, never rails.
 2. One panel per list; rows, not cards. Cards are for singular things (a form, a summary).
 3. Every zone is labeled with its literal name; no icon-only affordances.
-4. Phones: nothing smaller or lower-contrast than these tokens; 44px targets; 7-column grids use `minmax(0,1fr)`.
+4. Phones: nothing smaller or lower-contrast than these tokens; every in-content button ≥36px tall (GlobalStyles); action-button clusters wrap (`flexWrap`, `maxWidth:100%`, never `flexShrink:0`); stat strips are 2-up; ticket stubs 72px; data tables scroll horizontally with nowrap cells (`.data-table`); 7-column grids use `minmax(0,1fr)`.
 5. Verify with `npx impeccable@latest detect src` (expected: only the Arial email templates and the swipe-card width transition).
