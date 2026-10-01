@@ -89,6 +89,10 @@ async function buildPOPdf(po,wo,opts,compact){
   const vendor=opts.vendor||null;
   const vendorName=po.vendor_name||vendor?.name||po.notes||"";
   const techs=(po.assigned_techs||[]).join(", ");
+  // Auto-approvals are stored as "auto (under $500)" — internal wording a
+  // vendor shouldn't see. Print the company as the authorizing party instead.
+  const autoApproved=/^auto/i.test(po.approved_by||"");
+  const approver=po.approved_by&&!autoApproved?po.approved_by:(po.status==="approved"?co.name:"Pending approval");
   let y=compact?12:16;
 
   const txt=(t,x,yy,o)=>doc.text(S(t),x,yy,o||{});
@@ -167,7 +171,7 @@ async function buildPOPdf(po,wo,opts,compact){
     ["CUSTOMER / JOB",wo?.customer||opts.customer?.name||"3C Refrigeration — shop stock"],
     ["JOB SITE",wo?.location||opts.customer?.address||"—"],
     ["REQUESTED BY",po.requested_by||"—"],
-    ["APPROVED BY",po.approved_by||(po.status==="approved"?"3C Refrigeration":"Pending approval")],
+    ["APPROVED BY",approver],
     ["CUSTOMER REF",wo?.customer_wo||po.project_id?(wo?.customer_wo||"Project"):"—"],
   ];
   const jw=cw/3;body(9);
@@ -259,7 +263,7 @@ async function buildPOPdf(po,wo,opts,compact){
   doc.setDrawColor(...dark);doc.setLineWidth(0.3);
   doc.line(lm,y+sl,lm+sigW,y+sl);doc.line(pw-rm-sigW,y+sl,pw-rm,y+sl);
   body(9,dark);
-  if(po.approved_by)txt(po.approved_by+(po.approved_at?"   "+new Date(po.approved_at).toLocaleDateString("en-US"):""),lm+1,y+sl-1.5);
+  if(po.status==="approved")txt((autoApproved?co.name:po.approved_by||co.name)+(po.approved_at?"   "+new Date(po.approved_at).toLocaleDateString("en-US"):""),lm+1,y+sl-1.5);
   label("AUTHORIZED BY — "+co.name,lm,y+sl+4);
   label("VENDOR ACKNOWLEDGEMENT / DATE",pw-rm-sigW,y+sl+4);
   y+=sl+9;
