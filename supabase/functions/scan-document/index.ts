@@ -137,6 +137,9 @@ Extract the following fields from this vendor invoice:
 {
   "vendor_name": "vendor / supplier company name",
   "vendor_name_confidence": 0.0,
+  "vendor_address": "vendor's full mailing address as printed (street, city, state, zip), null if not shown",
+  "vendor_phone": "vendor phone number, null if not shown",
+  "vendor_email": "vendor email address, null if not shown",
   "invoice_number": "invoice number",
   "invoice_number_confidence": 0.0,
   "invoice_date": "YYYY-MM-DD",
@@ -208,6 +211,9 @@ Extract the following fields from this purchase receipt:
 {
   "vendor_name": "store or vendor name",
   "vendor_name_confidence": 0.0,
+  "vendor_address": "store's full address as printed (street, city, state, zip), null if not shown",
+  "vendor_phone": "store phone number, null if not shown",
+  "vendor_email": "vendor email address, null if not shown",
   "date": "YYYY-MM-DD",
   "date_confidence": 0.0,
   "receipt_number": "receipt or transaction number",

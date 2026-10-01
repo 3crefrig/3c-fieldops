@@ -299,6 +299,24 @@ export function useVendors(){
 const normV=(s)=>String(s||"").toUpperCase().replace(/\b(CO|INC|LLC|LTD|CORP|COMPANY|SUPPLY|SUPPLIES)\b/g,"").replace(/[^A-Z0-9]/g,"");
 export const matchVendor=(vendors,name)=>{const n=normV(name);if(!n)return null;return(vendors||[]).find(v=>normV(v.name)===n)||(vendors||[]).find(v=>normV(v.name).includes(n)||n.includes(normV(v.name)))||null;};
 
+// Receipt scans now read the vendor's printed address/phone/email. When the
+// matched vendor row has those blank, fill them in (managers only — RLS) so
+// the next PO to that vendor prints a complete VENDOR block. Unmatched
+// vendors keep the details in form state for "Save as vendor".
+export async function applyScanVendor({vendors,name,details,canWrite,refresh}){
+  const v=matchVendor(vendors,name);
+  const d=details||{};const has=(k)=>String(d[k]||"").trim();
+  let saved=false;
+  if(v&&canWrite){
+    const patch={};
+    if(!v.address&&has("address"))patch.address=has("address");
+    if(!v.phone&&has("phone"))patch.phone=has("phone");
+    if(!v.email&&has("email"))patch.email=has("email");
+    if(Object.keys(patch).length){const{error}=await sb().from("vendors").update(patch).eq("id",v.id);if(!error){saved=true;_vendorCache=null;if(refresh)await refresh();}}
+  }
+  return{vendor_id:v?v.id:null,vendor_name:v?v.name:name,vendor_scan:{...d,saved}};
+}
+
 // A PO can be filled at more than one supply house — Grainger for one part,
 // United for the next. Sum the pickup tickets captured against it, broken out
 // per vendor, so the PO shows what was actually spent.
@@ -330,7 +348,7 @@ function useReceiptScan(setDesc,setAmt,setVendor){
       if(summary||ref)setDesc([summary,ref?"(#"+ref+")":""].filter(Boolean).join(" "));
       const total=scanTotal(x);
       if(total!=null)setAmt(total.toFixed(2));
-      if(x.vendor_name)setVendor(String(x.vendor_name).trim());
+      if(x.vendor_name)setVendor(String(x.vendor_name).trim(),{address:x.vendor_address||"",phone:x.vendor_phone||"",email:x.vendor_email||""});
       if(total==null)alert("Read the "+(kind==="receipt"?"receipt":"invoice")+", but couldn't find a total — please type the amount in.");
     }catch(err){
       console.error("Scan error:",err);
@@ -358,8 +376,9 @@ function ScanRow({s}){
 // ── Vendor master editor ──────────────────────────────────────
 // Managers fill in the address/contact/account details that print in the
 // VENDOR block. Creates the row when the vendor was typed free-form.
-export function VendorEditModal({vendor,name,onSaved,onClose}){
-  const[v,setV]=useState({name:vendor?.name||name||"",address:vendor?.address||"",contact_name:vendor?.contact_name||"",phone:vendor?.phone||"",fax:vendor?.fax||"",email:vendor?.email||"",website:vendor?.website||"",account_number:vendor?.account_number||"",payment_terms:vendor?.payment_terms||"",notes:vendor?.notes||""});
+export function VendorEditModal({vendor,name,prefill,onSaved,onClose}){
+  const pf=prefill||{};
+  const[v,setV]=useState({name:vendor?.name||name||"",address:vendor?.address||pf.address||"",contact_name:vendor?.contact_name||"",phone:vendor?.phone||pf.phone||"",fax:vendor?.fax||"",email:vendor?.email||pf.email||"",website:vendor?.website||"",account_number:vendor?.account_number||"",payment_terms:vendor?.payment_terms||"",notes:vendor?.notes||""});
   const[saving,setSaving]=useState(false);const[err,setErr]=useState("");
   const set=(k,val)=>setV(p=>({...p,[k]:val}));
   const save=async()=>{
@@ -438,7 +457,7 @@ function PODetailFields({f,setF,wo,isMgr,desc,setDesc,amt,setAmt,defaultOpen}){
   const seg=(active)=>({...BS,flex:"1 1 110px",padding:"8px 10px",fontSize:12,minHeight:36,fontWeight:active?700:500,color:active?B.text:B.textMuted,borderColor:active?B.text:B.border,background:active?B.surfaceActive:"transparent"});
 
   return(<>
-    {editVendor&&<VendorEditModal vendor={editVendor.vendor} name={editVendor.name} onClose={()=>setEditVendor(null)} onSaved={async(row)=>{setEditVendor(null);await refresh();setF(p=>({...p,vendor_id:row.id,vendor_name:row.name,payment_terms:p.payment_terms||row.payment_terms||""}));}}/>}
+    {editVendor&&<VendorEditModal vendor={editVendor.vendor} name={editVendor.name} prefill={f.vendor_scan} onClose={()=>setEditVendor(null)} onSaved={async(row)=>{setEditVendor(null);await refresh();setF(p=>({...p,vendor_id:row.id,vendor_name:row.name,payment_terms:p.payment_terms||row.payment_terms||""}));}}/>}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
       <div style={{gridColumn:"1/-1"}}>
         <label style={LS}>Vendor <span style={{color:B.red}}>*</span></label>
@@ -449,7 +468,7 @@ function PODetailFields({f,setF,wo,isMgr,desc,setDesc,amt,setAmt,defaultOpen}){
         </select>
         {selVal==="__other"&&<input list="po-vendor-suggest" value={f.vendor_name} onChange={e=>set("vendor_name",e.target.value)} placeholder="Vendor name (e.g. Home Depot, Bull City Sheet Metal)" style={{...IS,marginTop:6}} autoFocus/>}
         {(vendorRow||(selVal==="__other"&&f.vendor_name.trim()))&&<div style={{display:"flex",alignItems:"flex-start",gap:8,marginTop:6,fontSize:11,color:B.textDim,flexWrap:"wrap"}}>
-          <div style={{flex:"1 1 200px",minWidth:0,whiteSpace:"pre-line"}}>{vendorRow?[vendorRow.address,vendorRow.phone?"Phone "+vendorRow.phone:"",vendorRow.account_number?"Acct #"+vendorRow.account_number:""].filter(Boolean).join("\n")||"No address or account on file — the PO will print the name only.":"Not in the vendor list yet."}</div>
+          <div style={{flex:"1 1 200px",minWidth:0,whiteSpace:"pre-line"}}>{vendorRow?[vendorRow.address,vendorRow.phone?"Phone "+vendorRow.phone:"",vendorRow.account_number?"Acct #"+vendorRow.account_number:""].filter(Boolean).join("\n")||"No address or account on file — the PO will print the name only.":"Not in the vendor list yet."+(f.vendor_scan?.address?" Address read from the receipt: "+f.vendor_scan.address:"")}{vendorRow&&f.vendor_scan?.saved?<span style={{color:B.green}}>{"\n"}Address from the receipt saved to this vendor.</span>:null}</div>
           {isMgr&&<button type="button" onClick={()=>setEditVendor({vendor:vendorRow,name:f.vendor_name})} style={{...BS,padding:"6px 10px",fontSize:11,minHeight:30,color:B.cyan,borderColor:B.cyan+"55"}}>{vendorRow?"Edit vendor details":"Save as vendor"}</button>}
         </div>}
       </div>
@@ -559,14 +578,17 @@ function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole,userId,initial}
   const[desc,setDesc]=useState(initial?.description||""),[amt,setAmt]=useState(initial?.amount?String(initial.amount):""),[saving,setSaving]=useState(false);
   const[f,setF]=useState(()=>emptyPOForm(initial));
   const[ticketFor,setTicketFor]=useState(null);
-  const{vendors}=useVendors();
-  const setVendorFromScan=(name)=>{const v=matchVendor(vendors,name);setF(p=>({...p,vendor_id:v?v.id:null,vendor_name:v?v.name:name}));};
+  const{vendors,refresh}=useVendors();
+  const setVendorFromScan=async(name,details)=>{const r=await applyScanVendor({vendors,name,details,canWrite:isMgr,refresh});setF(p=>({...p,...r}));};
   const scan=useReceiptScan(setDesc,setAmt,setVendorFromScan);
   usePasteImage(true,(f)=>scan.scan(f,"receipt"));
   const existing=pos.filter(p=>p.wo_id===wo.id);
+  // Techs mark their own PO received right from the WO; RLS allows own rows.
+  const[receivedLocal,setReceivedLocal]=useState({});
+  const markReceived=async(po)=>{const stamp=new Date().toISOString();const{error}=await sb().from("purchase_orders").update({received_at:stamp,received_by:userName}).eq("id",po.id);if(error){alert("Could not mark received: "+error.message);return;}setReceivedLocal(r=>({...r,[po.id]:stamp}));};
   const go=async()=>{if(!desc.trim()||saving)return;if(!f.vendor_name.trim()){alert("Pick a vendor (or choose Other and type one) so the PO can be sent to them.");return;}if(cleanText(desc,"PO Description")===null||cleanText(f.special_instructions,"PO Instructions")===null)return;setSaving(true);try{await onCreatePO({wo_id:wo.id,description:desc.trim(),amount:parseFloat(amt)||0,notes:"",...poFormPayload(f)});setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
   return(<Modal title="Purchase Order" onClose={onClose} wide>
-    {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,gap:6}}><div style={{flex:1,minWidth:0}}><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><button data-tip="Snap the counter ticket at pickup. Supply Audit uses it to catch vendor billing errors later." onClick={()=>setTicketFor(po)} title="Snap the supply house pickup ticket for this PO" style={{...BS,padding:"4px 8px",fontSize:11,minHeight:28,flexShrink:0}}>Ticket</button><Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
+    {existing.length>0&&<div style={{marginBottom:18}}><span style={LS}>Existing POs on {wo.wo_id}</span><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>{existing.map(po=>{const canSee=isMgr||po.requested_by===userName;return<div key={po.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:B.bg,borderRadius:6,border:"1px solid "+B.border,gap:6}}><div style={{flex:1,minWidth:0}}><span style={{fontFamily:M,fontWeight:700,color:B.cyan,fontSize:13}}>{po.po_id}</span><span style={{color:B.textDim,fontSize:11,marginLeft:8}}>{po.description}{canSee?" · $"+po.amount:""}</span></div><button data-tip="Snap the counter ticket at pickup. Supply Audit uses it to catch vendor billing errors later." onClick={()=>setTicketFor(po)} title="Snap the supply house pickup ticket for this PO" style={{...BS,padding:"4px 8px",fontSize:11,minHeight:28,flexShrink:0}}>Ticket</button>{(()=>{const rcv=po.received_at||receivedLocal[po.id];if(po.status!=="approved")return null;return rcv?<Badge color={B.green}>Received {fmtDate(rcv.slice(0,10),{month:"short",day:"numeric"})}</Badge>:<button onClick={()=>markReceived(po)} title="Parts are picked up / delivered — close this PO" style={{...BS,padding:"4px 8px",fontSize:11,minHeight:28,flexShrink:0,color:B.green,borderColor:B.green+"55"}}>Received</button>;})()}<Badge color={PSC[po.status]}>{PSL[po.status]}</Badge></div>})}</div><div style={{borderTop:"1px solid "+B.border,margin:"16px 0",paddingTop:16}}><span style={{fontSize:12,color:B.textMuted,fontWeight:600}}>— or create new PO —</span></div></div>}
     {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={(warn)=>{if(warn)alert("Ticket saved"+warn);}}/>}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <ScanRow s={scan}/>
@@ -607,8 +629,8 @@ function POEditForm({po,wo,onSave,onClose}){
 function StandalonePOModal({onCreatePO,onClose,pos}){
   const[desc,setDesc]=useState(""),[amt,setAmt]=useState(""),[saving,setSaving]=useState(false);
   const[f,setF]=useState(()=>emptyPOForm(null));
-  const{vendors}=useVendors();
-  const setVendorFromScan=(name)=>{const v=matchVendor(vendors,name);setF(p=>({...p,vendor_id:v?v.id:null,vendor_name:v?v.name:name}));};
+  const{vendors,refresh}=useVendors();
+  const setVendorFromScan=async(name,details)=>{const r=await applyScanVendor({vendors,name,details,canWrite:true,refresh});setF(p=>({...p,...r}));};
   const scan=useReceiptScan(setDesc,setAmt,setVendorFromScan);
   usePasteImage(true,(f)=>scan.scan(f,"receipt"));
   const go=async()=>{if(!desc.trim()||saving)return;if(!f.vendor_name.trim()){alert("Pick a vendor (or choose Other and type one) so the PO can be sent to them.");return;}if(cleanText(desc,"PO Description")===null||cleanText(f.special_instructions,"PO Instructions")===null)return;setSaving(true);try{await onCreatePO({description:desc.trim(),amount:parseFloat(amt)||0,notes:"",...poFormPayload(f)});setSaving(false);onClose();}catch(e){console.error(e);setSaving(false);}};
@@ -649,7 +671,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
   // Deep-link: GlobalSearch / bell dispatch "open-po" with a po_id — prefill the search box.
   useEffect(()=>{const h=(e)=>{setFilter("all");setSearch(String(e.detail||""));};window.addEventListener("open-po",h);return()=>window.removeEventListener("open-po",h);},[]);
-  const flt=pos.filter(p=>{if(filter!=="all"&&p.status!==filter)return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.vendor_name||p.notes||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||((p.assigned_techs||[]).join(" ").toLowerCase().includes(s))||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
+  const matchFilter=(p)=>filter==="all"?true:filter==="open"?(p.status==="approved"&&!p.received_at):filter==="received"?!!p.received_at:p.status===filter;const flt=pos.filter(p=>{if(!matchFilter(p))return false;if(search){const s=search.toLowerCase();const wo=wos.find(o=>o.id===p.wo_id);return(p.po_id||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s)||(p.vendor_name||p.notes||"").toLowerCase().includes(s)||(p.requested_by||"").toLowerCase().includes(s)||((p.assigned_techs||[]).join(" ").toLowerCase().includes(s))||(wo?.title||"").toLowerCase().includes(s)||(wo?.customer||"").toLowerCase().includes(s);}return true;});const pc=pos.filter(p=>p.status==="pending").length;
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   const approve=async(po)=>{const amt=parseFloat(po.amount)||parseFloat(inlineAmt[po.id])||0;if(!amt){msg("Type the amount in the $ box first");return;}await onUpdatePO({...po,amount:amt,status:"approved"});setInlineAmt(a=>({...a,[po.id]:""}));msg("PO "+po.po_id+" approved"+(parseFloat(po.amount)?"":" — $"+amt.toFixed(2))); };
   const toggleSel=(id)=>setSelPOs(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
@@ -658,8 +680,8 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
   const deletePO=async(po)=>{await onDeletePO(po);setConfirmDelete(null);msg("PO "+po.po_id+" deleted");};
   const approved=pos.filter(p=>p.status==="approved");const approvedAmt=approved.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
   return(<div><Toast msg={toast}/>{pdfPreview&&<PdfPreviewModal {...pdfPreview} onClose={()=>setPdfPreview(null)}/>}
-    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"stretch"}}><div style={{display:"flex",gap:10,flexWrap:"wrap",flex:"1 1 420px"}}><StatCard label="Total POs" value={pos.length} icon="file" color={B.cyan}/><StatCard label="Pending" value={pc} icon="clock" color={B.orange}/><StatCard label="Approved" value={approved.length} icon="✓" color={B.green}/><StatCard label="Approved $" value={"$"+approvedAmt.toLocaleString()} icon="dollar" color={B.green}/></div>{onCreatePO&&<button data-tip="Create a purchase order not tied to a job — shop stock, tools, supplies. You’re auto-assigned as its tech." data-tour="po-new" onClick={()=>setShowCreate(true)} style={{...BP,padding:"10px 18px",fontSize:13,fontWeight:700,whiteSpace:"nowrap",marginLeft:"auto"}}>+ Create PO</button>}</div>
-    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["approved","Approved"],["rejected","Rejected"],["revised","Revised"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="pending"&&pc>0?" ("+pc+")":""}</button>)}</div>
+    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"stretch"}}><div style={{display:"flex",gap:10,flexWrap:"wrap",flex:"1 1 420px"}}><StatCard label="Total POs" value={pos.length} icon="file" color={B.cyan}/><StatCard label="Pending" value={pc} icon="clock" color={B.orange}/><StatCard label="Open" value={approved.filter(p=>!p.received_at).length} icon="✓" color={B.green}/><StatCard label="Approved $" value={"$"+approvedAmt.toLocaleString()} icon="dollar" color={B.green}/></div>{onCreatePO&&<button data-tip="Create a purchase order not tied to a job — shop stock, tools, supplies. You’re auto-assigned as its tech." data-tour="po-new" onClick={()=>setShowCreate(true)} style={{...BP,padding:"10px 18px",fontSize:13,fontWeight:700,whiteSpace:"nowrap",marginLeft:"auto"}}>+ Create PO</button>}</div>
+    <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{[["all","All"],["pending","Pending"],["open","Open"],["received","Received"],["rejected","Rejected"],["revised","Revised"]].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:4,border:"1px solid "+(filter===k?B.cyan:B.border),background:filter===k?B.cyanGlow:"transparent",color:filter===k?B.cyan:B.textDim,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F}}>{l}{k==="pending"&&pc>0?" ("+pc+")":""}</button>)}</div>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search POs by #, description, tech, customer..." style={{...IS,marginBottom:14,padding:"8px 12px",fontSize:12}}/>
     {selPOs.length>0&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:B.cyanGlow,border:"1px solid "+B.cyan+"40",borderRadius:8,marginBottom:10}}>
       <span style={{fontSize:12,fontWeight:700,color:B.cyan}}>{selPOs.length} selected</span>
@@ -681,7 +703,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
               <span className="ticket-num" style={{fontFamily:M,fontSize:20,fontWeight:700,color:B.text,lineHeight:1,letterSpacing:-0.5,overflow:"hidden",textOverflow:"ellipsis"}}>{String(po.po_id||"").replace(/^PO-?/i,"")}</span>
             </div>
             <div style={{flex:"1 1 240px",minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{wo&&<button onClick={()=>openWO(wo.wo_id||wo.id)} title={"Open "+wo.wo_id+(wo.title?" — "+wo.title:"")} style={{fontFamily:M,fontSize:11,color:B.cyan,background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textDecorationColor:B.cyan+"44"}}>{wo.wo_id}</button>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{po.received_at&&<Badge color={B.green}>Received {fmtDate(po.received_at.slice(0,10),{month:"short",day:"numeric"})}{po.received_by?" · "+po.received_by:""}</Badge>}{wo&&<button onClick={()=>openWO(wo.wo_id||wo.id)} title={"Open "+wo.wo_id+(wo.title?" — "+wo.title:"")} style={{fontFamily:M,fontSize:11,color:B.cyan,background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textDecorationColor:B.cyan+"44"}}>{wo.wo_id}</button>}</div>
               <div style={{fontSize:13,fontWeight:600,color:B.textMuted,marginTop:4}}>{po.description}</div>
               <div style={{fontSize:11,color:B.textDim,marginTop:2}}>By {po.requested_by} · {po.created_at?.slice(0,10)} · {parseFloat(po.amount)?<span style={{fontFamily:M,fontWeight:700,color:B.text}}>${parseFloat(po.amount).toFixed(2)}</span>:<span style={{fontFamily:M,fontWeight:700,color:B.orange}}>$ —  needs amount</span>}{wo&&<span> · {wo.title}</span>}</div>
               {(po.vendor_name||po.notes||po.needed_by||po.delivery_method)&&<div style={{fontSize:11,color:B.textMuted,marginTop:3}}>{[po.vendor_name||(po.notes&&!po.vendor_name?po.notes:""),po.needed_by?"Needed "+fmtDate(po.needed_by,{month:"short",day:"numeric"}):"",po.delivery_method&&po.delivery_method!=="pickup"?DELIVERY_LABELS[po.delivery_method]:""].filter(Boolean).join(" · ")}</div>}
@@ -718,6 +740,9 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
               <button onClick={()=>setEmailFor(po)} title={po.sent_to_vendor_at?"Sent to vendor "+new Date(po.sent_to_vendor_at).toLocaleDateString("en-US"):"Email the PO PDF to the vendor"} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,...(po.sent_to_vendor?{color:B.green,borderColor:B.green+"55"}:{})}}>{po.sent_to_vendor?"Sent ✓":"Email"}</button>
               <button onClick={()=>setEditing(po)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>
               {po.status==="pending"&&<>{!parseFloat(po.amount)&&<div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:12,color:B.textDim}}>$</span><input value={inlineAmt[po.id]||""} onChange={e=>setInlineAmt(a=>({...a,[po.id]:e.target.value}))} type="number" min="0" step="0.01" placeholder="0.00" title="Type the amount and hit Approve — no Edit needed" style={{...IS,width:86,padding:"7px 8px",fontSize:12,fontFamily:M,minHeight:36}}/></div>}<button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.red}}>Reject</button></>}
+              {po.status==="approved"&&(po.received_at
+                ?<button onClick={()=>onUpdatePO({...po,received_at:null,received_by:null}).then(()=>msg("PO "+po.po_id+" reopened"))} title="Undo — parts not actually received" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Reopen</button>
+                :<button onClick={()=>onUpdatePO({...po,received_at:new Date().toISOString(),received_by:userName}).then(()=>msg("PO "+po.po_id+" received — closed"))} title="Parts are picked up / delivered — close this PO" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,color:B.green,borderColor:B.green+"55"}}>Received</button>)}
               {po.status==="rejected"&&<button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Re-approve</button>}
               <button onClick={()=>setConfirmDelete(po)} style={{...BS,padding:"8px 12px",fontSize:12,minHeight:36,color:B.red,borderColor:B.red+"40"}}>✕</button>
             </div></div></Card>);})}
