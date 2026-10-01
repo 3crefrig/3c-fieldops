@@ -68,23 +68,35 @@ const S=(t)=>String(t??"").replace(/[^\x00-\xFF\u2013\u2014\u2018\u2019\u201C\u2
 // cyan rule, dark info strip, light boxes with a cyan left edge) so a PO and
 // the invoice that follows read as one company's paperwork.
 // opts: {returnDoc, vendor (vendors row), customer (customers row)}
+// Two-pass fit: build at normal rhythm; if it spills past one page, rebuild
+// compact (tighter gaps, smaller terms) and keep that only if it saves the page.
 async function generatePOPdf(po,wo,opts){
   opts=opts||{};
+  let doc=await buildPOPdf(po,wo,opts,false);
+  if(doc.getNumberOfPages()>1){const c=await buildPOPdf(po,wo,opts,true);if(c.getNumberOfPages()<doc.getNumberOfPages())doc=c;}
+  if(opts.returnDoc)return doc;
+  doc.save("PO-"+po.po_id+".pdf");
+}
+
+async function buildPOPdf(po,wo,opts,compact){
   const{jsPDF}=await importRetry(()=>import("jspdf"));const doc=new jsPDF({unit:"mm",format:"letter",compress:true});
   const pw=215.9,ph=279.4,lm=16,rm=16,cw=pw-lm-rm;
+  const G=compact?0.55:1;              // vertical gap multiplier
+  const LIMIT=compact?ph-14:ph-24;     // content floor above the footer
+  const LH=compact?4.0:4.4;            // line height inside the vendor / ship-to boxes
   const cyan=[0,212,245],dark=[30,34,42],mid=[110,120,138],light=[242,245,249],hair=[220,225,230],white=[255,255,255];
   const co=poCompanyInfo();
   const vendor=opts.vendor||null;
   const vendorName=po.vendor_name||vendor?.name||po.notes||"";
   const techs=(po.assigned_techs||[]).join(", ");
-  let y=16;
+  let y=compact?12:16;
 
   const txt=(t,x,yy,o)=>doc.text(S(t),x,yy,o||{});
   const R=(x,yy,w,h,fill)=>{doc.setFillColor(...fill);doc.rect(x,yy,w,h,"F");};
   const line=(yy,color,w)=>{doc.setDrawColor(...color);doc.setLineWidth(w||0.3);doc.line(lm,yy,pw-rm,yy);};
   const label=(t,x,yy,color)=>{doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...(color||mid));txt(t.toUpperCase(),x,yy);};
   const body=(size,color,style)=>{doc.setFont("helvetica",style||"normal");doc.setFontSize(size||9);doc.setTextColor(...(color||dark));};
-  const ensure=(h)=>{if(y+h>ph-24){doc.addPage();y=16;}};
+  const ensure=(h)=>{if(y+h>LIMIT){doc.addPage();y=16;}};
 
   // ── Letterhead ──
   const logo=await fetchLogoBase64();
@@ -92,8 +104,9 @@ async function generatePOPdf(po,wo,opts){
   body(10,dark,"bold");txt(co.name,pw-rm,y+4,{align:"right"});
   body(8,mid);
   const head=[co.address,"Phone "+co.phone+(co.fax?"   Fax "+co.fax:""),co.email+"   "+co.web,[co.lic,co.ein?"EIN "+co.ein:""].filter(Boolean).join("   ")].filter(Boolean);
-  head.forEach((t,i)=>txt(t,pw-rm,y+8.5+i*3.8,{align:"right"}));
-  y+=Math.max(18,8.5+head.length*3.8)+3;
+  const hl=compact?3.4:3.8;
+  head.forEach((t,i)=>txt(t,pw-rm,y+8.5+i*hl,{align:"right"}));
+  y+=Math.max(compact?16:18,8.5+head.length*hl)+3*G;
   R(lm,y,cw,1.2,cyan);y+=8;
 
   // ── Title ──
@@ -108,7 +121,7 @@ async function generatePOPdf(po,wo,opts){
   const colW=cw/cols.length;
   R(lm,y,cw,13,dark);
   cols.forEach(([l,v],i)=>{const x=lm+i*colW+4;label(l,x,y+4.5,cyan);body(9,white);txt(v,x,y+10);});
-  y+=13+6;
+  y+=13+6*G;
 
   // ── Vendor / Ship-to boxes ──
   const boxW=cw*0.49,gap=cw*0.02,bx2=lm+boxW+gap;
@@ -136,17 +149,17 @@ async function generatePOPdf(po,wo,opts){
   }
   sLines.push({t:"Contact "+co.phone});
 
-  const boxH=Math.max(32,13+Math.max(vLines.length,sLines.length)*4.4);
+  const boxH=Math.max(compact?24:32,(compact?12:13)+Math.max(vLines.length,sLines.length)*LH);
   ensure(boxH+8);
   const drawBox=(x,title,lines)=>{
     R(x,y,boxW,boxH,light);doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(x,y,x,y+boxH);
     label(title,x+5,y+5.5,cyan);
     let ly=y+12;
-    lines.forEach(l=>{if(l.b)body(10,dark,"bold");else if(l.m)body(8.5,mid,"bold");else body(9,mid);txt(l.t,x+5,ly);ly+=4.4;});
+    lines.forEach(l=>{if(l.b)body(10,dark,"bold");else if(l.m)body(8.5,mid,"bold");else body(9,mid);txt(l.t,x+5,ly);ly+=LH;});
   };
   drawBox(lm,"VENDOR",vLines);
   drawBox(bx2,"SHIP TO / PICKUP",sLines);
-  y+=boxH+6;
+  y+=boxH+6*G;
 
   // ── Job reference ──
   const jobCols=[
@@ -159,13 +172,13 @@ async function generatePOPdf(po,wo,opts){
   ];
   const jw=cw/3;body(9);
   const jWrapped=jobCols.map(([l,v])=>({l,lines:doc.splitTextToSize(S(v||"—"),jw-8).slice(0,2)}));
-  const rowH=(r)=>6+Math.max(...r.map(c=>c.lines.length))*4.2+2;
+  const rowH=(r)=>(compact?5:6)+Math.max(...r.map(c=>c.lines.length))*4.2+(compact?1:2);
   const r1=jWrapped.slice(0,3),r2=jWrapped.slice(3);const h1=rowH(r1),h2=rowH(r2);
   ensure(h1+h2+8);
   R(lm,y,cw,h1+h2,light);doc.setDrawColor(...hair);doc.setLineWidth(0.2);doc.rect(lm,y,cw,h1+h2);doc.line(lm,y+h1,pw-rm,y+h1);
   const drawRow=(r,yy)=>r.forEach((c,i)=>{const x=lm+i*jw+4;label(c.l,x,yy+4.5);body(9,dark);c.lines.forEach((ln,k)=>txt(ln,x,yy+9.5+k*4.2));});
   drawRow(r1,y);drawRow(r2,y+h1);
-  y+=h1+h2+6;
+  y+=h1+h2+6*G;
 
   // ── Line items ──
   let lines=poLineItems(po);
@@ -187,8 +200,8 @@ async function generatePOPdf(po,wo,opts){
     body(9,dark);
     const dLines=doc.splitTextToSize(S(l.description||"—"),cDesc-4);
     const pLines=doc.splitTextToSize(S(l.part_no||""),cPart-4);
-    const h=Math.max(8,Math.max(dLines.length,pLines.length)*4.2+3.5);
-    if(y+h>ph-24){doc.addPage();y=16;header();}
+    const h=Math.max(compact?7:8,Math.max(dLines.length,pLines.length)*4.2+(compact?2.5:3.5));
+    if(y+h>LIMIT){doc.addPage();y=16;header();}
     R(lm,y,cw,h,i%2?light:white);doc.setDrawColor(...hair);doc.setLineWidth(0.2);doc.line(lm,y+h,pw-rm,y+h);
     body(9,dark);txt(String(l.qty),xQty+3,y+5.5);body(8.5,mid);txt(l.unit,xUnit+2,y+5.5);
     body(8.5,dark);pLines.forEach((t,k)=>txt(t,xPart+2,y+5.5+k*4.2));
@@ -203,58 +216,66 @@ async function generatePOPdf(po,wo,opts){
   const total=lines.some(l=>l.unit_price!=null)?subtotal:amount;
   y+=3;ensure(32);
   const tx=xPrice-20,tw=cw-(tx-lm);
-  body(8.5,mid);txt("Subtotal",tx+4,y+5);body(9,dark);txt(unpriced&&!total?"—":money(total),pw-rm-2,y+5,{align:"right"});
-  y+=6;
-  body(8.5,mid);txt("Sales tax",tx+4,y+5);body(8.5,co.resale?mid:dark,co.resale?"italic":"normal");
-  txt(co.resale?"Exempt — resale cert "+co.resale:"As applicable",pw-rm-2,y+5,{align:"right"});
-  y+=7;
+  const taxStr=co.resale?"Exempt — resale cert "+co.resale:"As applicable";
+  if(compact){
+    body(8,mid);txt("Subtotal "+(unpriced&&!total?"—":money(total))+"   ·   Sales tax: "+taxStr,pw-rm-2,y+4.5,{align:"right"});
+    y+=6;
+  }else{
+    body(8.5,mid);txt("Subtotal",tx+4,y+5);body(9,dark);txt(unpriced&&!total?"—":money(total),pw-rm-2,y+5,{align:"right"});
+    y+=6;
+    body(8.5,mid);txt("Sales tax",tx+4,y+5);body(8.5,co.resale?mid:dark,co.resale?"italic":"normal");
+    txt(taxStr,pw-rm-2,y+5,{align:"right"});
+    y+=7;
+  }
   R(tx,y,tw,11,cyan);body(9,white,"bold");txt(unpriced&&!total?"AUTHORIZED AMOUNT":"TOTAL",tx+4,y+7.5);body(13,white,"bold");txt(unpriced&&!total?"Per quote":money(total),pw-rm-2,y+7.8,{align:"right"});
-  if(lines.some(l=>l.unit_price!=null)&&Math.abs(subtotal-amount)>0.01&&amount>0){y+=11;body(7.5,mid,"italic");txt("Authorized not-to-exceed amount: "+money(amount),pw-rm-2,y+4,{align:"right"});y+=2;}
-  y+=16;
+  y+=11;
+  if(lines.some(l=>l.unit_price!=null)&&Math.abs(subtotal-amount)>0.01&&amount>0){body(7.5,mid,"italic");txt("Authorized not-to-exceed amount: "+money(amount),pw-rm-2,y+4,{align:"right"});y+=5;}
+  y+=5*G;
 
   // ── Special instructions ──
   const instr=[po.special_instructions,po.notes&&po.notes!==vendorName?po.notes:""].filter(s=>s&&s.trim()).join("\n");
   if(instr){
-    body(9,mid);const iLines=doc.splitTextToSize(S(instr),cw-12);const ih=12+iLines.length*4.4;
+    body(9,mid);const iLines=doc.splitTextToSize(S(instr),cw-12);const ih=(compact?10:12)+iLines.length*4.4;
     ensure(ih+6);
     R(lm,y,cw,ih,light);doc.setDrawColor(...cyan);doc.setLineWidth(0.8);doc.line(lm,y,lm,y+ih);
     label("SPECIAL INSTRUCTIONS",lm+5,y+5.5,cyan);body(9,dark);iLines.forEach((t,k)=>txt(t,lm+5,y+11.5+k*4.4));
-    y+=ih+6;
+    y+=ih+6*G;
   }
 
   // ── Terms & conditions ──
-  body(7,mid);
+  const tf=compact?6.3:7,tl=compact?2.75:3.3;
+  body(tf,mid);
   const tLines=PO_TERMS.map((t,i)=>doc.splitTextToSize(S((i+1)+". "+t),cw-4));
-  const th=6+tLines.reduce((s,l)=>s+l.length*3.3+0.8,0);
-  ensure(th+30);
+  ensure(14);
   label("TERMS & CONDITIONS",lm,y+3);y+=6;
-  body(7,mid);tLines.forEach(ls=>{ls.forEach((t,k)=>txt(t,lm+2,y+k*3.3));y+=ls.length*3.3+0.8;});
-  body(7.5,dark,"bold");txt("Send invoices to: "+co.ap+"   —   reference PO #"+po.po_id,lm+2,y+2);
-  y+=10;
+  tLines.forEach(ls=>{const h=ls.length*tl+0.8;if(y+h>LIMIT){doc.addPage();y=16;}body(tf,mid);ls.forEach((t,k)=>txt(t,lm+2,y+k*tl));y+=h;});
+  ensure(8);body(7.5,dark,"bold");txt("Send invoices to: "+co.ap+"   —   reference PO #"+po.po_id,lm+2,y+2);
+  y+=9*G;
 
   // ── Authorization ──
-  ensure(22);
+  const sl=compact?6:9;   // signature line offset
+  ensure(sl+6);
   const sigW=cw*0.46;
   doc.setDrawColor(...dark);doc.setLineWidth(0.3);
-  doc.line(lm,y+9,lm+sigW,y+9);doc.line(pw-rm-sigW,y+9,pw-rm,y+9);
+  doc.line(lm,y+sl,lm+sigW,y+sl);doc.line(pw-rm-sigW,y+sl,pw-rm,y+sl);
   body(9,dark);
-  if(po.approved_by)txt(po.approved_by+(po.approved_at?"   "+new Date(po.approved_at).toLocaleDateString("en-US"):""),lm+1,y+7.5);
-  label("AUTHORIZED BY — "+co.name,lm,y+13);
-  label("VENDOR ACKNOWLEDGEMENT / DATE",pw-rm-sigW,y+13);
-  y+=18;
+  if(po.approved_by)txt(po.approved_by+(po.approved_at?"   "+new Date(po.approved_at).toLocaleDateString("en-US"):""),lm+1,y+sl-1.5);
+  label("AUTHORIZED BY — "+co.name,lm,y+sl+4);
+  label("VENDOR ACKNOWLEDGEMENT / DATE",pw-rm-sigW,y+sl+4);
+  y+=sl+9;
 
+  if(opts.debugY)console.log("PO layout end: y="+y.toFixed(1)+" compact="+compact+" pages="+doc.getNumberOfPages());
   // ── Footer on every page ──
   const pages=doc.getNumberOfPages();
   for(let p=1;p<=pages;p++){
-    doc.setPage(p);const fy=ph-10;
+    doc.setPage(p);const fy=compact?ph-8:ph-10;
     doc.setDrawColor(...hair);doc.setLineWidth(0.2);doc.line(lm,fy-4,pw-rm,fy-4);
     body(7,mid);
     txt(co.name+"  |  "+co.address+"  |  "+co.phone+"  |  "+co.ap,lm,fy);
     txt("PO #"+po.po_id+"  ·  Page "+p+" of "+pages,pw-rm,fy,{align:"right"});
   }
 
-  if(opts.returnDoc)return doc;
-  doc.save("PO-"+po.po_id+".pdf");
+  return doc;
 }
 
 const vendorSuggestions=(pos)=>[...new Set((pos||[]).map(p=>(p.vendor_name||p.notes||"").trim()).filter(v=>v&&v.length<=40))].slice(0,12);
