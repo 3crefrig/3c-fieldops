@@ -145,6 +145,17 @@ Torque-spec note: the valve-plate SOP's head-torque figure and text were correct
 - **`S()` sanitises every drawn string to WinAnsi** and repairs the mis-encoded curly quotes ("PMâ€™s") sitting in some older WO titles. The other PDF builders don't do this yet.
 - **Verifying layout changes:** bundle `WoPdf.jsx` with esbuild for node (alias `app` -> `src`, `define` the `REACT_APP_SUPABASE_*` vars), shim `localStorage`/`sessionStorage`/`window.atob`/`FileReader`, render to PDF, then rasterise with `pdf-to-img` (`useSystemFonts:true`). Fixtures built from production rows contain customer data — keep them in the scratchpad, never commit them.
 
+## Purchase Order form (revised 2026-10-01)
+
+`generatePOPdf(po,wo,{vendor,returnDoc})` in `src/components/PurchaseOrders.jsx` renders a vendor-facing PO that mirrors the invoice layout. Migration `20261001000000_po_form_fields.sql` (additive) added `purchase_orders.vendor_name / needed_by / delivery_method (pickup|deliver_job|deliver_shop) / ship_to / payment_terms / line_items jsonb` and `vendors.address / contact_name / fax / payment_terms`.
+
+- **Buyer block** comes from the Settings → Company profile (`poCompanyInfo()`): name, address, phone, fax, email, website, license #, EIN, resale/tax-exempt cert, AP email. Letterhead fallbacks match the invoice PDF so an unconfigured profile never prints blank. If `resale_cert` is set the Sales tax line prints "Exempt — resale cert …", otherwise "As applicable".
+- **Vendor block** = `vendors` row (address, Attn contact, phone/fax, email, "3C account #"). The PO stores `vendor_id` + `vendor_name`; old POs fall back to `notes` (which used to hold the vendor) and `matchVendor()` fuzzy-matches the name against the vendor list for the PDF. Managers add/edit vendor details from the PO form ("Edit vendor details" / "Save as vendor" → `VendorEditModal`, RLS manager+).
+- **Ship to / pickup**: counter pickup prints the assigned techs + "hold under PO #"; deliver-to-job prefills `wo.location`, deliver-to-shop prefills the company address; both editable.
+- **Line items** are optional (`poLineItems()` normalizes). Priced lines drive the amount (`lineItemsTotal`); unpriced lines print "quote". With no lines the PDF prints one row from description/quantity/amount; with no amount at all the total bar reads "AUTHORIZED AMOUNT — Per quote". Lines with prices that differ from `amount` print an "Authorized not-to-exceed" note.
+- `PODetailFields` is shared by the request modal (WO), standalone modal and edit form so the three stay in step; `emptyPOForm()`/`poFormPayload()` map form ↔ columns. Vendor is required on create. `notes` is now "Internal notes" (not printed unless it differs from the vendor name — legacy rows).
+- Standard terms live in `PO_TERMS`; edit the array, not the layout. Footer prints on every page with page numbers. Verify layout changes with the esbuild/pdf-to-img harness described under the WO Service Ticket section (fixtures in the scratchpad).
+
 ## New-Tech Onboarding Email
 
 `src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).

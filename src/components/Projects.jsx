@@ -183,7 +183,7 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontFamily:M,fontSize:12,fontWeight:700,color:B.cyan}}>{po.po_id}</span><Badge color={PSC[po.status]||B.textDim}>{PSL[po.status]||po.status}</Badge>{chName&&<span style={{fontSize:10.5,color:B.cyan,background:B.cyan+"22",padding:"1px 6px",borderRadius:3}}>{chName}</span>}{!po.chamber_id&&<span style={{fontSize:10.5,color:B.orange,background:B.orange+"22",padding:"1px 6px",borderRadius:3}}>Project</span>}</div>
             <div style={{fontSize:13,fontWeight:600,color:B.text,marginTop:3}}>{po.description}</div>
-            <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{po.requested_by&&"By "+po.requested_by}{po.notes&&" · "+po.notes}</div>
+            <div style={{fontSize:11,color:B.textDim,marginTop:2}}>{po.requested_by&&"By "+po.requested_by}{(po.vendor_name||po.notes)&&" · "+(po.vendor_name||po.notes)}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             {(isMgr||po.requested_by===userName)&&<span style={{fontFamily:M,fontSize:15,fontWeight:700,color:B.text}}>{"$"+(parseFloat(po.amount)||0).toFixed(2)}</span>}
