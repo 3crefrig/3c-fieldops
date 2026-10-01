@@ -470,6 +470,65 @@ function PODetailFields({f,setF,wo,isMgr,desc,setDesc,amt,setAmt,defaultOpen}){
   </>);
 }
 
+// ── Email PO to vendor ────────────────────────────────────────
+// Renders the PO PDF, attaches it, and sends through send-email (Gmail).
+// Marks sent_to_vendor on success so the card shows when it went out.
+function EmailPOModal({po,wo,vendor,onSent,onClose}){
+  const co=poCompanyInfo();
+  const vendorName=po.vendor_name||vendor?.name||po.notes||"Vendor";
+  const needStr=po.needed_by?fmtDate(po.needed_by,{month:"long",day:"numeric",year:"numeric"}):"";
+  const lines=poLineItems(po);
+  const[to,setTo]=useState(vendor?.email||"");
+  const[cc,setCc]=useState(co.ap||"");
+  const[subject,setSubject]=useState("Purchase Order #"+po.po_id+" — "+co.name+(wo?.customer?" — "+wo.customer:""));
+  const NL=String.fromCharCode(10);
+  const[body,setBody]=useState(
+    "Hello"+(po.vendor_contact||vendor?.contact_name?" "+(po.vendor_contact||vendor.contact_name):"")+","+NL+NL+
+    "Please find attached purchase order #"+po.po_id+" from "+co.name+(vendor?.account_number?" (account #"+vendor.account_number+")":"")+"."+NL+NL+
+    (lines.length?lines.map(l=>"  - "+l.qty+" "+l.unit+"  "+(l.part_no?l.part_no+"  ":"")+l.description).join(NL)+NL+NL:"  - "+(po.description||"")+NL+NL)+
+    (DELIVERY_LABELS[po.delivery_method]||"Counter pickup")+(needStr?" — needed by "+needStr:"")+"."+NL+
+    (po.delivery_method&&po.delivery_method!=="pickup"&&po.ship_to?"Ship to: "+po.ship_to.split(NL).join(", ")+NL:"")+
+    (po.special_instructions?NL+po.special_instructions+NL:"")+
+    NL+"Please reference PO #"+po.po_id+" on the invoice and packing slip, and email invoices to "+co.ap+". Reply to this email with any questions or substitutions before filling."+NL+NL+
+    "Thank you,"+NL+(po.approved_by&&!/^auto/.test(po.approved_by)?po.approved_by:po.requested_by||co.name)+NL+co.name+NL+co.phone);
+  const[sending,setSending]=useState(false);const[err,setErr]=useState("");
+  const emailOk=(v)=>v.split(/[,;\s]+/).filter(Boolean).every(e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+  const send=async()=>{
+    if(sending)return;
+    if(!to.trim()||!emailOk(to)){setErr("Enter a valid vendor email address.");return;}
+    if(cc.trim()&&!emailOk(cc)){setErr("Check the CC address.");return;}
+    if(po.status!=="approved"&&!window.confirm("This PO is "+(PSL[po.status]||po.status)+", not approved. Send it to the vendor anyway?"))return;
+    setSending(true);setErr("");
+    try{
+      const doc=await generatePOPdf(po,wo,{returnDoc:true,vendor});
+      const b64=doc.output("datauristring").split(",")[1];
+      const esc=(t)=>t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const html='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px;font-size:14px;line-height:1.5;white-space:pre-wrap">'+esc(body)+'</div>';
+      const resp=await fnFetch("send-email",{to:to.trim(),cc:cc.trim()||undefined,subject:subject.trim(),body:html,attachment:{name:"PO-"+po.po_id+".pdf",content:b64,type:"application/pdf"}});
+      const res=await resp.json();
+      if(!res.success)throw new Error(res.error||"send failed");
+      const stamp=new Date().toISOString();
+      await sb().from("purchase_orders").update({sent_to_vendor:true,sent_to_vendor_at:stamp}).eq("id",po.id);
+      if(vendor&&!vendor.email&&emailOk(to)&&!to.includes(",")){await sb().from("vendors").update({email:to.trim()}).eq("id",vendor.id);_vendorCache=null;}
+      setSending(false);onSent(to.trim(),stamp);
+    }catch(e){console.error(e);setSending(false);setErr(e.message||"Could not send");}
+  };
+  return(<Modal title={"Email PO "+po.po_id+" to "+vendorName} onClose={onClose} wide>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {po.sent_to_vendor_at&&<div style={{fontSize:11,color:B.orange,background:B.orange+"12",border:"1px solid "+B.orange+"44",borderRadius:6,padding:"8px 12px"}}>Already sent {new Date(po.sent_to_vendor_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}. Sending again will issue a duplicate copy.</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
+        <div><label style={LS}>To <span style={{color:B.red}}>*</span></label><input value={to} onChange={e=>setTo(e.target.value)} placeholder="orders@vendor.com" style={IS} autoFocus={!to}/>{vendor&&!vendor.email&&<div style={{fontSize:10,color:B.textDim,marginTop:3}}>No email on file for {vendor.name} — this address will be saved to the vendor.</div>}</div>
+        <div><label style={LS}>CC</label><input value={cc} onChange={e=>setCc(e.target.value)} style={IS}/></div>
+      </div>
+      <div><label style={LS}>Subject</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={IS}/></div>
+      <div><label style={LS}>Message</label><textarea value={body} onChange={e=>setBody(e.target.value)} rows={12} style={{...IS,resize:"vertical",fontFamily:F,lineHeight:1.45}}/></div>
+      <div style={{fontSize:11,color:B.textDim}}>Attaches <span style={{fontFamily:M,color:B.text}}>PO-{po.po_id}.pdf</span> · sent from service@3crefrigeration.com</div>
+      {err&&<div style={{fontSize:11,color:B.red}}>{err}</div>}
+      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{...BS,flex:1}}>Cancel</button><button onClick={send} disabled={sending} style={{...BP,flex:1,opacity:sending?.6:1}}>{sending?"Sending...":"Send PO"}</button></div>
+    </div>
+  </Modal>);
+}
+
 function POReqModal({wo,pos,onCreatePO,onClose,userName,userRole,userId,initial}){
   const isMgr=userRole==="admin"||userRole==="manager";
   const[desc,setDesc]=useState(initial?.description||""),[amt,setAmt]=useState(initial?.amount?String(initial.amount):""),[saving,setSaving]=useState(false);
@@ -546,6 +605,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
   // Preload the PDF library so the first PO PDF doesn't pay its chunk download.
   useEffect(()=>{import("jspdf").catch(()=>{});},[]);
   const[pdfPreview,setPdfPreview]=useState(null);
+  const[emailFor,setEmailFor]=useState(null);
   const{vendors}=useVendors();
   const vendorFor=(po)=>(po.vendor_id&&vendors.find(v=>v.id===po.vendor_id))||matchVendor(vendors,po.vendor_name||po.notes);
   // Tie technicians to a PO — same chip + "+ Add" control the WO crew uses.
@@ -630,6 +690,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
             <div style={{display:"flex",gap:6,flexWrap:"wrap",maxWidth:"100%"}}>
               {(()=>{const tc=(tickets||[]).filter(t=>t.po_id===po.id).length;return<button onClick={()=>setTicketFor(po)} title="Capture a supply house pickup ticket against this PO" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,...(tc>0?{color:B.cyan,borderColor:B.cyan+"50"}:{})}}>{tc>0?"Tickets ("+tc+")":"Ticket"}</button>;})()}
               <button onClick={async()=>{try{const d=await generatePOPdf(po,wo,{returnDoc:true,vendor:vendorFor(po)});previewPdfDoc(d,"PO-"+po.po_id,setPdfPreview);}catch(e){msg("Error: "+e.message);}}} title="Preview the PO form (no download)" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,color:B.cyan,borderColor:B.cyan+"55"}}>Preview</button><button onClick={()=>generatePOPdf(po,wo,{vendor:vendorFor(po)})} title="Download the PO form" style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>PO Form</button>
+              <button onClick={()=>setEmailFor(po)} title={po.sent_to_vendor_at?"Sent to vendor "+new Date(po.sent_to_vendor_at).toLocaleDateString("en-US"):"Email the PO PDF to the vendor"} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36,...(po.sent_to_vendor?{color:B.green,borderColor:B.green+"55"}:{})}}>{po.sent_to_vendor?"Sent ✓":"Email"}</button>
               <button onClick={()=>setEditing(po)} style={{...BS,padding:"8px 12px",fontSize:11,minHeight:36}}>Edit</button>
               {po.status==="pending"&&<>{!parseFloat(po.amount)&&<div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:12,color:B.textDim}}>$</span><input value={inlineAmt[po.id]||""} onChange={e=>setInlineAmt(a=>({...a,[po.id]:e.target.value}))} type="number" min="0" step="0.01" placeholder="0.00" title="Type the amount and hit Approve — no Edit needed" style={{...IS,width:86,padding:"7px 8px",fontSize:12,fontFamily:M,minHeight:36}}/></div>}<button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Approve</button><button onClick={()=>reject(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.red}}>Reject</button></>}
               {po.status==="rejected"&&<button onClick={()=>approve(po)} style={{...BP,padding:"8px 14px",fontSize:11,minHeight:36,background:B.green}}>Re-approve</button>}
@@ -647,6 +708,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
         <div style={{display:"flex",gap:8}}><button onClick={()=>setConfirmDelete(null)} style={{...BS,flex:1}}>Cancel</button><button onClick={()=>deletePO(confirmDelete)} style={{...BP,flex:1,background:B.red}}>Delete PO</button></div>
       </div>
     </Modal>}
+    {emailFor&&<EmailPOModal po={emailFor} wo={wos.find(o=>o.id===emailFor.wo_id)} vendor={vendorFor(emailFor)} onClose={()=>setEmailFor(null)} onSent={(to)=>{setEmailFor(null);msg("PO "+emailFor.po_id+" emailed to "+to);if(reloadTable)reloadTable("purchase_orders");}}/>}
     {showCreate&&<StandalonePOModal onCreatePO={onCreatePO} pos={pos} onClose={()=>setShowCreate(false)}/>}
     {ticketFor&&<TicketCaptureModal po={ticketFor} userName={userName} userId={userId} onClose={()=>setTicketFor(null)} onSaved={(warn)=>{
       msg("Pickup ticket saved on "+ticketFor.po_id+(warn||""));
