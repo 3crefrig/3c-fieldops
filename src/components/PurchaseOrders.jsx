@@ -449,9 +449,9 @@ function PODetailFields({f,setF,wo,isMgr,desc,setDesc,amt,setAmt,defaultOpen}){
           <label style={{...LS,marginBottom:0}}>Itemized parts <span style={{color:B.textDim,fontWeight:400,fontSize:10.5,textTransform:"none",letterSpacing:0}}>optional — prints as line items with part numbers</span></label>
           <button type="button" onClick={()=>setLines([...lines,blankLine()])} style={{...BS,padding:"6px 10px",fontSize:11,minHeight:30}}>+ Add line</button>
         </div>
-        {lines.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>
-          <div className="po-line-head" style={{display:"grid",gridTemplateColumns:"56px 52px 110px minmax(120px,1fr) 90px 30px",gap:6,fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:.3,textTransform:"uppercase"}}><span>Qty</span><span>Unit</span><span>Part #</span><span>Description</span><span>Unit $</span><span/></div>
-          {lines.map((l,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"56px 52px 110px minmax(120px,1fr) 90px 30px",gap:6,alignItems:"center"}}>
+        {lines.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8,overflowX:"auto",minWidth:0}}>
+          <div className="po-line-head" style={{display:"grid",gridTemplateColumns:"56px 52px 110px minmax(120px,1fr) 90px 30px",gap:6,minWidth:440,fontSize:10,color:B.textDim,fontWeight:600,letterSpacing:.3,textTransform:"uppercase"}}><span>Qty</span><span>Unit</span><span>Part #</span><span>Description</span><span>Unit $</span><span/></div>
+          {lines.map((l,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"56px 52px 110px minmax(120px,1fr) 90px 30px",gap:6,alignItems:"center",minWidth:440}}>
             <input value={l.qty} onChange={e=>setLine(i,"qty",e.target.value)} type="number" min="0" step="1" style={{...IS,fontFamily:M,padding:"8px 6px",minWidth:0}}/>
             <input value={l.unit} onChange={e=>setLine(i,"unit",e.target.value)} placeholder="ea" style={{...IS,padding:"8px 6px",minWidth:0}}/>
             <input value={l.part_no} onChange={e=>setLine(i,"part_no",e.target.value)} placeholder="Part #" style={{...IS,fontFamily:M,padding:"8px 6px",minWidth:0}}/>
@@ -637,7 +637,7 @@ function POMgmt({pos,onUpdatePO,onDeletePO,wos,onCreatePO,tickets,userName,userI
             </div></div></Card>);})}
       {visibleCount<flt.length&&<button onClick={()=>setVisibleCount(v=>v+PAGE_SIZE)} style={{...BS,width:"100%",marginTop:8,textAlign:"center",fontSize:12}}>Show More ({visibleCount} of {flt.length})</button>}
     </div>
-    {editing&&<Modal title={"Edit PO "+editing.po_id} onClose={()=>setEditing(null)}><POEditForm po={editing} wo={wos.find(o=>o.id===editing.wo_id)} onSave={async u=>{await onUpdatePO(u);setEditing(null);msg("PO "+u.po_id+" updated");}} onClose={()=>setEditing(null)}/></Modal>}
+    {editing&&<Modal title={"Edit PO "+editing.po_id} onClose={()=>setEditing(null)} wide><POEditForm po={editing} wo={wos.find(o=>o.id===editing.wo_id)} onSave={async u=>{await onUpdatePO(u);setEditing(null);msg("PO "+u.po_id+" updated");}} onClose={()=>setEditing(null)}/></Modal>}
     {confirmDelete&&<Modal title="Delete PO?" onClose={()=>setConfirmDelete(null)}>
       <div style={{textAlign:"center",padding:"10px 0"}}>
         
