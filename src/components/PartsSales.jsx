@@ -331,7 +331,7 @@ function PartsSales({D,A,user}){
               {availPOs.length===0&&<div style={{padding:10,fontSize:11,color:B.textDim,textAlign:"center"}}>No unbilled approved POs match</div>}
               {availPOs.map(po=><div key={po.id} onClick={()=>linkPO(po)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderBottom:"1px solid "+B.border+"40",cursor:"pointer"}}>
                 <span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.cyan,flexShrink:0}}>{po.po_id}</span>
-                <span style={{flex:1,fontSize:11,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{po.description}{po.notes?<span style={{color:B.textDim}}> · {po.notes}</span>:null}</span>
+                <span style={{flex:1,fontSize:11,color:B.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{po.description}{(po.vendor_name||po.notes)?<span style={{color:B.textDim}}> · {po.vendor_name||po.notes}</span>:null}</span>
                 <span style={{fontFamily:M,fontSize:11,fontWeight:700,color:B.text,flexShrink:0}}>{money(po.amount)}</span>
               </div>)}
             </div>

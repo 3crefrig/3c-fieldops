@@ -46,12 +46,12 @@ function Settings({emailTemplates,onAddTemplate,onUpdateTemplate,onDeleteTemplat
 
 function CompanyProfile({msg}){
   const[loading,setLoading]=useState(true);const[saving,setSaving]=useState(false);
-  const[profile,setProfile]=useState({company_name:"",address:"",phone:"",email:"",logo_url:"",default_senior_rate:"",default_licensed_rate:"",emergency_senior_rate:"",emergency_licensed_rate:"",default_parts_markup:"",working_hours_start:"",working_hours_end:"",emergency_min_hours:""});
+  const[profile,setProfile]=useState({company_name:"",address:"",phone:"",fax:"",email:"",website:"",license_no:"",tax_id:"",resale_cert:"",ap_email:"",logo_url:"",default_senior_rate:"",default_licensed_rate:"",emergency_senior_rate:"",emergency_licensed_rate:"",default_parts_markup:"",working_hours_start:"",working_hours_end:"",emergency_min_hours:""});
 
   useEffect(()=>{(async()=>{
     const{data}=await sb().from("app_settings").select("*").eq("key","company_profile").single();
     if(data?.value)setProfile(p=>({...p,...data.value}));
-    else setProfile(p=>({...p,company_name:"3C Refrigeration",address:"",phone:"(336) 264-0935",email:"aclapp@3crefrigeration.com",logo_url:"https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png",default_senior_rate:"120",default_licensed_rate:"135",emergency_senior_rate:"175",emergency_licensed_rate:"190",default_parts_markup:"30",working_hours_start:"07:30",working_hours_end:"16:00",emergency_min_hours:"4"}));
+    else setProfile(p=>({...p,company_name:"3C Refrigeration LLC",address:"3065 Gwyn Rd., Elon, NC 27244",phone:"(336) 264-0935",fax:"(877) 278-4608",email:"aclapp@3crefrigeration.com",website:"www.3crefrigeration.com",license_no:"NC License 4923",ap_email:"service@3crefrigeration.com",logo_url:"https://gwwijjkahwieschfdfbq.supabase.co/storage/v1/object/public/photos/Main%20Logo%20-%20Transparent%20Bg%201.png",default_senior_rate:"120",default_licensed_rate:"135",emergency_senior_rate:"175",emergency_licensed_rate:"190",default_parts_markup:"30",working_hours_start:"07:30",working_hours_end:"16:00",emergency_min_hours:"4"}));
     setLoading(false);
   })();},[]);
 
@@ -63,7 +63,7 @@ function CompanyProfile({msg}){
 
   if(loading)return<div style={{textAlign:"center",padding:40,color:B.textDim}}>Loading...</div>;
   return(<div>
-    <div style={{fontSize:12,color:B.textMuted,marginBottom:16}}>Company information used in proposals, invoices, and email communications.</div>
+    <div style={{fontSize:12,color:B.textMuted,marginBottom:16}}>Company information used in proposals, invoices, purchase orders, and email communications. License, tax ID and resale certificate print in the buyer block on vendor-facing purchase orders.</div>
 
     <Card style={{padding:18,marginBottom:14}}>
       <div style={{fontSize:12,fontWeight:700,color:B.text,marginBottom:12}}>Company Information</div>
@@ -71,7 +71,13 @@ function CompanyProfile({msg}){
         <div><label style={LS}>Company Name</label><input value={profile.company_name} onChange={e=>set("company_name",e.target.value)} style={IS}/></div>
         <div><label style={LS}>Phone</label><input value={profile.phone} onChange={e=>set("phone",e.target.value)} style={IS}/></div>
         <div style={{gridColumn:"1/-1"}}><label style={LS}>Address</label><input value={profile.address} onChange={e=>set("address",e.target.value)} style={IS} placeholder="Full company address"/></div>
+        <div><label style={LS}>Fax</label><input value={profile.fax||""} onChange={e=>set("fax",e.target.value)} style={IS}/></div>
+        <div><label style={LS}>Website</label><input value={profile.website||""} onChange={e=>set("website",e.target.value)} style={IS} placeholder="www.3crefrigeration.com"/></div>
         <div><label style={LS}>Email</label><input value={profile.email} onChange={e=>set("email",e.target.value)} style={IS}/></div>
+        <div><label style={LS}>AP / Invoices Email <span style={{color:B.textDim,fontWeight:400,fontSize:10.5}}>printed on POs</span></label><input value={profile.ap_email||""} onChange={e=>set("ap_email",e.target.value)} style={IS} placeholder="service@3crefrigeration.com"/></div>
+        <div><label style={LS}>Contractor License #</label><input value={profile.license_no||""} onChange={e=>set("license_no",e.target.value)} style={IS} placeholder="NC License 4923"/></div>
+        <div><label style={LS}>Federal Tax ID (EIN)</label><input value={profile.tax_id||""} onChange={e=>set("tax_id",e.target.value)} style={{...IS,fontFamily:M}} placeholder="XX-XXXXXXX"/></div>
+        <div><label style={LS}>NC Resale / Tax-Exempt Cert #</label><input value={profile.resale_cert||""} onChange={e=>set("resale_cert",e.target.value)} style={{...IS,fontFamily:M}} placeholder="Leave blank if purchases are taxed"/></div>
         <div><label style={LS}>Logo URL</label><input value={profile.logo_url} onChange={e=>set("logo_url",e.target.value)} style={{...IS,fontSize:11}}/></div>
       </div>
       {profile.logo_url&&<div style={{marginTop:12,padding:12,background:B.bg,borderRadius:8,border:"1px solid "+B.border,textAlign:"center"}}><img src={profile.logo_url} alt="Logo preview" style={{height:48,objectFit:"contain"}} onError={e=>{e.target.style.display="none";}}/></div>}
