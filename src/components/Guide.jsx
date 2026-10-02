@@ -87,7 +87,7 @@ const SECTIONS = [
       ["Open a work order", "Tap any job card to see the full work order — location, contact, description, notes, photos, and time."],
       ["Week Plan", "The “Week Plan” tab lays out your upcoming jobs by day so you can see what’s coming."],
       ["Recent jobs", "Your most recently worked orders sit at the top of My Day for one-tap access."],
-      ["Taking time off", "On the “Calendar” tab tap “+ Time off” — or tap the first day you’ll be out — choose Vacation, PTO, Sick or Personal and the dates. It posts straight to the calendar, the crew sees you’re out, and your manager is alerted. Tap the ✕ next to it to cancel."],
+      ["Taking time off", "On the “Calendar” tab tap “+ Time off” — or tap the first day you’ll be out — choose Vacation, PTO, Sick or Personal and the dates. It posts straight to the calendar, the crew sees you’re out, and the office is alerted. Tap the ✕ next to it to cancel."],
     ],
   },
   {
@@ -145,7 +145,7 @@ const SECTIONS = [
       ["Import a stack of Duke WOs", "On Work Orders, tap “Scan Batch”. Feed it photos or one multi-page PDF of Duke TMS printouts (PM or CM layout). It reads every work order, flags any TMS WO# already in the system, and you create the rest in one tap after a quick review."],
       ["Assign a tech", "Open a WO and set the assignee — the tech gets a push (or an email if they haven’t enabled push)."],
       ["Week Plan", "Use “Week Plan” to see and balance the crew’s schedule across the week."],
-      ["Who’s out", "Techs post their own vacation, PTO and sick days on the Calendar — you get an alert with any open jobs due while they’re away. Time off shows as a grey band on the Calendar and Week Plan, with a “Time off” list under the month. You can post or remove time off for anyone."],
+      ["Who’s out", "Everyone posts their own vacation, PTO and sick days on the Calendar (“+ Time off”) — managers and admins included. When someone posts, the other managers get an alert with any open jobs due while they’re away. Time off shows as a grey band on the Calendar and Week Plan, with a “Time off” list under the month. You can post or remove time off for anyone."],
       ["Repeat failures", "The Overview flags equipment/locations with 3+ corrective jobs in 90 days so you can plan a replacement."],
     ],
   },
