@@ -160,6 +160,16 @@ Torque-spec note: the valve-plate SOP's head-torque figure and text were correct
 - **Scan → vendor address**: `scan-document` `purchase_receipt`/`vendor_invoice` prompts now return `vendor_address/vendor_phone/vendor_email`. `applyScanVendor()` fills those onto the matched `vendors` row when blank (managers only) and keeps them in `f.vendor_scan` to prefill "Save as vendor" for new vendors.
 - Standard terms live in `PO_TERMS`; edit the array, not the layout. Footer prints on every page with page numbers. Verify layout changes with the esbuild/pdf-to-img harness described under the WO Service Ticket section (fixtures in the scratchpad).
 
+## Time off on the calendar (2026-10-02)
+
+Techs post their own vacation / PTO / sick / personal days; managers can post for anyone. It is a **post, not an approval workflow** — saving puts it on the calendar and alerts the other side. Migration `20261002000000_schedule_time_off.sql` (additive): `schedule.kind` (`task` default | `time_off`), `schedule.end_date` (inclusive, null = one day), `schedule.note`. `task` holds the type label. No RLS change — the existing schedule policies already limit techs to inserting rows assigned to themselves and deleting rows they created.
+
+- **Helpers** in `shared.js`: `isTimeOff`, `schedCovers(e, ds)`, `schedEnd`, `fmtDateRange`, `TIME_OFF_TYPES`. Anything that lists schedule rows per day must use `schedCovers` for time off (a range row exists once, on its first day) and skip time off when listing tasks.
+- **`TimeOffModal`** (`src/components/TimeOff.jsx`) is shared by the Calendar (`+ Time off` header button; "+ Time off starting this day" in the day sheet — the only entry point for managers on phones, where the header stays one row) and the Week Plan (link inside the "+" modal). It blocks overlapping time off for the same person, counts working days, and warns about open jobs due in the window.
+- **Visibility**: unlike schedule tasks (techs see only their own), time off is shown to the whole crew on the Calendar (grey band in the cell, "Time off" layer chip, TIME OFF list under the month, day sheet) and the Week Plan. The **type and note are shown only to that person and managers** — teammates see "Javier off". This is UI-level; the rows themselves are readable by any registered user.
+- **Alerts** (`addSchedule` / `deleteSchedule` in App.jsx): a tech posting or cancelling → bell + push to managers/admins (`time_off_posted` / `time_off_cancelled`, message includes the count of open jobs due while they're out); a manager posting or removing for someone else → bell + push to that person.
+- Not built: approval/deny flow, PTO balances or accrual, half days, and a warning when assigning a WO to someone who is off that day.
+
 ## New-Tech Onboarding Email
 
 `src/onboardingEmail.js` `buildOnboardingEmail(user, appUrl)` → branded HTML (sign-in, install-to-home-screen, enable notifications, what-you-can-do). Sent via `send-email`. **Auto-sends when a new technician is added** (App `addUser`); manual **"✉ Onboard"** button per user in User Management (`A.sendOnboardingEmail`).

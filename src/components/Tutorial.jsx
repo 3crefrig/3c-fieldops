@@ -149,6 +149,7 @@ export const TOURS={
   ]},
   calendar:{title:"Calendar",steps:[
     {title:"The month view",body:"Due jobs, logged hours per day, and company events together. Tap a day for details — every job listed opens with one tap."},
+    {title:"Post your time off",body:"Vacation, PTO or a sick day: tap + Time off (or tap the first day you will be out), pick the dates, and it lands on the calendar. The whole crew sees who is out; your manager gets an alert. Remove it the same way if plans change."},
   ]},
   settings:{title:"Settings",roles:["admin"],steps:[
     {title:"The controls are real",body:"Default rates, parts markup, payment terms, the overdue threshold, and the feedback-email toggle here all feed the live app. Email templates and automation workflows live here too."},

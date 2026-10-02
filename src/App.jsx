@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, genAgreementNum, nextInvoiceNumDB, setAppSettingsCache, getAppSetting} from "./shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, USER_COLS, WO_COLS, B, F, autoCorrect, genPO, genProjectPO, genRfqRef, GlobalStyles, setProfanityHandler, fmtHours, isInvoiceExcludedCustomer, woReadyToInvoice, fnFetch, getCustomerTiers, getPartsMarkup, todayLocal, localDateStr, genAgreementNum, nextInvoiceNumDB, setAppSettingsCache, getAppSetting, fmtDateRange} from "./shared";
 import { Logo, Spinner, Icon } from "./components/ui";
 import { LoginScreen, FirstSetup } from "./components/Auth";
 import { TechDash, MgrDash, AdminDash } from "./components/Dashboards";
@@ -299,16 +299,45 @@ function App(){
     updateProject:withTableSync("projects",async(p)=>{const{id,...rest}=p;const{error}=await sb().from("projects").update(rest).eq("id",id);if(error){alert("Failed to update project.");throw error;}}),
     deleteProject:withTableSync("projects",async(id)=>{const{error}=await sb().from("projects").delete().eq("id",id);if(error){alert("Failed to delete project.");throw error;}}),
     addSchedule:withTableSync("schedule",async(entry)=>{
-      const row={date:entry.date,time:(entry.time||"").trim()||null,task:autoCorrect((entry.task||"").trim()),location:(entry.location||"").trim()||null,assigned_to:entry.assigned_to||appUser.name,created_by:appUser.name};
+      const off=entry.kind==="time_off";
+      const row={date:entry.date,time:off?null:(entry.time||"").trim()||null,task:off?(entry.task||"Time off"):autoCorrect((entry.task||"").trim()),location:off?null:(entry.location||"").trim()||null,assigned_to:entry.assigned_to||appUser.name,created_by:appUser.name,kind:off?"time_off":"task",end_date:off&&entry.end_date&&entry.end_date>entry.date?entry.end_date:null,note:off?(autoCorrect((entry.note||"").trim())||null):null};
       const{error}=await sb().from("schedule").insert(row);
-      if(error){alert("Failed to add schedule entry.");throw error;}
+      if(error){alert(off?"Failed to post time off.":"Failed to add schedule entry.");throw error;}
+      if(off){
+        // Time off is a post, not a request — it lands on the calendar and the other side hears about it.
+        const when=fmtDateRange(row.date,row.end_date),end=row.end_date||row.date;
+        if(row.assigned_to!==appUser.name){
+          notify("time_off_posted","Time off added for you",row.task+" — "+when,"technician");
+          pushSend({userNames:[row.assigned_to],title:"Time off added for you",body:row.task+" — "+when,url:"/#tab=calendar",emailFallback:true});
+        }else if(appUser.role==="technician"){
+          const due=(data.wos||[]).filter(w=>w.status!=="completed"&&/^\d{4}-\d{2}-\d{2}$/.test(w.due_date||"")&&w.due_date>=row.date&&w.due_date<=end&&(w.assignee===row.assigned_to||(w.crew||[]).includes(row.assigned_to))).length;
+          const body=row.assigned_to+" — "+row.task+", "+when+(due?" · "+due+" open job"+(due!==1?"s":"")+" due in that window":"");
+          notify("time_off_posted","Time off posted",body,"manager");
+          pushSend({roles:["manager","admin"],title:"Time off posted",body,url:"/#tab=calendar",emailFallback:true});
+        }
+        return;
+      }
       // Someone put something on someone else's plate — tell them.
       if(row.assigned_to!==appUser.name){
         notify("schedule_added","Added to your schedule",row.task+" — "+row.date+(row.time?" "+row.time:""),"technician");
         pushSend({userNames:[row.assigned_to],title:"Added to your schedule",body:row.task+" — "+row.date+(row.time?" @ "+row.time:""),url:"/#tab=planner",emailFallback:true});
       }
     }),
-    deleteSchedule:withTableSync("schedule",async(id)=>{const{error}=await sb().from("schedule").delete().eq("id",id);if(error){alert("Failed to remove schedule entry.");throw error;}}),
+    deleteSchedule:withTableSync("schedule",async(id)=>{
+      const old=(data.schedule||[]).find(e=>e.id===id);
+      const{error}=await sb().from("schedule").delete().eq("id",id);if(error){alert("Failed to remove schedule entry.");throw error;}
+      // Cancelled time off changes who's available — same audience as the original post.
+      if(old&&old.kind==="time_off"){
+        const when=fmtDateRange(old.date,old.end_date);
+        if(old.assigned_to!==appUser.name){
+          notify("time_off_cancelled","Time off removed",old.task+" — "+when,"technician");
+          pushSend({userNames:[old.assigned_to],title:"Your time off was removed",body:old.task+" — "+when,url:"/#tab=calendar",emailFallback:true});
+        }else if(appUser.role==="technician"){
+          notify("time_off_cancelled","Time off cancelled",old.assigned_to+" — "+old.task+", "+when,"manager");
+          pushSend({roles:["manager","admin"],title:"Time off cancelled",body:old.assigned_to+" — "+old.task+", "+when,url:"/#tab=calendar"});
+        }
+      }
+    }),
     markRead:withTableSync("notifications",async()=>{await sb().from("notifications").update({read:true}).eq("read",false);}),
     quickApprovePO:async(notif)=>{const poId=notif.message?.split(" — ")[0]?.trim();if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"approved"}).eq("id",po[0].id);sb().from("notifications").update({read:true}).eq("id",notif.id);sb().from("notifications").insert({type:"po_approved",title:"PO Approved",message:poId+" has been approved",for_role:null});reloadTable("purchase_orders");reloadTable("notifications");}},
     quickRejectPO:async(notif)=>{const poId=notif.message?.split(" — ")[0]?.trim();if(!poId)return;const{data:po}=await sb().from("purchase_orders").select("*").eq("po_id",poId).limit(1);if(po&&po[0]){await sb().from("purchase_orders").update({status:"rejected"}).eq("id",po[0].id);sb().from("notifications").update({read:true}).eq("id",notif.id);sb().from("notifications").insert({type:"po_rejected",title:"PO Rejected",message:poId+" has been rejected",for_role:null});reloadTable("purchase_orders");reloadTable("notifications");}},
