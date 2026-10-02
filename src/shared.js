@@ -145,6 +145,16 @@ export function genProjectPO(list){const n=new Date(),pfx="PPO-"+String(n.getFul
 // local to avoid UTC timezone shifting the day) and full ISO timestamps.
 export function fmtDate(s,opts){if(!s)return"";const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);if(m)return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString("en-US",opts);return new Date(s).toLocaleDateString("en-US",opts);}
 export function fmtDateTime(s){if(!s)return"";return new Date(s).toLocaleString("en-US",{month:"numeric",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});}
+// "Oct 12" / "Oct 12–16" / "Oct 30 – Nov 3" from YYYY-MM-DD strings (end optional).
+export function fmtDateRange(a,b){const o={month:"short",day:"numeric"};if(!b||b===a)return fmtDate(a,o);if(a.slice(0,7)===b.slice(0,7))return fmtDate(a,o)+"–"+(+b.slice(8));return fmtDate(a,o)+" – "+fmtDate(b,o);}
+
+// ── Schedule entries ──
+// A `schedule` row is either a task (kind "task", one day) or time off (kind
+// "time_off", spanning date..end_date inclusive; `task` holds the type label).
+export const TIME_OFF_TYPES=["Vacation","PTO","Sick","Personal"];
+export const isTimeOff=(e)=>!!e&&e.kind==="time_off";
+export const schedEnd=(e)=>e&&e.end_date&&e.end_date>e.date?e.end_date:(e?e.date:"");
+export const schedCovers=(e,ds)=>!!e&&!!e.date&&e.date<=ds&&ds<=schedEnd(e);
 
 // --- Billing rates: single source of truth ---
 // 3C's standard labor tiers + parts markup. A customer's own labor_tiers /

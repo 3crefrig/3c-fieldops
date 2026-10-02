@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { sb, B, F, M, IS, LS, BP, BS, fmtHours, fmtDate, openWO } from "../shared";
+import { sb, B, F, M, IS, LS, BP, BS, fmtHours, fmtDate, fmtDateRange, openWO, isTimeOff, schedCovers, schedEnd } from "../shared";
 import { Card, Badge, Modal, Toast, Icon, IconButton } from "./ui";
+import { TimeOffModal } from "./TimeOff";
 
 /*
  * Company calendar — jobs due, hours logged, company events, and the crew
@@ -13,15 +14,21 @@ import { Card, Badge, Modal, Toast, Icon, IconButton } from "./ui";
  *    to EVERY layer (the old dropdown only narrowed hours — jobs and events
  *    ignored it). Each tech keeps a stable color across the whole calendar.
  *  - "Today" jumps back to the current month.
+ *
+ * Time off (2026-10): anyone can post vacation/PTO/sick days — techs for
+ * themselves, managers for anyone. Unlike schedule tasks (techs see only their
+ * own), time off is shown to the whole crew so everyone knows who's out; the
+ * type and note stay between that person and the managers.
  */
 
 const LAYER_KEY="fieldops-cal-layers", TECH_KEY="fieldops-cal-tech";
 const TECH_PALETTE=["#4DD6F0","#5AD48A","#F5A623","#A78BFA","#F472B6","#60A5FA"];
 
-function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
+function CompanyCalendar({userRole,wos,userName,time,schedule,users,onAddSchedule,onDeleteSchedule}){
   const[events,setEvents]=useState([]),[loading,setLoading]=useState(true),[month,setMonth]=useState(new Date());
   const[showForm,setShowForm]=useState(false),[title,setTitle]=useState(""),[desc,setDesc]=useState(""),[eDate,setEDate]=useState(""),[eType,setEType]=useState("event"),[saving,setSaving]=useState(false),[toast,setToast]=useState("");
   const[dayDetail,setDayDetail]=useState(null);
+  const[offFor,setOffFor]=useState(null); // date the time-off modal opens on
   const isMgr=userRole==="admin"||userRole==="manager";
   // Phone layout: a 7-column month grid on a 393px screen gives each day ~50px, so the
   // cells switch to a compact form (day + hours, short item labels). The grid itself
@@ -34,7 +41,7 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
   useEffect(()=>{load();},[]);
 
   // Persisted layer + tech filters
-  const[layers,setLayers]=useState(()=>{try{return{jobs:true,hours:true,events:true,sched:true,...JSON.parse(localStorage.getItem(LAYER_KEY)||"{}")};}catch(e){return{jobs:true,hours:true,events:true,sched:true};}});
+  const[layers,setLayers]=useState(()=>{try{return{jobs:true,hours:true,events:true,sched:true,off:true,...JSON.parse(localStorage.getItem(LAYER_KEY)||"{}")};}catch(e){return{jobs:true,hours:true,events:true,sched:true,off:true};}});
   const toggleLayer=(k)=>setLayers(l=>{const n={...l,[k]:!l[k]};localStorage.setItem(LAYER_KEY,JSON.stringify(n));return n;});
   const[techFilter,setTechFilter]=useState(()=>localStorage.getItem(TECH_KEY)||"");
   const pickTech=(n)=>{setTechFilter(n);localStorage.setItem(TECH_KEY,n);};
@@ -92,17 +99,27 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
   });
   // Schedule entries — techs their own; managers everyone (tech filter applies)
   const daySched=(ds)=>(schedule||[]).filter(e=>{
-    if(e.date!==ds)return false;
+    if(isTimeOff(e)||e.date!==ds)return false;
     if(!isMgr&&e.assigned_to!==userName)return false;
     if(techFilter&&e.assigned_to!==techFilter)return false;
     return true;
   }).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
 
+  // Time off — the whole crew sees who's out (tech filter still applies); multi-day
+  // entries cover every day from date through end_date.
+  const dayOff=(ds)=>(schedule||[]).filter(e=>isTimeOff(e)&&schedCovers(e,ds)&&(!techFilter||e.assigned_to===techFilter)).sort((a,b)=>(a.assigned_to||"").localeCompare(b.assigned_to||""));
+  const offDetail=(e)=>isMgr||e.assigned_to===userName; // type + note are private to the person and managers
+  const canRemoveOff=(e)=>!!onDeleteSchedule&&(isMgr||e.created_by===userName);
+  const offLabel=(e)=>!isMgr&&e.assigned_to===userName?"Off"+(e.task?" · "+e.task:""):(e.assigned_to||"").split(" ")[0]+" off";
+  const removeOff=async(e)=>{if(!window.confirm("Remove "+(e.assigned_to===userName?"your":e.assigned_to+"'s")+" time off ("+fmtDateRange(e.date,schedEnd(e))+")?"))return;try{await onDeleteSchedule(e.id);msg("Time off removed");}catch(err){}};
+  const upcomingOff=(schedule||[]).filter(e=>isTimeOff(e)&&schedEnd(e)>=todayStr&&(!techFilter||e.assigned_to===techFilter)).sort((a,b)=>a.date.localeCompare(b.date));
+
   const getDateItems=(d)=>{if(!d)return[];const ds=dateStr(d);
+    const off=layers.off?dayOff(ds).map(e=>({id:"o-"+e.id,title:offLabel(e),event_type:"off",kind:"off",tech:e.assigned_to})):[];
     const evts=layers.events?events.filter(e=>e.event_date===ds).map(e=>({...e,kind:"event"})):[];
     const jobs=layers.jobs?dueWOs(ds).map(w=>({id:w.id,title:w.wo_id+": "+w.title,event_type:"wo_due",kind:"wo",tech:w.assignee})):[];
     const sch=layers.sched?daySched(ds).map(e=>({id:"s-"+e.id,title:(e.time?e.time+" ":"")+e.task,event_type:"sched",kind:"sched",tech:e.assigned_to})):[];
-    return[...sch,...jobs,...evts];
+    return[...off,...sch,...jobs,...evts];
   };
   const typeColors={holiday:B.red,event:B.cyan,deadline:B.orange,meeting:B.cyan,wo_due:B.green,sched:B.purple};
   const itemColor=(it)=>it.tech&&techFilter===""&&isMgr?(techColor[it.tech]||typeColors[it.event_type]||B.cyan):(typeColors[it.event_type]||B.cyan);
@@ -110,12 +127,13 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
   // Compact cells have room for ~7 characters: the WO number, the schedule time, or the
   // first word of an event. The day modal (tap) carries the full text.
   const shortLabel=(it)=>{
+    if(it.kind==="off")return it.title.split(" ")[0];
     if(it.kind==="wo")return "#"+it.title.split(":")[0].replace(/^WO-/,"");
     if(it.kind==="sched"){const m=it.title.match(/^(\d{1,2}:\d{2})/);return m?m[1]:it.title.split(" ")[0];}
     return it.title.split(" ")[0];
   };
 
-  const LAYERS=[["jobs","Jobs",B.green],["hours","Hours",B.cyan],["events","Events",B.orange],["sched","Schedule",B.purple]];
+  const LAYERS=[["jobs","Jobs",B.green],["hours","Hours",B.cyan],["events","Events",B.orange],["sched","Schedule",B.purple],["off","Time off",B.textMuted]];
 
   return(<div><Toast msg={toast}/>
     {/* One row on phones: ← Sep 2026 → Today [+ Event]; the wrapping full-width Add Event was the last mobile eyesore. */}
@@ -126,7 +144,11 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
         <IconButton name="chevronRight" onClick={()=>setMonth(new Date(y,m+1))} label="Next month"/>
         {!isCurrentMonth&&<button onClick={()=>setMonth(new Date())} style={{...BS,padding:compact?"6px 8px":"6px 12px",fontSize:12,minHeight:34,color:B.cyan,borderColor:B.cyan+"55",flexShrink:0}}>Today</button>}
       </div>
-      {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap",flexShrink:0}}>{compact?"+ Event":"+ Add Event"}</button>}
+      {/* Phones keep the header to one row: managers reach time off from the day sheet (tap a day). */}
+      <div style={{display:"flex",gap:8,flexShrink:0}}>
+        {onAddSchedule&&!(compact&&isMgr)&&<button data-tip="Post vacation, PTO or a sick day. It goes straight on the calendar and your manager is told." onClick={()=>setOffFor(todayStr)} style={{...BS,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap"}}>+ Time off</button>}
+        {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap"}}>{compact?"+ Event":"+ Add Event"}</button>}
+      </div>
     </div>
 
     {/* Layer + people chips — every chip filters EVERY layer */}
@@ -156,7 +178,10 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
           <span style={{fontFamily:M,fontSize:12,fontWeight:isToday?700:500,lineHeight:1,color:isToday?B.cyan:wk?B.textDim:B.textMuted,flexShrink:0}}>{d}</span>
           {hd&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,background:hc+"18",color:hc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:"100%",boxSizing:"border-box"}}>{fmtHours(hd.total)}</span>}
         </div>}
-        {items.slice(0,maxItems).map(it=>{const c=itemColor(it);return<div key={it.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:compact?9.5:11,marginBottom:3,color:B.text,fontWeight:500,overflow:"hidden",minWidth:0,lineHeight:1.3}}><span style={{width:6,height:6,borderRadius:3,background:c,flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{compact?shortLabel(it):it.title}</span></div>;})}
+        {items.slice(0,maxItems).map(it=>{const c=itemColor(it);
+          // Time off reads as an all-day band, not a dot row — an absence, not a task.
+          if(it.kind==="off")return<div key={it.id} style={{display:"flex",alignItems:"center",gap:4,fontSize:compact?9.5:11,marginBottom:3,padding:compact?"1px 3px":"1px 5px",borderRadius:4,background:B.surfaceActive,border:"1px solid "+B.border,color:B.textMuted,fontWeight:600,overflow:"hidden",minWidth:0,lineHeight:1.3,boxSizing:"border-box"}}>{!compact&&isMgr&&techFilter===""&&<span style={{width:6,height:6,borderRadius:3,background:techColor[it.tech]||B.textDim,flexShrink:0}}/>}<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{compact?shortLabel(it):it.title}</span></div>;
+          return<div key={it.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:compact?9.5:11,marginBottom:3,color:B.text,fontWeight:500,overflow:"hidden",minWidth:0,lineHeight:1.3}}><span style={{width:6,height:6,borderRadius:3,background:c,flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{compact?shortLabel(it):it.title}</span></div>;})}
         {items.length>maxItems&&<div style={{fontSize:10,color:B.textDim,paddingLeft:11,fontWeight:500,whiteSpace:"nowrap"}}>+{items.length-maxItems}{compact?"":" more"}</div>}
       </div>})}
       </div>
@@ -167,6 +192,17 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
     </div>
 
 
+
+    {/* Who's out — current and upcoming time off */}
+    {layers.off&&upcomingOff.length>0&&<div style={{marginTop:16}}><span style={{...LS,fontSize:10}}>TIME OFF</span>
+      {upcomingOff.slice(0,10).map(e=><div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+B.border,minHeight:36}}>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:600,color:B.text}}>{e.assigned_to}{offDetail(e)&&e.task?<span style={{color:B.textMuted,fontWeight:500}}> · {e.task}</span>:null}{e.date<=todayStr&&<span style={{color:B.orange,fontWeight:600}}> · out now</span>}</div>
+          <div style={{fontSize:10.5,color:B.textDim}}><span style={{fontFamily:M}}>{fmtDateRange(e.date,schedEnd(e))}</span>{offDetail(e)&&e.note?" · "+e.note:""}</div>
+        </div>
+        {canRemoveOff(e)&&<button onClick={()=>removeOff(e)} aria-label="Remove time off" title="Remove" style={{background:"none",border:"none",color:B.textDim,cursor:"pointer",fontSize:12,flexShrink:0}}>✕</button>}
+      </div>)}
+    </div>}
 
     {/* Upcoming events list */}
     {layers.events&&<div style={{marginTop:16}}><span style={{...LS,fontSize:10}}>UPCOMING</span>
@@ -182,6 +218,14 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
 
     {dayDetail&&<Modal title={fmtDate(dayDetail,{weekday:"long",month:"long",day:"numeric"})} onClose={()=>setDayDetail(null)}>
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {(()=>{const off=layers.off?dayOff(dayDetail):[];
+          if(!off.length)return null;
+          return<div><span style={{...LS,fontSize:10}}>TIME OFF</span>
+            {off.map(e=><div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0"}}>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:isMgr?(techColor[e.assigned_to]||B.text):B.text}}>{e.assigned_to}{offDetail(e)&&e.task?<span style={{color:B.textMuted,fontWeight:500}}> · {e.task}</span>:null}</div><div style={{fontSize:10.5,color:B.textDim}}><span style={{fontFamily:M}}>{fmtDateRange(e.date,schedEnd(e))}</span>{offDetail(e)&&e.note?" · "+e.note:""}</div></div>
+              {canRemoveOff(e)&&<button onClick={()=>removeOff(e)} aria-label="Remove time off" title="Remove" style={{background:"none",border:"none",color:B.textDim,cursor:"pointer",fontSize:12,flexShrink:0}}>✕</button>}
+            </div>)}
+          </div>;})()}
         {(()=>{const sch=daySched(dayDetail);
           if(!sch.length)return null;
           return<div><span style={{...LS,fontSize:10}}>SCHEDULE</span>
@@ -223,8 +267,11 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users}){
               <div><div style={{fontSize:12,fontWeight:600,color:B.text}}><span style={{fontFamily:M,color:B.cyan}}>{w.wo_id}</span> {w.title}</div><div style={{fontSize:10,color:B.textDim}}>Due · {w.assignee||"Unassigned"}</div></div>
             </div>)}
           </div>;})()}
+        {onAddSchedule&&<button onClick={()=>{setOffFor(dayDetail);setDayDetail(null);}} style={{...BS,fontSize:12}}>+ Time off starting this day</button>}
       </div>
     </Modal>}
+
+    {offFor&&<TimeOffModal date={offFor} users={users} userName={userName} canAssignOthers={isMgr} wos={wos} schedule={schedule} onSave={async(entry)=>{await onAddSchedule(entry);msg("Time off posted");}} onClose={()=>setOffFor(null)}/>}
 
     {showForm&&<Modal title="Add Event" onClose={()=>setShowForm(false)}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>

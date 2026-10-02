@@ -16,6 +16,7 @@ import {
   woOverdue, woReadyToInvoice, isInvoiceExcludedCustomer,
   genPO, genAgreementNum,
   matchCustomerName, splitScannedLocation, scannedWOToRow, findExistingByCustomerWO,
+  fmtDateRange, isTimeOff, schedCovers, schedEnd,
 } from "./shared";
 
 afterEach(() => setAppSettingsCache({})); // never leak settings between tests
@@ -207,5 +208,33 @@ describe("scanned WO import", () => {
     expect(findExistingByCustomerWO(" 2448 340", wos).wo_id).toBe("WO-1520");
     expect(findExistingByCustomerWO("2448341", wos)).toBeNull();
     expect(findExistingByCustomerWO("", wos)).toBeNull();
+  });
+});
+
+// Time off on the crew schedule: a multi-day entry must cover every day in its
+// range and nothing outside it; plain tasks stay single-day.
+describe("schedule time off", () => {
+  const vac = { kind: "time_off", date: "2026-10-12", end_date: "2026-10-16" };
+  test("range covers first through last day, inclusive", () => {
+    expect(schedCovers(vac, "2026-10-11")).toBe(false);
+    expect(schedCovers(vac, "2026-10-12")).toBe(true);
+    expect(schedCovers(vac, "2026-10-16")).toBe(true);
+    expect(schedCovers(vac, "2026-10-17")).toBe(false);
+  });
+  test("no end date (or a bad one) means a single day", () => {
+    expect(schedCovers({ date: "2026-10-12", end_date: null }, "2026-10-12")).toBe(true);
+    expect(schedCovers({ date: "2026-10-12" }, "2026-10-13")).toBe(false);
+    expect(schedEnd({ date: "2026-10-12", end_date: "2026-10-01" })).toBe("2026-10-12");
+  });
+  test("only kind time_off counts as time off", () => {
+    expect(isTimeOff(vac)).toBe(true);
+    expect(isTimeOff({ kind: "task" })).toBe(false);
+    expect(isTimeOff({})).toBe(false); // rows from before the kind column
+  });
+  test("date ranges read naturally", () => {
+    expect(fmtDateRange("2026-10-12", null)).toBe("Oct 12");
+    expect(fmtDateRange("2026-10-12", "2026-10-12")).toBe("Oct 12");
+    expect(fmtDateRange("2026-10-12", "2026-10-16")).toBe("Oct 12–16");
+    expect(fmtDateRange("2026-10-30", "2026-11-03")).toBe("Oct 30 – Nov 3");
   });
 });

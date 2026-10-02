@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { B, F, M, IS, LS, BP, BS, fmtDate, todayLocal, localDateStr} from "../shared";
+import { B, F, M, IS, LS, BP, BS, fmtDate, fmtDateRange, todayLocal, localDateStr, isTimeOff, schedCovers, schedEnd} from "../shared";
 import { Card, Badge, StatCard, Modal, Icon, IconText } from "./ui";
+import { TimeOffModal } from "./TimeOff";
 
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const SHORT_DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -9,7 +10,12 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
   // Personal/team schedule entries (non-WO): techs add to their own week, managers
   // to anyone's. Assignee gets a push when someone else books their time.
   const[addFor,setAddFor]=useState(null);const[schTask,setSchTask]=useState("");const[schTime,setSchTime]=useState("");const[schLoc,setSchLoc]=useState("");const[schWho,setSchWho]=useState(userName);const[schSaving,setSchSaving]=useState(false);
-  const daySched=(ds)=>(schedule||[]).filter(e=>e.date===ds&&(canAssignOthers||e.assigned_to===userName)).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
+  const daySched=(ds)=>(schedule||[]).filter(e=>!isTimeOff(e)&&e.date===ds&&(canAssignOthers||e.assigned_to===userName)).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
+  // Time off (vacation/PTO/sick): the whole crew sees who's out; multi-day entries cover
+  // every day in their range. Type + note stay between that person and the managers.
+  const[offFor,setOffFor]=useState(null);
+  const dayOff=(ds)=>(schedule||[]).filter(e=>isTimeOff(e)&&schedCovers(e,ds)&&(!canAssignOthers||selectedTech==="all"||e.assigned_to===selectedTech));
+  const removeOff=(e)=>{if(window.confirm("Remove "+(e.assigned_to===userName?"your":e.assigned_to+"'s")+" time off ("+fmtDateRange(e.date,schedEnd(e))+")?"))onDeleteSchedule(e.id);};
   const saveSch=async()=>{if(!schTask.trim()||schSaving)return;setSchSaving(true);try{await onAddSchedule({date:addFor,task:schTask,time:schTime,location:schLoc,assigned_to:canAssignOthers?schWho:userName});}finally{setSchSaving(false);}setAddFor(null);setSchTask("");setSchTime("");setSchLoc("");};
   const[openGroup,setOpenGroup]=useState(null);
   const go=(w)=>{if(onOpenWO&&w)onOpenWO(w.id);};
@@ -149,15 +155,19 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
         const shortDate=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
 
         return(<Card key={dateStr} style={{padding:"12px 16px",boxShadow:isToday?"inset 0 2px 0 "+B.cyan:"none"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dayWOs.length>0?8:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dayWOs.length>0||dayOff(dateStr).length>0?8:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:14,fontWeight:700,color:isToday?B.cyan:B.text}}>{dayName}</span>
               <span style={{fontSize:12,color:B.textDim}}>{shortDate}</span>
               {isToday&&<Badge color={B.cyan}>Today</Badge>}
             </div>
             <span style={{fontSize:12,fontFamily:M,fontWeight:700,color:dayWOs.length>0?B.green:B.textDim}}>{dayWOs.length} job{dayWOs.length!==1?"s":""}</span>
-            {onAddSchedule&&<button data-tip="Put something on the schedule for this day — supply run, meeting, time off. Managers can book any tech; techs book themselves." onClick={()=>{setAddFor(localDateStr(d));setSchWho(userName);}} title="Add to this day's schedule" style={{background:"none",border:"1px solid "+B.border,borderRadius:6,color:B.textMuted,fontSize:11,fontWeight:700,cursor:"pointer",padding:"2px 9px",marginLeft:6}}>+</button>}
+            {onAddSchedule&&<button data-tip="Put something on the schedule for this day — supply run, meeting, or post time off. Managers can book any tech; techs book themselves." onClick={()=>{setAddFor(localDateStr(d));setSchWho(userName);}} title="Add to this day's schedule" style={{background:"none",border:"1px solid "+B.border,borderRadius:6,color:B.textMuted,fontSize:11,fontWeight:700,cursor:"pointer",padding:"2px 9px",marginLeft:6}}>+</button>}
           </div>
+          {dayOff(dateStr).map(e=>{const detail=canAssignOthers||e.assigned_to===userName;return<div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",marginBottom:6,background:B.surfaceActive,border:"1px solid "+B.border,borderRadius:6}}>
+            <span style={{fontSize:11.5,fontWeight:600,color:B.textMuted,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.assigned_to===userName&&!canAssignOthers?"You're off":e.assigned_to+" off"}{detail&&e.task&&<span style={{color:B.textDim,fontWeight:400}}> · {e.task}</span>}{schedEnd(e)>e.date&&<span style={{color:B.textDim,fontWeight:400,fontFamily:M,fontSize:10.5}}> · {fmtDateRange(e.date,schedEnd(e))}</span>}{detail&&e.note&&<span style={{color:B.textDim,fontWeight:400}}> · {e.note}</span>}</span>
+            {(canAssignOthers||e.created_by===userName)&&onDeleteSchedule&&<button onClick={()=>removeOff(e)} title="Remove time off" aria-label="Remove time off" style={{background:"none",border:"none",color:B.textDim,cursor:"pointer",fontSize:12,padding:0,flexShrink:0}}>×</button>}
+          </div>;})}
           {daySched(localDateStr(d)).map(e=><div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",marginBottom:6,background:B.surfaceActive,border:"1px dashed "+B.border,borderRadius:6}}>
             {e.time&&<span style={{fontFamily:M,fontSize:10,fontWeight:700,color:B.cyan,flexShrink:0}}>{e.time}</span>}
             <span style={{fontSize:11.5,fontWeight:600,color:B.text,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.task}{e.location&&<span style={{color:B.textDim,fontWeight:400}}> · {e.location}</span>}</span>
@@ -192,15 +202,17 @@ function DayPlanner({wos,templates,users,userName,userRole,onOpenWO,onUpdateWO,c
     </div>
       {addFor&&<Modal title={"Add to schedule — "+fmtDate(addFor)} onClose={()=>setAddFor(null)}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div><label style={LS}>What</label><input value={schTask} onChange={e=>setSchTask(e.target.value)} placeholder="Supply run, training, day off…" style={IS}/></div>
+        <div><label style={LS}>What</label><input value={schTask} onChange={e=>setSchTask(e.target.value)} placeholder="Supply run, training, meeting…" style={IS}/></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>Time <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={schTime} onChange={e=>setSchTime(e.target.value)} type="time" style={IS}/></div>
           <div><label style={LS}>Location <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={schLoc} onChange={e=>setSchLoc(e.target.value)} placeholder="Johnstone Supply" style={IS}/></div>
         </div>
         {canAssignOthers&&<div><label style={LS}>For</label><select value={schWho} onChange={e=>setSchWho(e.target.value)} style={{...IS,cursor:"pointer"}}>{users.filter(u=>u.active!==false).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>}
         <button onClick={saveSch} disabled={schSaving||!schTask.trim()} style={{...BP,opacity:schSaving||!schTask.trim()?0.6:1}}>{schSaving?"Saving…":"Add to schedule"}</button>
+        <button onClick={()=>{setOffFor(addFor);setAddFor(null);}} style={{...BS,fontSize:12}}>Vacation, PTO or sick day? Post time off instead</button>
       </div>
     </Modal>}
+      {offFor&&<TimeOffModal date={offFor} users={users} userName={userName} canAssignOthers={canAssignOthers} wos={wos} schedule={schedule} onSave={onAddSchedule} onClose={()=>setOffFor(null)}/>}
 </div>);
 }
 
