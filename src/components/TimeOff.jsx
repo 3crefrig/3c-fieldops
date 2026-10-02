@@ -4,8 +4,9 @@ import { Modal } from "./ui";
 
 /*
  * Post time off (vacation / PTO / sick) — shared by the Calendar and Week Plan.
- * Techs post for themselves; managers can post for anyone. It is a post, not a
- * request: saving puts it straight on the calendar and tells the managers.
+ * Everyone posts their own (techs, managers, admins); managers can also post for
+ * anyone else. It is a post, not a
+ * request: saving puts it straight on the calendar and tells the office.
  * Saves through the same addSchedule action as schedule tasks (kind "time_off").
  */
 

@@ -144,9 +144,10 @@ function CompanyCalendar({userRole,wos,userName,time,schedule,users,onAddSchedul
         <IconButton name="chevronRight" onClick={()=>setMonth(new Date(y,m+1))} label="Next month"/>
         {!isCurrentMonth&&<button onClick={()=>setMonth(new Date())} style={{...BS,padding:compact?"6px 8px":"6px 12px",fontSize:12,minHeight:34,color:B.cyan,borderColor:B.cyan+"55",flexShrink:0}}>Today</button>}
       </div>
-      {/* Phones keep the header to one row: managers reach time off from the day sheet (tap a day). */}
-      <div style={{display:"flex",gap:8,flexShrink:0}}>
-        {onAddSchedule&&!(compact&&isMgr)&&<button data-tip="Post vacation, PTO or a sick day. It goes straight on the calendar and your manager is told." onClick={()=>setOffFor(todayStr)} style={{...BS,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap"}}>+ Time off</button>}
+      {/* Everyone can post time off. Phones keep the header to one row, so next to
+          "+ Event" (managers) the label shortens to "+ Off". */}
+      <div style={{display:"flex",gap:compact?6:8,flexShrink:0}}>
+        {onAddSchedule&&<button data-tip="Post vacation, PTO or a sick day — anyone can. It goes straight on the calendar and the office is told." aria-label="Post time off" title="Post time off" onClick={()=>setOffFor(todayStr)} style={{...BS,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap"}}>{compact&&isMgr?"+ Off":"+ Time off"}</button>}
         {isMgr&&<button onClick={()=>setShowForm(true)} style={{...BP,fontSize:12,padding:compact?"7px 10px":undefined,whiteSpace:"nowrap"}}>{compact?"+ Event":"+ Add Event"}</button>}
       </div>
     </div>

@@ -211,6 +211,8 @@ function App(){
   };
   // Fire a Web Push to a target audience (best-effort; never blocks the mutation).
   const pushSend=(payload)=>{try{fnFetch("send-push",payload).catch(()=>{});}catch(e){}};
+  // Manager/admin user ids, minus one person (matched by name — one person can hold two user rows).
+  const officeIdsExcept=(name)=>(data?.users||[]).filter(u=>u.active!==false&&(u.role==="manager"||u.role==="admin")&&u.name!==name).map(u=>u.id);
 
   // Auto-invoice: creates a draft invoice for a single completed WO
   const tryAutoInvoice=async(completedWO)=>{
@@ -309,11 +311,16 @@ function App(){
         if(row.assigned_to!==appUser.name){
           notify("time_off_posted","Time off added for you",row.task+" — "+when,"technician");
           pushSend({userNames:[row.assigned_to],title:"Time off added for you",body:row.task+" — "+when,url:"/#tab=calendar",emailFallback:true});
-        }else if(appUser.role==="technician"){
+        }else{
+          // Anyone posting their own time off (tech, manager or admin) tells the office —
+          // every manager/admin except the person who just posted it.
+          const office=officeIdsExcept(appUser.name);
           const due=(data.wos||[]).filter(w=>w.status!=="completed"&&/^\d{4}-\d{2}-\d{2}$/.test(w.due_date||"")&&w.due_date>=row.date&&w.due_date<=end&&(w.assignee===row.assigned_to||(w.crew||[]).includes(row.assigned_to))).length;
           const body=row.assigned_to+" — "+row.task+", "+when+(due?" · "+due+" open job"+(due!==1?"s":"")+" due in that window":"");
-          notify("time_off_posted","Time off posted",body,"manager");
-          pushSend({roles:["manager","admin"],title:"Time off posted",body,url:"/#tab=calendar",emailFallback:true});
+          if(office.length){
+            notify("time_off_posted","Time off posted",body,"manager");
+            pushSend({userIds:office,title:"Time off posted",body,url:"/#tab=calendar",emailFallback:true});
+          }
         }
         return;
       }
@@ -332,9 +339,12 @@ function App(){
         if(old.assigned_to!==appUser.name){
           notify("time_off_cancelled","Time off removed",old.task+" — "+when,"technician");
           pushSend({userNames:[old.assigned_to],title:"Your time off was removed",body:old.task+" — "+when,url:"/#tab=calendar",emailFallback:true});
-        }else if(appUser.role==="technician"){
-          notify("time_off_cancelled","Time off cancelled",old.assigned_to+" — "+old.task+", "+when,"manager");
-          pushSend({roles:["manager","admin"],title:"Time off cancelled",body:old.assigned_to+" — "+old.task+", "+when,url:"/#tab=calendar"});
+        }else{
+          const office=officeIdsExcept(appUser.name);
+          if(office.length){
+            notify("time_off_cancelled","Time off cancelled",old.assigned_to+" — "+old.task+", "+when,"manager");
+            pushSend({userIds:office,title:"Time off cancelled",body:old.assigned_to+" — "+old.task+", "+when,url:"/#tab=calendar"});
+          }
         }
       }
     }),
