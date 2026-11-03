@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb, B, F, M, IS, LS, BP, BS, fmtDate, haptic, todayLocal, localDateStr, nextInvoiceNumDB} from "../shared";
 import { Card, Badge, StatCard, Toast, PdfPreviewModal, previewPdfDoc, Icon } from "./ui";
 import { buildInvoicePDF, buildInvoiceExcel, uploadInvoiceToDrive, SendInvoiceModal, rebuildInvoiceData } from "./Invoices";
+import { CustomerPOPicker, poRequiredFor } from "./CustomerPOs";
 
 const r2=n=>Math.round((parseFloat(n)||0)*100)/100;
 const money=n=>"$"+(parseFloat(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -15,7 +16,7 @@ function genSaleRef(existing){
 }
 
 function PartsSales({D,A,user}){
-  const customers=D.customers||[],pos=D.pos||[],invoices=D.invoices||[];
+  const customers=D.customers||[],pos=D.pos||[],invoices=D.invoices||[],customerPOs=D.customerPOs||[],projects=D.projects||[];
   const[sales,setSales]=useState(null);
   const[view,setView]=useState("list");
   const[expandedId,setExpandedId]=useState(null);
@@ -25,7 +26,7 @@ function PartsSales({D,A,user}){
   const[markupPct,setMarkupPct]=useState(35);
   const[lines,setLines]=useState([]);
   const[linkedPOs,setLinkedPOs]=useState([]);
-  const[custPO,setCustPO]=useState("");
+  const[custPO,setCustPO]=useState(""),[custPOId,setCustPOId]=useState(null);
   const[shipTo,setShipTo]=useState("");
   const[jobDesc,setJobDesc]=useState("Parts Supply");
   const[notes,setNotes]=useState("");
@@ -74,7 +75,7 @@ function PartsSales({D,A,user}){
     setShowPOPicker(false);setPoSearch("");haptic(20);
   };
 
-  const resetForm=()=>{setCust("");setLines([]);setLinkedPOs([]);setCustPO("");setShipTo("");setJobDesc("Parts Supply");setNotes("");setEditingSale(null);};
+  const resetForm=()=>{setCust("");setLines([]);setLinkedPOs([]);setCustPO("");setCustPOId(null);setShipTo("");setJobDesc("Parts Supply");setNotes("");setEditingSale(null);};
 
   // Load an existing sale into the form for editing.
   const startEdit=(s,e)=>{
@@ -85,7 +86,7 @@ function PartsSales({D,A,user}){
     setMarkupPct(s.markup_pct!=null?parseFloat(s.markup_pct):35);
     setLines((s.items||[]).map(it=>({description:it.description||"",part_no:it.part_no||"",qty:String(it.qty!=null?it.qty:1),unit_cost:String(it.unit_cost!=null?it.unit_cost:""),unit_price:String(it.unit_price!=null?it.unit_price:""),priceEdited:true,po_ref:it.po_ref||null,po_id:it.po_ref?(pos.find(p=>p.po_id===it.po_ref)?.id||null):null})));
     setLinkedPOs(s.linked_po_ids||[]);
-    setCustPO(s.customer_po||"");
+    setCustPO(s.customer_po||"");setCustPOId(inv?.customer_po_id||null);
     setShipTo(s.ship_to||"");
     setNotes(s.notes||"");
     setJobDesc(inv?.job_desc||"Parts Supply");
@@ -161,7 +162,7 @@ function PartsSales({D,A,user}){
   const backfillDriveUrl=async(invoiceNum,url)=>{if(!url)return;try{await sb().from("invoices").update({pdf_drive_url:url}).eq("invoice_num",invoiceNum);if(A.reloadTable)A.reloadTable("invoices");}catch(e){console.warn("backfillDriveUrl failed:",e);}};
   const saveRecords=async(d)=>{
     // The bill itself is a normal invoice row — the dashboard, reminders, and reports pick it up unchanged.
-    await A.createInvoice({invoice_num:d.invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:d.customItemsTotal,parts_total:0,status:"draft",wo_ids:[],tier_data:[],custom_items:d.customItems,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()});
+    await A.createInvoice({invoice_num:d.invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:d.customItemsTotal,parts_total:0,status:"draft",wo_ids:[],tier_data:[],custom_items:d.customItems,job_desc:d.jobDesc,po_number:d.poNumber,customer_po_id:custPOId||null,notes:d.description||"",date_issued:todayLocal()});
     const itemsClean=validLines.map(l=>({description:(l.description||"").trim(),part_no:(l.part_no||"").trim()||null,qty:parseFloat(l.qty)||1,unit_cost:r2(l.unit_cost),unit_price:r2(l.unit_price),po_ref:l.po_ref||null}));
     const{error}=await sb().from("parts_sales").insert({sale_ref:genSaleRef(sales),customer:customer?.name||cust,customer_po:custPO.trim()||null,ship_to:shipTo.trim()||null,items:itemsClean,cost_total:costTotal,sell_total:sellTotal,markup_pct:parseFloat(markupPct)||0,linked_po_ids:linkedPOs,invoice_num:d.invoiceNum,notes:notes.trim()||null,created_by:user?.name||""});
     if(error){console.error("parts_sales insert:",error);msg("Invoice "+d.invoiceNum+" was created, but the parts sale record failed: "+error.message);}
@@ -171,6 +172,7 @@ function PartsSales({D,A,user}){
     if(generating)return;
     if(!cust){msg("Select a customer");return;}
     if(validLines.length===0){msg("Add at least one line item with a description and price");return;}
+    if(poRequiredFor(customer)&&!custPO.trim()){msg(cust+" requires a PO number on every invoice — pick a saved PO or type it in.");return;}
     setGenerating(true);
     try{
       const invoiceNum=await nextInvoiceNum();
@@ -217,7 +219,7 @@ function PartsSales({D,A,user}){
       const{error}=await sb().from("parts_sales").update({customer_po:custPO.trim()||null,ship_to:shipTo.trim()||null,items:itemsClean,cost_total:costTotal,sell_total:sellTotal,markup_pct:parseFloat(markupPct)||0,linked_po_ids:linkedPOs,notes:notes.trim()||null}).eq("id",s.id);
       if(error)throw error;
       // pdf_drive_url is cleared so nobody opens a stale Drive copy of the old version.
-      if(inv)await A.updateInvoice({id:inv.id,custom_items:d.customItems,amount:d.customItemsTotal,job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",pdf_drive_url:null});
+      if(inv)await A.updateInvoice({id:inv.id,custom_items:d.customItems,amount:d.customItemsTotal,job_desc:d.jobDesc,po_number:d.poNumber,customer_po_id:custPOId||null,notes:d.description||"",pdf_drive_url:null});
       if(withPdf){
         const doc=await buildInvoicePDF(d);
         doc.save("INV_"+s.invoice_num+"_"+(customer?.name||cust).replace(/[^a-zA-Z0-9]/g,"_")+".pdf");
@@ -310,7 +312,7 @@ function PartsSales({D,A,user}){
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={LS}>Customer{editingSale&&<span style={{color:B.textDim,fontWeight:400}}> (locked while editing)</span>}</label><select value={cust} onChange={e=>setCust(e.target.value)} disabled={!!editingSale} style={{...IS,cursor:editingSale?"not-allowed":"pointer",opacity:editingSale?.7:1}}><option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={LS}>Customer PO # <span style={{color:B.textDim,fontWeight:400}}>(optional)</span></label><input value={custPO} onChange={e=>setCustPO(e.target.value)} placeholder="e.g. 4605021670" style={{...IS,fontFamily:M}}/></div>
+          <CustomerPOPicker label="Customer PO #" customerName={cust} customerId={customer?.id} customerPOs={customerPOs} invoices={invoices} projects={projects} value={custPO} poId={custPOId} required={poRequiredFor(customer)} onChange={(t,id)=>{setCustPO(t);setCustPOId(id);}} invoiceTotal={sellTotal} userName={user?.name} excludeInvoiceId={editingSale?(invoices.find(i=>i.invoice_num===editingSale.invoice_num)||{}).id:undefined} onPOsChanged={()=>{if(A.reloadTable)A.reloadTable("customer_pos");}}/>
           <div><label style={LS}>Parts Markup %</label><input value={markupPct} onChange={e=>applyMarkup(e.target.value)} type="number" min="0" style={{...IS,fontFamily:M}}/></div>
         </div>
         <div><label style={LS}>Ship To <span style={{color:B.textDim,fontWeight:400}}>(dropship destination, optional — appears on invoice)</span></label><input value={shipTo} onChange={e=>setShipTo(e.target.value)} placeholder="e.g. Store #214, 100 Main St, Durham NC" style={IS}/></div>

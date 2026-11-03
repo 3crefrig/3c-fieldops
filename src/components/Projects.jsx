@@ -3,6 +3,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, SC, SL, P
 import { Card, Badge, StatCard, Modal, Toast, Icon } from "./ui";
 import { WODetail } from "./WorkOrders";
 import { invoicePreviewSource, PdfPreviewModal } from "./Invoices";
+import { saveCustomerPO } from "./CustomerPOs";
 
 const FILE_CATS=[["document","Document"],["drawing","Drawing"],["spec","Spec Sheet"],["manual","Manual"],["submittal","Submittal"],["contract","Contract"],["permit","Permit"],["photo","Photo"],["other","Other"]];
 function catLabel(c){const f=FILE_CATS.find(x=>x[0]===c);return f?f[1]:"Document";}
@@ -143,7 +144,13 @@ function ProjectDetail({project,onBack,onUpdate,onDelete,users,userName,userRole
       {/* Customer PO# — editable inline */}
       <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
         <span style={{fontSize:11,color:B.textDim}}>Customer PO#:</span>
-        {editCustPO?<div style={{display:"flex",gap:4,alignItems:"center"}}><input value={localCustPO} onChange={e=>setLocalCustPO(e.target.value)} placeholder="Enter PO#" style={{...IS,padding:"3px 8px",fontSize:12,fontFamily:M,width:140}}/><button onClick={async()=>{await onUpdate({...project,customer_po:localCustPO.trim()||null});setEditCustPO(false);msg("Customer PO saved");}} style={{background:"none",border:"none",color:B.green,fontSize:10,cursor:"pointer",fontFamily:F}}>Save</button><button onClick={()=>setEditCustPO(false)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer"}}>×</button></div>:
+        {editCustPO?<div style={{display:"flex",gap:4,alignItems:"center"}}><input value={localCustPO} onChange={e=>setLocalCustPO(e.target.value)} placeholder="Enter PO#" style={{...IS,padding:"3px 8px",fontSize:12,fontFamily:M,width:140}}/><button onClick={async()=>{const v=localCustPO.trim();await onUpdate({...project,customer_po:v||null});
+          // Mirror into the customer PO master list so it shows in the invoice PO dropdown.
+          try{const{data:rows}=await sb().from("customer_pos").select("*").eq("project_id",project.id).limit(1);const row=rows&&rows[0];
+            if(v){const cid=(customers||[]).find(c=>c.name===project.customer)?.id||null;await saveCustomerPO({...(row||{}),customer_id:row?.customer_id||cid,customer_name:row?.customer_name||project.customer||"",po_number:v,label:row?.label||project.name,kind:"project",project_id:project.id,status:"active"},{id:row?.id,userName});}
+            else if(row){await sb().from("customer_pos").update({status:"closed",is_default:false}).eq("id",row.id);}
+            if(reloadTable)reloadTable("customer_pos");}catch(e){console.warn("customer_pos sync failed:",e);}
+          setEditCustPO(false);msg("Customer PO saved");}} style={{background:"none",border:"none",color:B.green,fontSize:10,cursor:"pointer",fontFamily:F}}>Save</button><button onClick={()=>setEditCustPO(false)} style={{background:"none",border:"none",color:B.textDim,fontSize:10,cursor:"pointer"}}>×</button></div>:
         <span onClick={()=>{setLocalCustPO(project.customer_po||"");setEditCustPO(true);}} style={{fontFamily:M,fontSize:12,color:project.customer_po?B.cyan:B.textDim,cursor:"pointer",borderBottom:"1px dashed "+(project.customer_po?B.cyan+"44":B.border)}}>{project.customer_po||"— click to set —"}</span>}
       </div>
     </div><select value={project.status} onChange={async e=>{await onUpdate({...project,status:e.target.value});}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid "+B.border,background:B.surface,color:B.text,fontSize:11,cursor:"pointer",fontFamily:F}}><option value="active">Active</option><option value="archived">Archived</option></select></div>
