@@ -116,6 +116,38 @@ Deno.serve(async (req) => {
       }
     } catch (re) { console.error("payment reminders block failed:", re); }
 
+    // 11) Customer PO health (managers + push) — expiring within 6 weeks, expired,
+    // and 75% / 90% / 100% of the authorized amount billed. Stateful per PO via
+    // customer_pos.alert_flags so each threshold fires once; saveCustomerPO() clears
+    // the flags when the amount or expiry is changed. Balance counts invoices linked
+    // by customer_po_id plus pre-feature invoices whose printed PO number matches.
+    try {
+      const { data: cpos } = await db.from("customer_pos").select("id,customer_name,po_number,label,amount,end_date,alert_flags").eq("status", "active");
+      const watched = (cpos || []).filter((p: any) => (p.amount != null && parseFloat(p.amount) > 0) || p.end_date);
+      if (watched.length) {
+        const names = [...new Set(watched.map((p: any) => p.customer_name))];
+        const { data: invs } = await db.from("invoices").select("customer,po_number,customer_po_id,amount").in("customer", names);
+        for (const p of watched) {
+          const flags: Record<string, boolean> = { ...(p.alert_flags || {}) }; const before = JSON.stringify(flags);
+          const num = (p.po_number || "").trim();
+          const used = (invs || []).filter((i: any) => i.customer_po_id === p.id || (!i.customer_po_id && i.customer === p.customer_name && (i.po_number || "").trim() === num)).reduce((s: number, i: any) => s + (parseFloat(i.amount) || 0), 0);
+          const tag = `PO ${num}${p.label ? " (" + p.label + ")" : ""} for ${p.customer_name}`;
+          const fire = async (key: string, title: string, body: string, pushIt: boolean) => { if (flags[key]) return; flags[key] = true; await notif("customer_po_" + key, title, body, "manager"); if (pushIt) push({ roles: ["manager", "admin"], title, body, url: "/#tab=customers" }); };
+          if (p.amount != null && parseFloat(p.amount) > 0) {
+            const auth = parseFloat(p.amount), pct = used / auth * 100, left = auth - used;
+            if (pct >= 100) await fire("exhausted", "Customer PO Exhausted", `${tag} — $${used.toFixed(2)} billed against $${auth.toFixed(2)}. Get a new or increased PO before the next invoice.`, true);
+            else if (pct >= 90) await fire("90", "Customer PO 90% Used", `${tag} — $${left.toFixed(2)} left of $${auth.toFixed(2)}. Ask for the renewal now.`, true);
+            else if (pct >= 75) await fire("75", "Customer PO 75% Used", `${tag} — $${left.toFixed(2)} left of $${auth.toFixed(2)}.`, false);
+          }
+          if (p.end_date) {
+            if (p.end_date < today) await fire("expired", "Customer PO Expired", `${tag} expired ${p.end_date}. Invoices against it will bounce — renew it or close it.`, true);
+            else if (p.end_date <= plusDate(42)) await fire("expiring", "Customer PO Expiring", `${tag} expires ${p.end_date}. Request the renewal PO now (6-week lead).`, true);
+          }
+          if (JSON.stringify(flags) !== before) await db.from("customer_pos").update({ alert_flags: flags }).eq("id", p.id);
+        }
+      }
+    } catch (pe) { console.error("customer PO block failed:", pe); }
+
     return new Response(JSON.stringify({ success: true, ran: today, counts }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });

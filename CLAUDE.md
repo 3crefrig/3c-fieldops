@@ -91,6 +91,22 @@ Catches supplier billing errors on POs (~27% of trade invoices contain errors): 
 - **RLS**: tickets mgr/admin all + technician own (`created_by`); bills mgr/admin only. Storage policies `vd_insert`/`vd_delete` mirror project-files.
 - **Deferred tier 2** (memory `supply-house-audit`): statement reconciliation, per-vendor+part price memory, returns/credit log, dispute email generator, email bill ingest.
 
+## Customer Purchase Orders (2026-11-02)
+
+`customer_pos` is the master list of every PO number a customer has issued to 3C (retainer, blanket, project, one-time). Migration `20261102000000_customer_pos.sql` (additive; backfills project POs and the old `invoice_settings.default_po`, links existing invoices by matching `po_number`, adds `invoices.customer_po_id`).
+
+- **UI**: `src/components/CustomerPOs.jsx` — `CustomerPOList` (Customers tab, "POs (n)" toggle per card), `CustomerPOPicker` (invoice generator Step 3 + InvoiceEditForm: dropdown of live POs, "type by hand", inline "+ Save a new PO"), `CustomerPOForm`.
+- **One write path**: `saveCustomerPO()` keeps one default per customer and mirrors a project-linked PO onto `projects.customer_po` (the project screen's cache). The ProjectDetail inline PO editor upserts the matching `customer_pos` row (unique per `project_id`).
+- **Auto-fill order** on new invoices: project PO (saved row, else project text) → customer default PO → WO `customer_wo` numbers → single live PO when no WOs attached → blank (vendor number only with no WOs).
+- **Balance/expiry**: `poUsage()` sums invoice amounts by `customer_po_id` (old invoices match on printed number); POs past `end_date` or `status=closed` drop out of the picker. `po_number` text on invoices is unchanged, so PDFs/Excel are untouched.
+- The old "Link POs from system" chips (which appended 3C parts-PO IDs into the customer PO field) were removed; parts POs still print in the parts detail lines.
+- **PO required per customer**: `customers.invoice_settings.po_required` (toggle on the customer form). The invoice generator refuses PDF/Excel/Send without a PO (drafts still allowed), the tracker's Send refuses a blank-PO invoice, and Parts Sales refuses to generate. Picker shows "required by this customer".
+- **Renew**: a PO with an expiry (or an exhausted one) gets a Renew button — pre-fills kind/label/amount, rolls the dates forward by the old term, and closes the old row once the new number is saved.
+- **Alerts** (daily-sweeps block 11, managers + push): expiring within `PO_EXPIRY_WARN_DAYS` (42), expired, 75% / 90% / 100% of `amount` billed. Stateful via `customer_pos.alert_flags`; `saveCustomerPO()` clears the flags when amount/end_date change. Customer card shows "POs (n) · k need attention" in orange (`poNeedsAttention`).
+- **Duplicate guard**: `saveCustomerPO()` rejects the same number twice for one customer (case/space-insensitive). Parts Sales and the auto-invoice-on-completion path also fill `customer_po_id` (project PO → WO number → default PO).
+- **Not in the dropdown by design**: Duke Facilities TMS work-order numbers (`work_orders.customer_wo`, a fresh number on almost every invoice) — those auto-fill from the WO; the master list is for reusable POs (retainers, blanket/fiscal-year, project).
+- RLS: read for all authenticated; insert/update/delete manager+admin via `current_app_role()`.
+
 ## Notifications & Alerts
 
 - **In-app notifications** — `notifications` table + `NotifBell`; `notify(type,title,message,for_role)` inserts them.

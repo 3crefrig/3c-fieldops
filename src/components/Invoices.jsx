@@ -3,6 +3,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, S
 import { Card, Badge, StatCard, Modal, Toast, Spinner, CustomSelect, PdfPreviewModal, previewPdfDoc, Icon } from "./ui";
 import { fetchLogoBase64 } from "./PurchaseOrders";
 import { buildFeedbackEmail } from "../feedbackEmail";
+import { CustomerPOPicker, customerPOsFor, poIsLive, poRequiredFor } from "./CustomerPOs";
 
 // How long after the invoice goes out the review ask should follow, in hours.
 // Landing in the customer's inbox seconds behind the invoice reads as spam and
@@ -523,7 +524,7 @@ async function invoicePreviewSource(inv,ctx){
 
 // Full-screen-ish modal that renders a PDF inline (iframe) instead of forcing a
 // download. Click the backdrop or Close to dismiss; "Open in new tab" as fallback.
-function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData}){
+function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvoice,wos,pos,time,users,customers,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData,customerPOs}){
   const PAGE_SIZE=50;
   const[pdfPreview,setPdfPreview]=useState(null);
   const[view,setView]=useState("tracker"),[toast,setToast]=useState(""),[editingInv,setEditingInv]=useState(null),[visibleCount,setVisibleCount]=useState(PAGE_SIZE),[expandedId,setExpandedId]=useState(null);
@@ -567,6 +568,7 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
     import("jspdf").catch(()=>{});
   },[]);
   const openSend=async(inv)=>{try{
+    if(!(inv.po_number||"").trim()&&poRequiredFor((customers||[]).find(c=>c.name===inv.customer))){msg(inv.customer+" requires a PO on every invoice — Edit INV-"+inv.invoice_num+" and add one first.");return;}
     msg("Preparing email…");
     const d=rebuildData(inv);
     const doc=await buildInvoicePDF(d);
@@ -667,9 +669,9 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
       {schedOpen&&<ScheduledEmailsModal invoices={invoices} msg={msg} onClose={()=>{setSchedOpen(false);loadSchedCount();}}/>}
       {sendData&&<SendInvoiceModal data={sendData} onClose={()=>setSendData(null)} msg={msg} emailTemplates={emailTemplates} currentUser={currentUser} onReconciled={()=>{if(reloadTable)reloadTable("invoices");}}/>}
     </div>}
-    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData}/>}
+    {view==="create"&&<InvoiceGenerator wos={wos} pos={pos} time={time} users={users} customers={customers} invoices={invoices} onCreateInvoice={onCreateInvoice} emailTemplates={emailTemplates} currentUser={currentUser} lineItems={lineItems} projects={projects} reloadTable={reloadTable} loadData={loadData} customerPOs={customerPOs}/>}
     {editingInv&&<Modal title={"Edit INV-"+editingInv.invoice_num} onClose={()=>setEditingInv(null)} wide>
-      <InvoiceEditForm inv={editingInv} onCancel={()=>setEditingInv(null)} onSave={async(updates)=>{
+      <InvoiceEditForm inv={editingInv} customers={customers} customerPOs={customerPOs} invoices={invoices} projects={projects} currentUser={currentUser} reloadTable={reloadTable} onCancel={()=>setEditingInv(null)} onSave={async(updates)=>{
         const laborTotal=(editingInv.tier_data||[]).reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
         const customItemsTotal=(updates.custom_items||[]).reduce((s,it)=>s+parseFloat(it.amount||0),0);
         const newAmount=laborTotal+parseFloat(updates.parts_total||0)+customItemsTotal;
@@ -681,9 +683,11 @@ function InvoiceDashboard({invoices,onUpdateInvoice,onDeleteInvoice,onCreateInvo
   </div>);
 }
 
-function InvoiceEditForm({inv,onSave,onCancel}){
+function InvoiceEditForm({inv,onSave,onCancel,customers,customerPOs,invoices,projects,currentUser,reloadTable}){
   const[jobDesc,setJobDesc]=useState(inv.job_desc||"");
   const[poNumber,setPoNumber]=useState(inv.po_number||"");
+  const[poId,setPoId]=useState(inv.customer_po_id||null);
+  const editCustomer=(customers||[]).find(c=>c.name===inv.customer);
   const[notes,setNotes]=useState(inv.notes||"");
   const[partsTotal,setPartsTotal]=useState(inv.parts_total||0);
   const[customItems,setCustomItems]=useState(inv.custom_items||[]);
@@ -696,7 +700,7 @@ function InvoiceEditForm({inv,onSave,onCancel}){
   const laborTotal=(inv.tier_data||[]).reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
   const customItemsTotal=customItems.reduce((s,it)=>s+parseFloat(it.amount||0),0);
   const newAmount=laborTotal+parseFloat(partsTotal||0)+customItemsTotal;
-  const save=async()=>{if(saving)return;setSaving(true);try{await onSave({job_desc:jobDesc.trim(),po_number:poNumber.trim(),notes:notes.trim(),parts_total:parseFloat(partsTotal)||0,custom_items:customItems.filter(it=>(it.description||"").trim()||parseFloat(it.amount||0)>0)});}catch(e){console.error(e);}setSaving(false);};
+  const save=async()=>{if(saving)return;setSaving(true);try{await onSave({job_desc:jobDesc.trim(),po_number:poNumber.trim(),customer_po_id:poId||null,notes:notes.trim(),parts_total:parseFloat(partsTotal)||0,custom_items:customItems.filter(it=>(it.description||"").trim()||parseFloat(it.amount||0)>0)});}catch(e){console.error(e);}setSaving(false);};
   return(<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{padding:10,background:B.bg,borderRadius:6,fontSize:11,color:B.textDim}}>
       <div><strong style={{color:B.text}}>{inv.customer}</strong>{inv.date_issued&&<span> · Issued {fmtDate(inv.date_issued)}</span>}</div>
@@ -704,7 +708,7 @@ function InvoiceEditForm({inv,onSave,onCancel}){
       {inv.wo_ids&&inv.wo_ids.length>0&&<div style={{marginTop:2}}>{inv.wo_ids.length} linked WO{inv.wo_ids.length!==1?"s":""}: <span style={{fontFamily:M,color:B.text}}>{inv.wo_ids.join(", ")}</span></div>}
     </div>
     <div><label style={LS}>Job Description</label><input value={jobDesc} onChange={e=>setJobDesc(e.target.value)} placeholder="Brief job description" style={IS}/></div>
-    <div><label style={LS}>Customer PO #</label><input value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="Customer PO ref" style={{...IS,fontFamily:M}}/></div>
+    <CustomerPOPicker customerName={inv.customer} customerId={editCustomer?.id} customerPOs={customerPOs} invoices={invoices} projects={projects} required={poRequiredFor(editCustomer)} value={poNumber} poId={poId} onChange={(t,id)=>{setPoNumber(t);setPoId(id);}} invoiceTotal={newAmount} userName={currentUser?.name} excludeInvoiceId={inv.id} onPOsChanged={()=>{if(reloadTable)reloadTable("customer_pos");}}/>
     <div><label style={LS}>Work Performed / Notes</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={5} placeholder="Describe work performed" style={{...IS,resize:"vertical",fontFamily:F}}/></div>
     <div><label style={LS}>Parts Total ($)</label><input type="number" step="0.01" value={partsTotal} onChange={e=>setPartsTotal(e.target.value)} style={{...IS,fontFamily:M}}/></div>
     <div>
@@ -755,18 +759,23 @@ function getBiWeeklyRange(anchorDateStr){
 // numbering, tier defaults, PDF/Excel layout, Drive upload, send flow — is the exact
 // same code the Finance path runs, so an invoice raised from a WO is indistinguishable
 // from one raised in Finance → Invoices. `onDone` lets the popup close itself.
-function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData,lockWO,onDone}){
+function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice,emailTemplates,currentUser,lineItems,projects,reloadTable,loadData,lockWO,onDone,customerPOs}){
   // Project WOs bill from their line items rather than logged hours — mirror what
   // checking one in Step 1 would have set up.
   const lockLI=lockWO&&lockWO.project_id?(lineItems||[]).filter(li=>li.wo_id===lockWO.id):[];
   const[cust,setCust]=useState(lockWO?.customer||""),[mode,setMode]=useState("wo"),[selWOs,setSelWOs]=useState(lockWO?[lockWO.id]:[]),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[invoiceNum,setInvoiceNum]=useState(""),[step,setStep]=useState(lockWO?2:1),[selProject,setSelProject]=useState("");
   const[tierAssign,setTierAssign]=useState({}),[includeNotes,setIncludeNotes]=useState(true),[includeParts,setIncludeParts]=useState(true),[includeBreakdown,setIncludeBreakdown]=useState(false);
-  const[poNum,setPoNum]=useState(""),[jobDesc,setJobDesc]=useState(lockWO?(lockWO.title||lockWO.location||""):""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
+  const[poNum,setPoNum]=useState(""),[poId,setPoId]=useState(null),[jobDesc,setJobDesc]=useState(lockWO?(lockWO.title||lockWO.location||""):""),[toast,setToast]=useState(""),[saveToDrive,setSaveToDrive]=useState(true),[generating,setGenerating]=useState(false),[dragIdx,setDragIdx]=useState(null),[dragOver,setDragOver]=useState(null);
   const[showSendModal,setShowSendModal]=useState(false),[lastInvoiceData,setLastInvoiceData]=useState(null);
   const[customItems,setCustomItems]=useState(lockLI.length>0?lockLI.map(li=>({description:li.description,amount:parseFloat(li.amount||0)})):[]);
   const[skipLabor,setSkipLabor]=useState(lockLI.length>0);
   const[lineDesc,setLineDesc]=useState("");
-  const[linkedPOs,setLinkedPOs]=useState([]);
+  // Saved customer POs: from the dashboard when available, else fetched for this customer
+  // (the Work Order billing path doesn't carry them).
+  const[fetchedPOs,setFetchedPOs]=useState(null),[poRefresh,setPoRefresh]=useState(0);
+  useEffect(()=>{if(customerPOs||!cust)return;let on=true;sb().from("customer_pos").select("*").eq("customer_name",cust).then(({data})=>{if(on)setFetchedPOs(data||[]);});return()=>{on=false;};},[cust,customerPOs,poRefresh]);
+  const allCustPOs=customerPOs||fetchedPOs||[];
+  const onPOsChanged=()=>{if(reloadTable)reloadTable("customer_pos");setPoRefresh(n=>n+1);};
   const[selSurplus,setSelSurplus]=useState([]);
   const surplusPOs=(pos||[]).filter(p=>p.surplus_pool);
   const toggleSurplus=(po)=>setSelSurplus(prev=>prev.includes(po.id)?prev.filter(x=>x!==po.id):[...prev,po.id]);
@@ -774,7 +783,6 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   const updateCustomItem=(i,k,v)=>{const n=[...customItems];n[i]={...n[i],[k]:k==="description"?v:parseFloat(v)||0};setCustomItems(n);};
   const removeCustomItem=(i)=>setCustomItems(customItems.filter((_,j)=>j!==i));
   const customTotal=customItems.reduce((s,it)=>s+(it.amount||0),0);
-  const togglePOLink=(poId)=>setLinkedPOs(prev=>prev.includes(poId)?prev.filter(x=>x!==poId):[...prev,poId]);
   const msg=m=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   const customer=customers.find(c=>c.name===cust);
   const custWOs=wos.filter(w=>w.customer===cust&&w.status==="completed");
@@ -839,23 +847,37 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
   // it's left blank for the user to fill rather than truncated into something wrong.
   // Every WO number still prints in the Work Performed block either way.
   const PO_LIST_MAX=4;
+  const livePOs=customerPOsFor(allCustPOs,cust).filter(p=>poIsLive(p));
+  const livePOKey=livePOs.map(p=>p.id+":"+(p.is_default?1:0)).join(",");
   useEffect(()=>{
     if(poTouched.current)return;
     const uniq=(a)=>[...new Set(a.filter(Boolean))];
     const pick=(list)=>{if(list.length===0)return null;return list.length<=PO_LIST_MAX?list.join(", "):"";};
+    const usePO=(p)=>{setPoNum(p.po_number);setPoId(p.id);};
+    const useText=(t)=>{setPoNum(t);setPoId(null);};
     const settings=customer?.invoice_settings||{};
-    if(settings.default_po){setPoNum(settings.default_po);return;}
-    // A project's customer PO covers all of its WOs, so it outranks the per-WO number.
-    const projPO=pick(uniq(filteredWOs.map(w=>((projects||[]).find(p=>p.id===w.project_id)||{}).customer_po)));
-    if(projPO!==null){setPoNum(projPO);return;}
+    // 1. A project's customer PO covers all of its WOs, so it outranks the per-WO number.
+    //    Prefer the saved master-list row (balance/expiry tracking); fall back to the
+    //    project's cached text.
+    const projIds=uniq([...filteredWOs.map(w=>w.project_id),selProject]);
+    const projRows=projIds.map(id=>livePOs.find(p=>p.project_id===id)).filter(Boolean);
+    if(projRows.length===1){usePO(projRows[0]);return;}
+    if(projRows.length>1){useText(pick(uniq(projRows.map(p=>p.po_number)))||"");return;}
+    const projPO=pick(uniq(projIds.map(id=>((projects||[]).find(p=>p.id===id)||{}).customer_po)));
+    if(projPO!==null){useText(projPO);return;}
+    // 2. The customer's default saved PO (e.g. a monthly retainer or blanket PO).
+    const def=livePOs.find(p=>p.is_default);
+    if(def){usePO(def);return;}
+    if(settings.default_po){useText(settings.default_po);return;}
+    // 3. The customer's own work-order numbers (Duke AP matches payments on WO#).
     const custWOPO=pick(uniq(filteredWOs.map(w=>(w.customer_wo||"").trim())));
-    if(custWOPO!==null){setPoNum(custWOPO);return;}
-    const startProj=(projects||[]).find(p=>p.id===selProject);
-    if(startProj?.customer_po){setPoNum(startProj.customer_po);return;}
+    if(custWOPO!==null){useText(custWOPO);return;}
+    // 4. Nothing attached (Line Items Only) and exactly one live PO on file → use it.
+    if(filteredWOs.length===0&&livePOs.length===1){usePO(livePOs[0]);return;}
     // WOs are attached but none carries a customer WO# — leave it blank so the gap is
     // visible, rather than silently shipping the vendor number.
-    setPoNum(filteredWOs.length>0?"":(customer?.vendor_number||""));
-  },[cust,selWOKey,selProject]);
+    useText(filteredWOs.length>0?"":(customer?.vendor_number||""));
+  },[cust,selWOKey,selProject,livePOKey]);
   // Auto-generate invoice number
   useEffect(()=>{if(!invoiceNum){(async()=>{setInvoiceNum(await nextInvoiceNumDB());})();}},[]);
 
@@ -887,7 +909,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(!onCreateInvoice)return;
     if(savedNumRef.current===invoiceNum)return;
     const laborTotal=d.tiers.reduce((s,t)=>s+(t.hours||0)*(t.rate||0),0);
-    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),project_id:selProject||(filteredWOs.find(w=>w.project_id)||{}).project_id||null,tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,notes:d.description||"",date_issued:todayLocal()};
+    const record={invoice_num:invoiceNum,customer:customer?.name||cust,customer_contact:d.customerName,amount:laborTotal+(d.partsTotal||0)+(d.customItemsTotal||0),parts_total:d.partsTotal||0,status:"draft",wo_ids:filteredWOs.map(w=>w.wo_id||w.id),project_id:selProject||(filteredWOs.find(w=>w.project_id)||{}).project_id||null,tier_data:d.tiers,custom_items:d.customItems||[],job_desc:d.jobDesc,po_number:d.poNumber,customer_po_id:poId||null,notes:d.description||"",date_issued:todayLocal()};
     if(d.breakdownData)record.breakdown_data=d.breakdownData;
     await onCreateInvoice(record);
     savedNumRef.current=invoiceNum; // only mark saved after a successful insert so a failed attempt can retry
@@ -898,8 +920,13 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     if(reloadTable){reloadTable("work_orders");reloadTable("customers");}
   };
   const backfillDriveUrl=async(url)=>{if(!url)return;try{const{error}=await sb().from("invoices").update({pdf_drive_url:url}).eq("invoice_num",invoiceNum);if(error)console.warn("backfillDriveUrl skipped:",error.message);else if(reloadTable)reloadTable("invoices");}catch(e){console.warn("backfillDriveUrl failed:",e);}};
+  // Missing/invalid PO is the #1 reason AP departments bounce an invoice, so for
+  // customers flagged "PO required" nothing leaves the wizard without one. Drafts
+  // are still allowed (you may be waiting on the PO).
+  const poRequired=poRequiredFor(customer);
+  const poGate=()=>{if(poRequired&&!(poNum||"").trim()){msg((customer?.name||cust)+" requires a PO number on every invoice — pick a saved PO or type it in.");return false;}return true;};
   const generateXLSX=async()=>{
-    if(generating)return;setGenerating(true);
+    if(generating)return;if(!poGate())return;setGenerating(true);
     try{
       const d=buildInvoiceData();const buf=await buildInvoiceExcel(d);
       const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
@@ -913,7 +940,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     setGenerating(false);
   };
   const generatePDF=async()=>{
-    if(generating)return;setGenerating(true);
+    if(generating)return;if(!poGate())return;setGenerating(true);
     try{
       const d=buildInvoiceData();const doc=await buildInvoicePDF(d);
       doc.save("INV_"+invoiceNum+"_"+safeName+".pdf");
@@ -940,7 +967,7 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
     setGenerating(false);
   };
   const generateAndSend=async()=>{
-    if(generating)return;setGenerating(true);
+    if(generating)return;if(!poGate())return;setGenerating(true);
     try{
       const d=buildInvoiceData();
       // Generate PDF for attachment
@@ -1125,35 +1152,10 @@ function InvoiceGenerator({wos,pos,time,users,customers,invoices,onCreateInvoice
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={LS}>Invoice # (YYMM##)</label><input value={invoiceNum} onChange={e=>setInvoiceNum(e.target.value)} placeholder="250301" style={{...IS,fontFamily:M}}/></div>
-          <div><label style={LS}>PO Number</label><input value={poNum} onChange={e=>{poTouched.current=true;setPoNum(e.target.value);}} placeholder="Customer WO# / PO#" style={{...IS,fontFamily:M}}/></div>
+          <CustomerPOPicker customerName={cust} customerId={customer?.id} customerPOs={allCustPOs} invoices={invoices} projects={projects} value={poNum} poId={poId} required={poRequired} onChange={(t,id)=>{poTouched.current=true;setPoNum(t);setPoId(id);}} invoiceTotal={(skipLabor||mode==="lineonly"?0:tiers.reduce((s,t)=>s+(t.rate||0)*(t.hours||0),0))+partsTotal+customTotal} userName={currentUser?.name} onPOsChanged={onPOsChanged}/>
         </div>
-        {!poNum&&filteredWOs.length>0&&<div style={{fontSize:11,color:B.orange}}>No customer WO# on {filteredWOs.length===1?"this work order":"these work orders"} — enter the reference the customer's AP will match this payment on.</div>}
-        {/* Project customer POs — quick apply */}
-        {(()=>{const custProjects=(projects||[]).filter(p=>p.customer===cust&&p.customer_po);
-          return custProjects.length>0?<div>
-            <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Customer PO# from projects:</div>
-            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              {custProjects.map(p=>{const active=poNum===p.customer_po;return<button key={p.id} onClick={()=>{poTouched.current=true;setPoNum(p.customer_po);}} style={{padding:"5px 12px",borderRadius:4,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:M,border:"1px solid "+(active?B.green:B.border),background:active?B.green+"18":"transparent",color:active?B.green:B.textDim}}>
-                {active?"✓ ":""}{p.customer_po} <span style={{fontFamily:F,fontWeight:400,color:B.textDim,fontSize:10.5}}>({p.name})</span>
-              </button>;})}
-            </div>
-          </div>:null;
-        })()}
-        {/* Link POs from system */}
-        {filteredPOs.length>0&&<div>
-          <div style={{fontSize:11,color:B.textDim,marginBottom:4}}>Link POs from system:</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            {filteredPOs.map(p=>{const isLinked=linkedPOs.includes(p.id);return<button key={p.id} onClick={()=>{
-              togglePOLink(p.id);
-              poTouched.current=true;
-              const pid=p.po_id||p.id.slice(0,8);
-              if(!isLinked){setPoNum(prev=>prev?(prev.includes(pid)?prev:prev+", "+pid):pid);}
-              else{setPoNum(prev=>{const parts=prev.split(",").map(s=>s.trim()).filter(s=>s&&s!==pid);return parts.join(", ");});}
-            }} style={{padding:"4px 10px",borderRadius:4,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F,border:"1px solid "+(isLinked?B.green:B.border),background:isLinked?B.green+"18":"transparent",color:isLinked?B.green:B.textDim}}>
-              {isLinked?"✓ ":""}{p.po_id||"PO"} — ${parseFloat(p.amount||0).toFixed(0)} — {(p.description||"").slice(0,30)}
-            </button>;})}
-          </div>
-        </div>}
+        {!poNum&&filteredWOs.length>0&&<div style={{fontSize:11,color:B.orange}}>No customer WO# on {filteredWOs.length===1?"this work order":"these work orders"} — enter the reference the customer's AP will match this payment on, or pick a saved PO.</div>}
+        {!poNum&&filteredWOs.length===0&&livePOs.length===0&&cust&&<div style={{fontSize:11,color:B.textDim}}>No saved POs for {cust} yet — type one and use "Save as PO" so next month it's in the list.</div>}
         <div><label style={LS}>Job Description</label><input value={jobDesc} onChange={e=>setJobDesc(e.target.value)} placeholder="Repairs, PMs, etc." style={IS}/></div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setIncludeNotes(!includeNotes)}>
