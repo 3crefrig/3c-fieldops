@@ -20,6 +20,14 @@ export const USER_COLS="id,name,email,role,active,created_at,title,phone,availab
 // local midnight are safe either way, but prefer these for consistency.
 export const localDateStr=(d)=>{const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 export const todayLocal=()=>localDateStr(new Date());
+// Date-range presets as [key,label,from,to] in local YYYY-MM-DD ("" = open-ended).
+// Used by the work-order date filter; Billing keeps an older local copy of the same list.
+export function dateRangePresets(){
+  const t=new Date();const y=t.getFullYear(),m=t.getMonth(),d=t.getDate();
+  const ymd=(x)=>localDateStr(x);const shift=(n)=>ymd(new Date(y,m,d+n));
+  const mStart=(off)=>ymd(new Date(y,m+off,1)),mEnd=(off)=>ymd(new Date(y,m+off+1,0));
+  return[["today","Today",shift(0),shift(0)],["yesterday","Yesterday",shift(-1),shift(-1)],["7d","Last 7 days",shift(-6),shift(0)],["30d","Last 30 days",shift(-29),shift(0)],["month","This month",mStart(0),shift(0)],["lastMonth","Last month",mStart(-1),mEnd(-1)],["quarter","This quarter",ymd(new Date(y,Math.floor(m/3)*3,1)),shift(0)],["year","This year",y+"-01-01",shift(0)],["lastYear","Last year",(y-1)+"-01-01",(y-1)+"-12-31"]];
+}
 
 // Global deep-link helpers — any component can open a WO or jump to a tab without
 // prop-drilling. The three dashboards listen for "open-wo" (sets tab + navWOId);
