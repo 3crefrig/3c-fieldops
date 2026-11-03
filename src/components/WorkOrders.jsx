@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument, scannedWOToRow, findExistingByCustomerWO} from "../shared";
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, B, F, M, IS, LS, BP, BS, PC, SC, SL, PSC, PSL, ROLES, haptic, cleanText, autoCorrect, sanitizeHTML, calcWOHours, fmtHours, genPO, genProjectPO, fmtDate, fmtDateTime, fmtDateRange, dateRangePresets, fnFetch, loadWOSignature, todayLocal, localDateStr, getCustomerTiers, scanDocument, scannedWOToRow, findExistingByCustomerWO} from "../shared";
 import { Card, Badge, StatCard, Modal, Toast, Spinner, SkeletonLoader, EmptyState, CustomSelect, DSBadge, VoiceInput, usePasteImage, PdfPreviewModal, previewPdfDoc, Icon, IconText} from "./ui";
 import { SignaturePad } from "./SignaturePad";
 import { CameraUpload, PhotoTimeline } from "./CameraUpload";
@@ -1054,6 +1054,19 @@ function SwipeCard({wo,onStatusChange,children}){
 function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,timeEntries,photos,onAddTime,onUpdateTime,onDeleteTime,onAddPhoto,users,customers,equipment,lineItems,userName,userRole,loadData,reloadTable,navWOId,clearNavWO,invoices,projects,emailTemplates,onCreateInvoice,currentUser}){
   const PAGE_SIZE=50;
   const[sel,setSel]=useState(null),[filter,setFilter]=useState("all"),[creating,setCreating]=useState(false),[search,setSearch]=useState(""),[custFilter,setCustFilter]=useState(""),[bulkSel,setBulkSel]=useState([]),[bulkMode,setBulkMode]=useState(false),[visibleCount,setVisibleCount]=useState(PAGE_SIZE);
+  // Date filter: which date on the WO to match (any of the three by default, so
+  // open jobs with no completion date still show), plus an inclusive From/To range.
+  const[dateOpen,setDateOpen]=useState(false),[dateField,setDateField]=useState("any"),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
+  const dateActive=!!(dateFrom||dateTo);
+  const DATE_FIELDS=[["any","Any date"],["completed","Completed"],["due","Due"],["created","Created"]];
+  const woDate=(o,f)=>f==="completed"?(o.date_completed||"").slice(0,10):f==="due"?(/^\d{4}-\d{2}-\d{2}$/.test(o.due_date||"")?o.due_date:""):f==="created"?(o.created_at?localDateStr(new Date(o.created_at)):""):"";
+  const inRange=(d)=>!!d&&(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo);
+  const dateMatch=(o)=>!dateActive||(dateField==="any"?["completed","due","created"].some(f=>inRange(woDate(o,f))):inRange(woDate(o,dateField)));
+  // Sort key while a range is active: the matched date, newest first.
+  const dateKey=(o)=>dateField==="any"?(["completed","due","created"].map(f=>woDate(o,f)).filter(inRange).sort().pop()||""):woDate(o,dateField);
+  const datePresets=dateRangePresets();
+  const activePreset=datePresets.find(p=>p[2]===dateFrom&&p[3]===dateTo)?.[0];
+  const dateLabel=dateActive?((DATE_FIELDS.find(f=>f[0]===dateField)||[])[1]+": "+(dateFrom&&dateTo?fmtDateRange(dateFrom,dateTo):dateFrom?"from "+fmtDate(dateFrom):"through "+fmtDate(dateTo))):"Date";
   const[startComplete,setStartComplete]=useState(false);
   const[batching,setBatching]=useState(false);
   const isMgr=userRole==="admin"||userRole==="manager";
@@ -1067,7 +1080,8 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
   // invoice. Completion always goes through the Review & Sign flow now.
   const bulkAction=async(action)=>{for(const id of bulkSel){const wo=orders.find(o=>o.id===id);if(!wo)continue;if(action==="active")await onUpdateWO({...wo,status:"in_progress"});else if(action==="pending")await onUpdateWO({...wo,status:"pending"});}setBulkSel([]);setBulkMode(false);};
   const custList=[...new Set(orders.map(o=>o.customer).filter(Boolean))].sort();
-  const flt=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
+  const fltUnsorted=orders.filter(o=>{if(filter!=="all"&&o.status!==filter)return false;if(custFilter&&o.customer!==custFilter)return false;if(!dateMatch(o))return false;if(search){const s=search.toLowerCase();return(o.title||"").toLowerCase().includes(s)||(o.wo_id||"").toLowerCase().includes(s)||(o.customer||"").toLowerCase().includes(s)||(o.customer_wo||"").toLowerCase().includes(s)||(o.location||"").toLowerCase().includes(s)||(o.assignee||"").toLowerCase().includes(s);}return true;});
+  const flt=dateActive?[...fltUnsorted].sort((a,b)=>dateKey(b).localeCompare(dateKey(a))):fltUnsorted;
   useEffect(()=>{setVisibleCount(PAGE_SIZE);},[flt.length]);
   // Lookup maps memoized — rebuilt on every keystroke before. MUST stay ABOVE the
   // early returns below: a hook after a conditional return crashes React with
@@ -1100,9 +1114,27 @@ function WOList({orders,canEdit,pos,onCreatePO,onUpdateWO,onDeleteWO,onCreateWO,
     <div style={{display:"flex",gap:6,marginBottom:14}}>
       <input data-tip="Search by job number, title, customer, location, assignee, or the customer’s own WO number." data-tour="wo-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WOs..." style={{...IS,flex:1,padding:"8px 12px",fontSize:12}}/>
       {custList.length>1&&<select value={custFilter} onChange={e=>setCustFilter(e.target.value)} style={{...IS,width:"auto",maxWidth:"45%",padding:"8px 10px",fontSize:11,cursor:"pointer"}}><option value="">All Customers</option>{custList.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+      <button data-tip="Narrow the list to work orders completed, due, or created in a date range." onClick={()=>setDateOpen(!dateOpen)} title="Filter by date" style={{...BS,padding:"8px 10px",fontSize:11,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:5,color:dateActive||dateOpen?B.cyan:B.textDim,borderColor:dateActive?B.cyan:B.border,background:dateActive?B.cyanGlow:"transparent"}}><Icon name="calendar" size={13}/>{dateLabel}</button>
     </div>
+    {dateOpen&&<div style={{padding:"10px 12px",background:B.surface,border:"1px solid "+B.border,borderRadius:8,marginTop:-6,marginBottom:14,display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:10.5,color:B.textDim,fontWeight:700,letterSpacing:.5,textTransform:"uppercase",marginRight:4}}>Match</span>
+        {DATE_FIELDS.map(([k,l])=><button key={k} onClick={()=>setDateField(k)} style={{padding:"5px 11px",borderRadius:14,border:"1px solid "+(dateField===k?B.cyan:B.border),background:dateField===k?B.cyan+"1F":"transparent",color:dateField===k?B.cyan:B.textDim,fontSize:11,fontWeight:dateField===k?700:500,cursor:"pointer",fontFamily:F}}>{l}</button>)}
+      </div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:10.5,color:B.textDim,fontWeight:700,letterSpacing:.5,textTransform:"uppercase",marginRight:4}}>Range</span>
+        {datePresets.map(([k,l,f,t])=><button key={k} onClick={()=>{setDateFrom(f);setDateTo(t);}} style={{padding:"5px 11px",borderRadius:14,border:"1px solid "+(activePreset===k?B.cyan:B.border),background:activePreset===k?B.cyan+"1F":"transparent",color:activePreset===k?B.cyan:B.textDim,fontSize:11,fontWeight:activePreset===k?700:500,cursor:"pointer",fontFamily:F}}>{l}</button>)}
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div><label style={LS}>From</label><input type="date" value={dateFrom} max={dateTo||undefined} onChange={e=>setDateFrom(e.target.value)} style={{...IS,width:"auto",padding:"7px 10px",fontSize:12,fontFamily:M,borderColor:dateFrom?B.cyan:B.border}}/></div>
+        <div><label style={LS}>To</label><input type="date" value={dateTo} min={dateFrom||undefined} onChange={e=>setDateTo(e.target.value)} style={{...IS,width:"auto",padding:"7px 10px",fontSize:12,fontFamily:M,borderColor:dateTo?B.cyan:B.border}}/></div>
+        {dateActive&&<span style={{fontSize:11,color:B.textMuted,fontFamily:M,paddingBottom:9}}>{flt.length} of {orders.length}</span>}
+        {dateActive&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{background:"none",border:"none",color:B.cyan,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:F,paddingBottom:9}}>Clear dates</button>}
+        <button onClick={()=>setDateOpen(false)} style={{background:"none",border:"none",color:B.textDim,fontSize:11,cursor:"pointer",fontFamily:F,marginLeft:"auto",paddingBottom:9}}>Hide</button>
+      </div>
+    </div>}
     <div style={{display:"flex",flexDirection:"column",gap:0}}>
-      {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"":""}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":"No work orders"}</div>{canEdit&&!search&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
+      {flt.length===0&&<Card style={{textAlign:"center",padding:30,color:B.textDim}}><div style={{fontSize:20,marginBottom:6}}>{search?"":""}</div><div style={{fontSize:13}}>{search?"No results for \""+search+"\"":dateActive?"No work orders with a "+(dateField==="any"?"":DATE_FIELDS.find(f=>f[0]===dateField)[1].toLowerCase()+" ")+"date in that range":"No work orders"}</div>{dateActive&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{...BS,marginTop:12,fontSize:12}}>Clear dates</button>}{canEdit&&!search&&!dateActive&&<button onClick={()=>setCreating(true)} style={{...BP,marginTop:12,fontSize:12}}>+ Create First Order</button>}</Card>}
       {flt.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>{flt.slice(0,visibleCount).map(wo=>{const wp=poByWO[wo.id]||[];const wph=phByWO[wo.id]||[];const overdue=wo.due_date&&wo.due_date!=="TBD"&&wo.due_date<today&&wo.status!=="completed";const woHrs=hrsByWO[wo.id]||0;const hasLI=wo.project_id&&liWOSet.has(wo.id);const noTime=wo.status==="in_progress"&&woHrs===0&&!hasLI;return(
         <SwipeCard key={wo.id} wo={wo} onStatusChange={async(st)=>{
           // Swiping to "completed" opens the Review & Sign flow instead of raw-completing —
